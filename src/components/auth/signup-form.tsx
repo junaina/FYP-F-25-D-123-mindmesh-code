@@ -229,10 +229,7 @@ export default function SignupForm() {
           {...register("confirm")}
           className="pr-10"
           aria-invalid={Boolean(confirm) && confirm !== password}
-          aria-describedby="confirm-hint"
         />
-        {/* Optional subtle hint (not red) – remove if you want zero text */}
-        {/* <p id="confirm-hint" className="text-xs text-muted-foreground">{confirm && confirm !== password ? "Passwords must match" : "\u00A0"}</p> */}
       </div>
 
       {/* Submit */}
