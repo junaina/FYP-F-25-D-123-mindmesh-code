@@ -1,29 +1,53 @@
-// src/app/(public)/login/page.tsx
-import SiteNavbar from "@/components/site-navbar";
-import LoginForm from "@/components/auth/login-form";
-import Link from "next/link";
+"use client";
 
-export default function LoginPage() {
+import * as React from "react";
+import { useForm } from "react-hook-form";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+
+type Values = { email: string; password: string };
+
+export default function LoginForm() {
+  const {
+    register,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = useForm<Values>({
+    defaultValues: { email: "", password: "" },
+    mode: "onBlur",
+  });
+
+  const onSubmit = async (values: Values) => {
+    // TODO: call your API here
+    console.log(values);
+  };
+
   return (
-    <>
-      <SiteNavbar />
-      {/* Match signup width: max-w-xl = 36rem (576px) */}
-      <main className="relative mx-auto w-full max-w-xl px-4 sm:px-6 pb-16 pt-10 sm:pt-16">
-        <h1 className="text-center text-3xl font-bold tracking-tight md:text-4xl">
-          Log in
-        </h1>
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          New here?{" "}
-          <Link href="/signup" className="underline">
-            Create an account
-          </Link>
-        </p>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <div className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          autoComplete="email"
+          {...register("email")}
+        />
+      </div>
 
-        {/* No extra width here — inherit container width */}
-        <section className="mt-8 w-full">
-          <LoginForm />
-        </section>
-      </main>
-    </>
+      <div className="grid gap-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
+          type="password"
+          autoComplete="current-password"
+          {...register("password")}
+        />
+      </div>
+
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? "Signing in…" : "Sign in"}
+      </Button>
+    </form>
   );
 }
