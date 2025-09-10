@@ -6,18 +6,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type Props = {
+  /** Committed value. */
   value: string;
-  onChange: (next: string) => void;
+  /** Called on commit (blur / Enter), not on each keystroke. */
+  onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
   kind?: "input" | "textarea";
   maxLength?: number;
 };
 
-/**
- * Click-to-edit text that turns into a bordered input/textarea.
- * Saves on Enter (and prevents newline) or on blur. Escape cancels.
- */
 export function EditableText({
   value,
   onChange,
@@ -27,74 +25,110 @@ export function EditableText({
   maxLength,
 }: Props) {
   const [editing, setEditing] = React.useState(false);
-  const [draft, setDraft] = React.useState(value);
+  const [draft, setDraft] = React.useState(value ?? "");
 
-  React.useEffect(() => setDraft(value), [value]);
+  // Separate refs so we can type them precisely
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const start = () => {
+    setDraft(value ?? "");
+    setEditing(true);
+  };
 
   const commit = () => {
-    const trimmed = draft?.trim() || (placeholder ?? "");
-    onChange(trimmed);
+    if ((draft ?? "") !== (value ?? "")) onChange(draft ?? "");
     setEditing(false);
   };
 
-  const cancel = () => {
-    setDraft(value);
-    setEditing(false);
-  };
+  React.useEffect(() => {
+    if (!editing) return;
+    if (kind === "textarea") {
+      textareaRef.current?.focus();
+    } else {
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    }
+  }, [editing, kind]);
 
-  if (!editing) {
+  if (editing) {
+    const common =
+      "w-full rounded-md bg-transparent text-foreground placeholder:text-muted-foreground " +
+      "border border-neutral-300 dark:border-neutral-700 " +
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 dark:focus-visible:ring-neutral-600 " +
+      "focus-visible:border-neutral-400 dark:focus-visible:border-neutral-600";
+
+    if (kind === "textarea") {
+      return (
+        <Textarea
+          ref={textareaRef}
+          value={draft}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            setDraft(e.target.value)
+          }
+          onBlur={commit}
+          onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+            if (e.key === "Escape") setEditing(false);
+          }}
+          onPointerDownCapture={(e) => e.stopPropagation()}
+          onMouseDownCapture={(e) => e.stopPropagation()}
+          className={cn(common, "min-h-[38px] resize-none", className)}
+          spellCheck={false}
+        />
+      );
+    }
+
+    // input
     return (
-      <button
-        type="button"
-        className={cn(
-          "text-left w-full rounded-md px-2 py-1 hover:bg-neutral-800/60 focus:bg-neutral-800/60 focus:outline-none",
-          className
-        )}
-        onClick={() => setEditing(true)}
-        title="Click to edit"
-      >
-        {value?.length ? (
-          value
-        ) : (
-          <span className="text-neutral-400">
-            {placeholder ?? "Click to edit"}
-          </span>
-        )}
-      </button>
+      <Input
+        ref={inputRef}
+        value={draft}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+          setDraft(e.target.value)
+        }
+        onBlur={commit}
+        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+          if (e.key === "Escape") setEditing(false);
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+        onPointerDownCapture={(e) => e.stopPropagation()}
+        onMouseDownCapture={(e) => e.stopPropagation()}
+        className={cn(common, className)}
+        spellCheck={false}
+      />
     );
   }
 
-  const commonProps = {
-    autoFocus: true,
-    value: draft,
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setDraft(e.target.value),
-    onBlur: commit,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && kind === "input") {
-        e.preventDefault();
-        (e.target as HTMLInputElement).blur();
-      }
-      if (e.key === "Enter" && kind === "textarea") {
-        // Save on Enter for textarea as requested
-        e.preventDefault();
-        (e.target as HTMLTextAreaElement).blur();
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        cancel();
-      }
-    },
-    maxLength,
-    className: cn(
-      "w-full bg-neutral-900 border border-neutral-700 focus-visible:ring-0 focus:border-neutral-500 text-white",
-      className
-    ),
-  };
-
-  return kind === "textarea" ? (
-    <Textarea rows={3} {...commonProps} />
-  ) : (
-    <Input {...commonProps} />
+  // VIEW MODE — transparent; subtle ring on hover/focus
+  return (
+    <button
+      type="button"
+      onClick={start}
+      className={cn(
+        "text-left w-full rounded-md px-1.5 py-1 transition",
+        "bg-transparent ring-1 ring-transparent",
+        "hover:ring-neutral-300/70 dark:hover:ring-neutral-700/70",
+        "focus:ring-neutral-400 dark:focus:ring-neutral-600 focus:outline-none",
+        className
+      )}
+    >
+      {value?.trim() ? (
+        value
+      ) : (
+        <span className="text-muted-foreground">
+          {placeholder ?? "Untitled"}
+        </span>
+      )}
+    </button>
   );
 }

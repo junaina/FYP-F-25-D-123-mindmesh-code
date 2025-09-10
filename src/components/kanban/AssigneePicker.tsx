@@ -49,7 +49,9 @@ export function AssigneePicker({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 px-3 gap-1.5 hover:bg-pink-500/20 hover:text-pink-300"
+          className="h-8 px-3 gap-1.5 rounded-md
++              text-muted-foreground hover:text-pink-700 hover:bg-pink-50
++              dark:text-neutral-300 dark:hover:text-pink-300 dark:hover:bg-pink-500/15"
           aria-label={`${label}`}
           title={`${label} `}
         >
