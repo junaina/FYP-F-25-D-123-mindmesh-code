@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 export default function Hero() {
   return (
     <section className="relative mx-auto flex max-w-6xl flex-col items-center px-4 py-24 text-center md:py-32">
@@ -10,9 +11,14 @@ export default function Hero() {
         </span>
       </h1>
       <div className="mt-10">
-        <Button className=" h-11 rounded-xl px-8 text-base " variant="outline">
-          Sign Up
-        </Button>
+        <Link href="/signup">
+          <Button
+            className=" h-11 rounded-xl px-8 text-base "
+            variant="outline"
+          >
+            Sign Up
+          </Button>
+        </Link>
       </div>
     </section>
   );
