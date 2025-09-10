@@ -21,11 +21,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { EditableText } from "./EditableText";
-
+import BoardThemeToggle from "./BoardThemeToggle";
+import { ArrowUpRight } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
-  DragStartEvent,
   DragOverEvent,
   PointerSensor,
   useDroppable,
@@ -88,6 +88,17 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     () => Object.fromEntries(USERS.map((u) => [u.id, u])),
     []
   );
+  // compact text button that looks good in light/dark
+
+  // stub: wire this to your wiki route later
+  function openTask(task: Task) {
+    console.log("open task", task.id);
+  }
+  // Softer ghost icon button with good light/dark hover
+  const iconBtn =
+    "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/70 " +
+    "dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-800 " +
+    "transition-colors";
 
   // ---------- CRUD ----------
   const addColumn = () => {
@@ -129,7 +140,6 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
   };
 
   const deleteTask = (id: string) => {
-    // find status before removing
     const found = tasks.find((t) => t.id === id);
     setTasks((prev) => prev.filter((t) => t.id !== id));
     if (found) {
@@ -141,7 +151,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
   };
 
   // ---------- DND handlers ----------
-  function handleDragStart(_e: DragStartEvent) {}
+  function handleDragStart(): void {}
 
   function handleDragOver(e: DragOverEvent) {
     const { active, over } = e;
@@ -159,11 +169,8 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
 
     // Determine target column while hovering
     let toCol = fromCol;
-    if (overType === "column") {
-      toCol = String(over.id);
-    } else if (overType === "task") {
-      toCol = String(over.data.current?.columnId);
-    }
+    if (overType === "column") toCol = String(over.id);
+    else if (overType === "task") toCol = String(over.data.current?.columnId);
 
     if (!toCol || toCol === fromCol) return;
 
@@ -171,15 +178,12 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     setTaskOrder((prev) => {
       const next = { ...prev };
       next[fromCol] = (next[fromCol] || []).filter((id) => id !== activeTaskId);
-      // Insert at end for hover move; we'll refine position on drop
       next[toCol] = [...(next[toCol] || []), activeTaskId];
       return next;
     });
-    // Update status to match the current column under pointer
     setTasks((prev) =>
       prev.map((t) => (t.id === activeTaskId ? { ...t, status: toCol } : t))
     );
-    // Update the drag item's column id so subsequent overs are correct
     active.data.current = {
       ...active.data.current,
       columnId: toCol,
@@ -221,11 +225,10 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
         const fromArr = (next[fromCol] || []).filter(
           (id) => id !== activeTaskId
         );
-        let toArr = [
+        const toArr = [
           ...(next[toCol] || []).filter((id) => id !== activeTaskId),
         ];
 
-        // insert before the task we dropped on, else at end
         const insertIndex =
           overTaskId && toArr.includes(overTaskId)
             ? toArr.indexOf(overTaskId)
@@ -272,17 +275,23 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
       <div
         ref={setNodeRef}
         style={style}
-        className="flex flex-col bg-neutral-900 rounded-xl p-3 w-80 flex-shrink-0"
+        className="flex flex-col rounded-xl p-3 w-80 flex-shrink-0 bg-muted border border-border"
       >
-        {/* Column header (drag by grip OR anywhere on header) */}
+        {/* Column header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <GripVertical
+            <span
               {...listeners}
               {...attributes}
-              className="h-7 w-7 text-neutral-400 hover:text-white cursor-grab"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md
+                         text-muted-foreground hover:text-foreground
+                         hover:bg-neutral-100 dark:hover:bg-neutral-800
+                         cursor-grab active:cursor-grabbing"
               title="Drag column"
-            />
+            >
+              <GripVertical className="h-5 w-5" />
+            </span>
+
             <EditableText
               value={col.title}
               onChange={(v) =>
@@ -294,11 +303,12 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
                   )
                 )
               }
-              className="text-base font-semibold text-white"
+              className="text-base font-semibold text-foreground"
             />
+
             <Badge
-              variant="secondary"
-              className="bg-neutral-800 text-neutral-300"
+              className="bg-neutral-200/80 text-neutral-700
++                   dark:bg-neutral-800/80 dark:text-neutral-300"
             >
               {(taskOrder[col.id] || []).length}
             </Badge>
@@ -309,7 +319,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
               variant="ghost"
               size="icon"
               onClick={() => addTask(col.id)}
-              className="text-white hover:bg-neutral-800"
+              className={iconBtn}
               aria-label={`Add task to ${col.title}`}
             >
               <Plus className="h-5 w-5" />
@@ -320,7 +330,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-white hover:bg-neutral-800"
+                  className="className={iconBtn}"
                   aria-label={`Delete column ${col.title}`}
                   title="Delete column"
                 >
@@ -333,7 +343,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
                     Delete “{col.title || "Untitled Column"}”?
                   </AlertDialogTitle>
                 </AlertDialogHeader>
-                <p className="text-sm text-neutral-400 mt-2">
+                <p className="text-sm text-muted-foreground mt-2">
                   This will also remove {(taskOrder[col.id] || []).length} task
                   {(taskOrder[col.id] || []).length === 1 ? "" : "s"} in this
                   column.
@@ -403,17 +413,23 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
       <Card
         ref={setNodeRef}
         style={style}
-        className="bg-neutral-800 text-white border-neutral-700"
+        className="border border-border bg-card text-card-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
       >
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <GripVertical
+              <span
                 {...listeners}
                 {...attributes}
-                className="h-5 w-5 text-neutral-400 hover:text-white cursor-grab"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md
+                           text-muted-foreground hover:text-foreground
+                           hover:bg-neutral-100 dark:hover:bg-neutral-800
+                           cursor-grab active:cursor-grabbing"
                 title="Drag task"
-              />
+              >
+                <GripVertical className="h-5 w-5" />
+              </span>
+
               <EditableText
                 value={task.title}
                 onChange={(v) =>
@@ -423,13 +439,26 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
                 className="text-sm font-medium"
               />
             </div>
-
+            {/* NEW: go to / open button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation(); // don’t trigger drag
+                openTask(task); // hook up to the wiki route later
+              }}
+              className={`h-8 w-8 shrink-0 ${iconBtn}`}
+              aria-label="open task"
+              title="open task"
+            >
+              <ArrowUpRight className="h-4 w-4" />
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0 hover:bg-neutral-700"
+                  className={`h-8 w-8 shrink-0 ${iconBtn}`}
                   aria-label="Delete task"
                   title="Delete task"
                 >
@@ -460,7 +489,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
             onChange={(v) => updateTask(task.id, { description: v })}
             placeholder="Short description..."
             kind="textarea"
-            className="text-xs text-neutral-300 mb-2"
+            className="text-xs text-muted-foreground mb-2"
             maxLength={300}
           />
 
@@ -473,7 +502,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
                 <span
                   className="relative z-10 inline-flex h-6 w-6 items-center justify-center
                              rounded-full bg-pink-600 text-white text-xs font-medium
-                             ring-2 ring-neutral-900"
+                             ring-2 ring-white dark:ring-neutral-900"
                   title={`${assigned.length - 4} more`}
                 >
                   +{assigned.length - 4}
@@ -493,14 +522,23 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white p-6">
-      <div className="mb-6 max-w-3xl">
-        <EditableText
-          value={boardName}
-          onChange={setBoardName}
-          placeholder="Untitled Board"
-          className="text-2xl font-bold px-3 py-2"
-        />
+    <div className="min-h-screen p-6 bg-background text-foreground">
+      {/* Title + Theme toggle */}
+      <div className="mb-6 flex items-center gap-4">
+        {/* Limit the title’s width so the toggle has breathing room */}
+        <div className="flex-1 max-w-[720px]">
+          <EditableText
+            value={boardName}
+            onChange={setBoardName}
+            placeholder="Untitled Board"
+            className="text-2xl font-bold px-3 py-2 truncate"
+          />
+        </div>
+
+        {/* Keep the toggle from shrinking */}
+        <div className="shrink-0">
+          <BoardThemeToggle />
+        </div>
       </div>
 
       <DndContext
@@ -542,9 +580,12 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
             <button
               onClick={addColumn}
               className="flex flex-col items-center justify-center w-64 h-24 flex-shrink-0
-                         border-2 border-dashed border-neutral-600 rounded-xl
-                         text-neutral-400 hover:text-white hover:border-neutral-400
-                         transition"
++            border-2 border-dashed rounded-xl
++            border-neutral-300 dark:border-neutral-700
++            text-neutral-500 dark:text-neutral-400
++            hover:text-neutral-700 hover:border-neutral-400
++            dark:hover:text-neutral-200 dark:hover:border-neutral-500
++            transition"
             >
               <Plus className="h-6 w-6 mb-1" />
               <span className="text-sm font-medium">Add Column</span>

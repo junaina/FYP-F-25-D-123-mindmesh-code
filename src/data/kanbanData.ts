@@ -1,51 +1,78 @@
-import { Task, Column, Board } from "@/types/kanban";
+// src/data/kanbanData.ts
+import type { Board, Task } from "@/types/kanban";
 
 export const board: Board = {
-  id: "board-1",
-  name: "Project Board",
+  id: "demo-board",
+  name: "project board",
 };
 
-export const columns: Column[] = [
-  { id: "todo", title: "To Do" },
-  { id: "inprogress", title: "In Progress" },
-  { id: "review", title: "Review" },
-  { id: "done", title: "Done" },
-];
-
 export const initialTasks: Task[] = [
+  // to-do
   {
-    id: "t1",
-    title: "Set up project",
-    description: "Boot Next.js, Tailwind, shadcn",
+    id: "t-auth-ux",
     status: "todo",
-    assigneeIds: ["u_ava"],
+    title: "design auth flow (rough)",
+    description: "email + password for now. ",
+    assigneeIds: ["ava"],
   },
   {
-    id: "t2",
-    title: "Design auth UX",
-    description: "Email+pass, magic link later",
+    id: "t-tests-sanity",
+    status: "todo",
+    title: "write a couple of sanity tests",
+    description: "vitest, just make sure the page actually renders.",
+    assigneeIds: ["max"],
+  },
+
+  // in progress
+  {
+    id: "t-shadcn",
     status: "inprogress",
-    assigneeIds: ["u_max", "u_zoe"],
+    title: "hook shadcn bits",
+    description:
+      "install theme + tokens. if icons look weird, it’s probably me.",
+    assigneeIds: ["zoe", "ava"],
   },
   {
-    id: "t3",
-    title: "Hook shadcn components",
-    description: "Install, theme, tokens",
+    id: "t-copy-pass",
     status: "inprogress",
+    title: "touch up micro-copy",
+    description: "make buttons sound less robotic. one exclamation point max",
     assigneeIds: [],
   },
+
+  // review
   {
-    id: "t4",
-    title: "Write unit tests",
-    description: "Vitest + RTL baseline",
+    id: "t-boot-project",
     status: "review",
-    assigneeIds: ["u_luis"],
+    title: "set up project",
+    description:
+      "boot next.js + tailwind + shadcn. try not to yak-shave webpack configs.",
+    assigneeIds: ["nia"],
   },
   {
-    id: "t5",
-    title: "Polish UI",
-    description: "Spacing + contrast pass",
+    id: "t-accessibility-pass",
+    status: "review",
+    title: "quick a11y pass",
+    description:
+      "tab through the board, fix anything obviously annoying. bonus: focus rings that aren’t ugly.",
+    assigneeIds: ["luis"],
+  },
+
+  // done
+  {
+    id: "t-readme",
     status: "done",
-    assigneeIds: ["u_nia"],
+    title: "readme (short & honest)",
+    description:
+      "how to run it, how to break it, and where the bodies are buried. 🪦",
+    assigneeIds: ["max"],
+  },
+  {
+    id: "t-ui-polish",
+    status: "done",
+    title: "tiny ui polish",
+    description:
+      "spacing + contrast pass. if it feels nicer but you can’t say why, that’s this task.",
+    assigneeIds: ["zoe"],
   },
 ];
