@@ -126,11 +126,13 @@ export default function StepInvite({
 
             <div className="flex items-center gap-2 pt-2">
               {onBack && (
-                <Button variant="outline" onClick={onBack}>
+                <Button variant="ghost" onClick={onBack}>
                   Back
                 </Button>
               )}
-              <Button onClick={onNext}>Next</Button>
+              <Button variant="outline" onClick={onNext}>
+                Next
+              </Button>
               {onSkip && (
                 <button
                   onClick={onSkip}
