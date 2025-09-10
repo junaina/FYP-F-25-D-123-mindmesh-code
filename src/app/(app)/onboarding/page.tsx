@@ -16,7 +16,7 @@ const STEPS: StepConfig[] = [
     id: 1,
     title: (
       <>
-        <span className="text-pink-400">hey there</span>, let’s
+        <span className="text-accent">hey there</span>, let’s
         <br />
         get started!
       </>
@@ -33,7 +33,7 @@ const STEPS: StepConfig[] = [
     id: 2,
     title: (
       <>
-        name your <span className="text-pink-400">first</span> project
+        name your <span className="text-accent">first</span> project
       </>
     ),
     subtitle:
@@ -47,7 +47,7 @@ const STEPS: StepConfig[] = [
     id: 3,
     title: (
       <>
-        invite your <span className="text-pink-400">teammates</span>
+        invite your <span className="text-accent">teammates</span>
       </>
     ),
     subtitle: "Share the project so everyone’s on the same page from day one.",
@@ -60,7 +60,7 @@ const STEPS: StepConfig[] = [
     id: 4,
     title: (
       <>
-        you’re <span className="text-pink-400">all set</span>
+        you’re <span className="text-accent">all set</span>
       </>
     ),
     subtitle: "Let’s head to your team’s home screen to get started.",

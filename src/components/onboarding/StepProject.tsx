@@ -78,11 +78,11 @@ export default function StepProject({
             />
             <div className="flex gap-2 pt-2">
               {onBack && (
-                <Button type="button" variant="outline" onClick={onBack}>
+                <Button type="button" variant="ghost" onClick={onBack}>
                   Back
                 </Button>
               )}
-              <Button type="submit" disabled={!isValid}>
+              <Button type="submit" variant="outline" disabled={!isValid}>
                 Next
               </Button>
             </div>
