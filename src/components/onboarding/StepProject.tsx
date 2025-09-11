@@ -10,7 +10,7 @@ import { StepBaseProps } from "./types";
 type Props = StepBaseProps & {
   mascot: { src: string; alt: string };
   title: ReactNode;
-  subtitle?: string; // plain text, consistent with StepIntro
+  subtitle?: ReactNode | null; // plain text, consistent with StepIntro
   initialValue?: string;
   onSubmitName: (name: string) => void;
 };
@@ -35,7 +35,7 @@ export default function StepProject({
   };
 
   return (
-    <section className="h-screen w-full bg-black text-white overflow-hidden flex items-center">
+    <section className="h-screen w-full bg-white text-black dark:bg-background dark:text-foreground overflow-hidden flex items-center">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full max-w-6xl mx-auto px-6 items-center">
         {/* LEFT: mascot */}
         <div className="flex justify-center md:justify-start">
@@ -57,7 +57,9 @@ export default function StepProject({
             {title}
           </h1>
           {subtitle && (
-            <p className="text-zinc-400 max-w-md mx-auto md:mx-0">{subtitle}</p>
+            <p className="text-muted-foreground max-w-md mx-auto md:mx-0">
+              {subtitle}
+            </p>
           )}
 
           <form
@@ -67,7 +69,7 @@ export default function StepProject({
             }}
             className="space-y-3 max-w-md mx-auto md:mx-0"
           >
-            <Label htmlFor="project-name" className="text-zinc-300">
+            <Label htmlFor="project-name" className="text-muted-foreground">
               Project name
             </Label>
             <Input

@@ -51,19 +51,19 @@
   --brand: var(--accent);
   --brand-foreground: var(--accent-foreground);
   --grid-line: oklch(0.7 0 0);
-  --grid-core: 0; /* ← hides spotlight layers */
+  --grid-core: 0;
   --grid-blend: multiply;
 
   /* overlays */
-  --glow-opacity: 0; /* very subtle pink glow on white */
-  --vignette-opacity: 0; /* soft vignette on white */
+  --glow-opacity: 0;
+  --vignette-opacity: 0;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.16 0 0); /* near-black */
-  --primary-foreground: oklch(0.985 0 0); /* near-white */
+  --primary: oklch(0.16 0 0);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -88,7 +88,7 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --accent: oklch(63.522% 0.21117 356.75); /* #F14491 */
-  --accent-foreground: oklch(0.98 0 0); /* near-white text on pink */
+  --accent-foreground: oklch(0.98 0 0);
 }
 
 .dark {
@@ -96,12 +96,12 @@
   --brand: var(--accent);
   --brand-foreground: var(--accent-foreground);
   --grid-line: oklch(0.98 0 0);
-  --grid-core: 0.19; /* brightness under cursor */
+  --grid-core: 0.19;
   --grid-blend: screen;
 
   /* overlays */
-  --glow-opacity: 0.08; /* stronger glow on dark */
-  --vignette-opacity: 0.35; /* stronger vignette on dark */
+  --glow-opacity: 0.08;
+  --vignette-opacity: 0.35;
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
@@ -134,8 +134,8 @@
   --sidebar-ring: oklch(0.556 0 0);
   --accent: oklch(63.522% 0.21117 356.75); /* #F14491 */
   --accent-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.985 0 0); /* near-white */
-  --primary-foreground: oklch(0.145 0 0); /* near-black */
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.145 0 0);
 }
 
 @layer base {
