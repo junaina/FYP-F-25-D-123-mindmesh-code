@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { board as mockBoard, initialTasks } from "@/data/kanbanData";
 import { USERS } from "@/data/users";
 import { Board, Column, Task } from "@/types/kanban";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Plus, Trash2, GripVertical, ArrowUpRight } from "lucide-react";
 import { AssigneePicker } from "./AssigneePicker";
 import { AssigneeAvatar } from "./AssigneeAvatar";
 import {
@@ -21,8 +21,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { EditableText } from "./EditableText";
-import BoardThemeToggle from "./BoardThemeToggle";
-import { ArrowUpRight } from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
@@ -42,7 +40,19 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-// ---------- helpers ----------
+/* ---------------------------- small utilities ---------------------------- */
+function useMediaQuery(query: string) {
+  const [m, setM] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const cb = () => setM(mq.matches);
+    cb();
+    mq.addEventListener?.("change", cb);
+    return () => mq.removeEventListener?.("change", cb);
+  }, [query]);
+  return m;
+}
+
 type TaskOrder = Record<string, string[]>; // columnId -> ordered task ids
 
 function buildInitialTaskOrder(cols: Column[], tasks: Task[]): TaskOrder {
@@ -55,9 +65,12 @@ function buildInitialTaskOrder(cols: Column[], tasks: Task[]): TaskOrder {
   return map;
 }
 
+/* --------------------------------- main --------------------------------- */
 type Props = { board?: Board };
 
 export default function KanbanBoard({ board = mockBoard }: Props) {
+  const isMobile = useMediaQuery("(max-width: 640px)");
+
   const [boardName, setBoardName] = useState(board.name);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
@@ -75,7 +88,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     buildInitialTaskOrder(initialCols, initialTasks)
   );
 
-  // Sensors: small movement required before a drag starts
+  // Sensors: small movement required before a drag starts (works well on touch)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
@@ -88,19 +101,19 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     () => Object.fromEntries(USERS.map((u) => [u.id, u])),
     []
   );
-  // compact text button that looks good in light/dark
 
   // stub: wire this to your wiki route later
   function openTask(task: Task) {
     console.log("open task", task.id);
   }
+
   // Softer ghost icon button with good light/dark hover
   const iconBtn =
     "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/70 " +
     "dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-800 " +
     "transition-colors";
 
-  // ---------- CRUD ----------
+  /* ------------------------------- CRUD -------------------------------- */
   const addColumn = () => {
     const newCol: Column = {
       id: crypto.randomUUID(),
@@ -150,8 +163,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     }
   };
 
-  // ---------- DND handlers ----------
-  function handleDragStart(): void {}
+  /* ---------------------------- DND handlers ---------------------------- */
 
   function handleDragOver(e: DragOverEvent) {
     const { active, over } = e;
@@ -248,7 +260,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     }
   }
 
-  // ---------- Sortable shells ----------
+  /* -------------------------- Sortable shells -------------------------- */
   function SortableColumn({
     col,
     children,
@@ -269,96 +281,103 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
       transform: CSS.Transform.toString(transform),
       transition,
       opacity: isDragging ? 0.9 : 1,
+      // helps touch scrolling not get eaten by drag handles
+      touchAction: "pan-y",
     } as React.CSSProperties;
 
     return (
       <div
         ref={setNodeRef}
         style={style}
-        className="flex flex-col rounded-xl p-3 w-80 flex-shrink-0 bg-muted border border-border"
+        className={[
+          // width: phone ~85vw with a minimum; desktop fixed 20rem
+          "relative z-10 flex flex-col rounded-xl p-3 flex-shrink-0 bg-muted border border-border",
+          "snap-start sm:snap-none",
+          "w-[85vw] min-w-[260px] sm:w-80",
+        ].join(" ")}
       >
-        {/* Column header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span
-              {...listeners}
-              {...attributes}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md
-                         text-muted-foreground hover:text-foreground
-                         hover:bg-neutral-100 dark:hover:bg-neutral-800
-                         cursor-grab active:cursor-grabbing"
-              title="Drag column"
-            >
-              <GripVertical className="h-5 w-5" />
-            </span>
+        {/* Column header (sticky on mobile so title/actions stay visible) */}
+        <div className="sticky top-0 z-10 -mx-3 mb-3 px-3 pt-1 pb-2 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/70 rounded-t-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                {...listeners}
+                {...attributes}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md
+                           text-muted-foreground hover:text-foreground
+                           hover:bg-neutral-100 dark:hover:bg-neutral-800
+                           cursor-grab active:cursor-grabbing"
+                title="Drag column"
+              >
+                <GripVertical className="h-5 w-5" />
+              </span>
 
-            <EditableText
-              value={col.title}
-              onChange={(v) =>
-                setCols((prev) =>
-                  prev.map((c) =>
-                    c.id === col.id
-                      ? { ...c, title: v || "Untitled Column" }
-                      : c
+              <EditableText
+                value={col.title}
+                onChange={(v) =>
+                  setCols((prev) =>
+                    prev.map((c) =>
+                      c.id === col.id
+                        ? { ...c, title: v || "Untitled Column" }
+                        : c
+                    )
                   )
-                )
-              }
-              className="text-base font-semibold text-foreground"
-            />
+                }
+                className="text-base font-semibold text-foreground"
+              />
 
-            <Badge
-              className="bg-neutral-200/80 text-neutral-700
-+                   dark:bg-neutral-800/80 dark:text-neutral-300"
-            >
-              {(taskOrder[col.id] || []).length}
-            </Badge>
-          </div>
+              <Badge className="bg-neutral-200/80 text-neutral-700 dark:bg-neutral-800/80 dark:text-neutral-300">
+                {(taskOrder[col.id] || []).length}
+              </Badge>
+            </div>
 
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => addTask(col.id)}
-              className={iconBtn}
-              aria-label={`Add task to ${col.title}`}
-            >
-              <Plus className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => addTask(col.id)}
+                className={iconBtn}
+                aria-label={`Add task to ${col.title}`}
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="className={iconBtn}"
-                  aria-label={`Delete column ${col.title}`}
-                  title="Delete column"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    Delete “{col.title || "Untitled Column"}”?
-                  </AlertDialogTitle>
-                </AlertDialogHeader>
-                <p className="text-sm text-muted-foreground mt-2">
-                  This will also remove {(taskOrder[col.id] || []).length} task
-                  {(taskOrder[col.id] || []).length === 1 ? "" : "s"} in this
-                  column.
-                </p>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-red-600 text-white hover:bg-red-700"
-                    onClick={() => deleteColumn(col.id)}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={iconBtn}
+                    aria-label={`Delete column ${col.title}`}
+                    title="Delete column"
                   >
-                    Delete column
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <Trash2 className="h-5 w-5" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Delete “{col.title || "Untitled Column"}”?
+                    </AlertDialogTitle>
+                  </AlertDialogHeader>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    This will also remove {(taskOrder[col.id] || []).length}{" "}
+                    task
+                    {(taskOrder[col.id] || []).length === 1 ? "" : "s"} in this
+                    column.
+                  </p>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-red-600 text-white hover:bg-red-700"
+                      onClick={() => deleteColumn(col.id)}
+                    >
+                      Delete column
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </div>
 
@@ -381,7 +400,8 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     return (
       <div
         ref={setNodeRef}
-        className="flex flex-col gap-2 overflow-y-auto max-h-[75vh] pr-1"
+        className="flex flex-col gap-2 overflow-y-auto pr-1
+                   max-h-[calc(100dvh-240px)] sm:max-h-[75vh]"
       >
         {children}
       </div>
@@ -405,6 +425,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
       transform: CSS.Transform.toString(transform),
       transition,
       opacity: isDragging ? 0.7 : 1,
+      touchAction: "manipulation",
     } as React.CSSProperties;
 
     const assigned = task.assigneeIds.map((id) => userById[id]).filter(Boolean);
@@ -417,11 +438,11 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
       >
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <span
                 {...listeners}
                 {...attributes}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md
                            text-muted-foreground hover:text-foreground
                            hover:bg-neutral-100 dark:hover:bg-neutral-800
                            cursor-grab active:cursor-grabbing"
@@ -439,47 +460,50 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
                 className="text-sm font-medium"
               />
             </div>
-            {/* NEW: go to / open button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => {
-                e.stopPropagation(); // don’t trigger drag
-                openTask(task); // hook up to the wiki route later
-              }}
-              className={`h-8 w-8 shrink-0 ${iconBtn}`}
-              aria-label="open task"
-              title="open task"
-            >
-              <ArrowUpRight className="h-4 w-4" />
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`h-8 w-8 shrink-0 ${iconBtn}`}
-                  aria-label="Delete task"
-                  title="Delete task"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this task?</AlertDialogTitle>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-red-600 text-white hover:bg-red-700"
-                    onClick={() => deleteTask(task.id)}
+
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openTask(task);
+                }}
+                className={`h-8 w-8 ${iconBtn}`}
+                aria-label="open task"
+                title="open task"
+              >
+                <ArrowUpRight className="h-4 w-4" />
+              </Button>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-8 w-8 ${iconBtn}`}
+                    aria-label="Delete task"
+                    title="Delete task"
                   >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-red-600 text-white hover:bg-red-700"
+                      onClick={() => deleteTask(task.id)}
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </CardHeader>
 
@@ -514,6 +538,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
               allUsers={USERS}
               selectedIds={task.assigneeIds}
               onChange={(ids) => updateTask(task.id, { assigneeIds: ids })}
+              label={isMobile ? "Assign" : "Add Assignees"}
             />
           </div>
         </CardContent>
@@ -521,39 +546,39 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     );
   }
 
+  /* -------------------------------- render ------------------------------- */
   return (
-    <div className="min-h-screen p-6 bg-background text-foreground">
-      {/* Title + Theme toggle */}
-      <div className="mb-6 flex items-center gap-4">
-        {/* Limit the title’s width so the toggle has breathing room */}
-        <div className="flex-1 max-w-[720px]">
-          <EditableText
-            value={boardName}
-            onChange={setBoardName}
-            placeholder="Untitled Board"
-            className="text-2xl font-bold px-3 py-2 truncate"
-          />
-        </div>
-
-        {/* Keep the toggle from shrinking */}
-        <div className="shrink-0">
-          <BoardThemeToggle />
-        </div>
+    <div className="min-h-screen p-4 sm:p-6 bg-background text-foreground">
+      {/* Title row */}
+      <div className="mb-4 sm:mb-6">
+        <EditableText
+          value={boardName}
+          onChange={setBoardName}
+          placeholder="Untitled Board"
+          className="text-2xl sm:text-3xl font-bold px-2 py-2 truncate"
+        />
       </div>
 
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
+        onDragStart={() => {}}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        {/* Columns as a horizontal sortable list */}
+        {/* Columns list — horizontal scroll & snap on mobile */}
         <SortableContext
           items={cols.map((c) => c.id)}
           strategy={horizontalListSortingStrategy}
         >
-          <div className="flex gap-4 w-full overflow-x-auto">
+          <div
+            className={[
+              "relative flex gap-3 sm:gap-4 w-full",
+              "overflow-x-auto sm:overflow-x-auto",
+              "snap-x snap-mandatory sm:snap-none",
+              "-mx-3 px-3 sm:mx-0 sm:px-0",
+            ].join(" ")}
+          >
             {cols.map((col) => {
               const ids = taskOrder[col.id] ?? [];
               return (
@@ -576,20 +601,25 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
               );
             })}
 
-            {/* Add Column button */}
+            {/* Add Column */}
             <button
               onClick={addColumn}
-              className="flex flex-col items-center justify-center w-64 h-24 flex-shrink-0
-+            border-2 border-dashed rounded-xl
-+            border-neutral-300 dark:border-neutral-700
-+            text-neutral-500 dark:text-neutral-400
-+            hover:text-neutral-700 hover:border-neutral-400
-+            dark:hover:text-neutral-200 dark:hover:border-neutral-500
-+            transition"
+              className="flex flex-col items-center justify-center
+                         w-[70vw] min-w-[220px] sm:w-64 h-24 flex-shrink-0
+                         border-2 border-dashed rounded-xl
+                         border-neutral-300 dark:border-neutral-700
+                         text-neutral-500 dark:text-neutral-400
+                         hover:text-neutral-700 hover:border-neutral-400
+                         dark:hover:text-neutral-200 dark:hover:border-neutral-500
+                         transition snap-start sm:snap-none"
             >
               <Plus className="h-6 w-6 mb-1" />
               <span className="text-sm font-medium">Add Column</span>
             </button>
+
+            {/* Fades on the edges (mobile hint) */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-6 z-0 bg-gradient-to-r from-background/95 to-transparent sm:hidden" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-6 z-0 bg-gradient-to-l from-background/95 to-transparent sm:hidden" />
           </div>
         </SortableContext>
       </DndContext>

@@ -14,7 +14,7 @@ type Props = StepBaseProps & {
   mascot: { src: string; alt: string };
   title: ReactNode;
   /** Plain text; rendered in a <p> */
-  subtitle?: string;
+  subtitle?: ReactNode | null;
   initial?: string[];
   onChange?: (emails: string[]) => void;
   onSkip?: () => void;
@@ -48,7 +48,7 @@ export default function StepInvite({
   };
 
   return (
-    <section className="h-screen w-full bg-black text-white overflow-hidden flex items-center">
+    <section className="h-screen w-full bg-white text-black dark:bg-background dark:text-foreground overflow-hidden flex items-center">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full max-w-6xl mx-auto px-6 items-center">
         {/* LEFT: Mascot */}
         <div className="flex justify-center md:justify-start">
@@ -69,12 +69,15 @@ export default function StepInvite({
           <h1 className="text-4xl md:text-5xl font-semibold leading-tight">
             {title}
           </h1>
+
           {subtitle && (
-            <p className="text-zinc-400 max-w-md mx-auto md:mx-0">{subtitle}</p>
+            <p className="text-muted-foreground max-w-md mx-auto md:mx-0">
+              {subtitle}
+            </p>
           )}
 
           <div className="space-y-3 max-w-md mx-auto md:mx-0">
-            <Label className="text-zinc-300">Teammates (email)</Label>
+            <Label className="text-muted-foreground">Teammates (email)</Label>
             <div className="flex gap-2">
               <Input
                 ref={inputRef}
@@ -109,12 +112,12 @@ export default function StepInvite({
                 {emails.map((e) => (
                   <span
                     key={e}
-                    className="inline-flex items-center gap-2 rounded-full border border-zinc-700 px-3 py-1 text-xs"
+                    className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs bg-card text-card-foreground"
                   >
                     {e}
                     <button
                       onClick={() => remove(e)}
-                      className="text-zinc-400 hover:text-white"
+                      className="text-muted-foreground hover:text-foreground"
                       aria-label={`Remove ${e}`}
                     >
                       ×
@@ -136,7 +139,7 @@ export default function StepInvite({
               {onSkip && (
                 <button
                   onClick={onSkip}
-                  className="text-xs text-zinc-400 underline underline-offset-4 ml-2"
+                  className="ml-2 text-xs underline underline-offset-4 text-muted-foreground hover:text-foreground"
                 >
                   Skip for now
                 </button>
