@@ -111,7 +111,7 @@ export default function OnboardingPage() {
   const finish = () => {
     // later: mark onboarding complete server-side
     localStorage.removeItem("ob_step");
-    router.push("/home"); //redirect to /app (home page) after onboarding
+    router.push("/home");
   };
 
   return (
