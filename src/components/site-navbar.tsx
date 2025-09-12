@@ -1,4 +1,3 @@
-// src/components/site-navbar.tsx
 "use client";
 
 import { useState, useEffect } from "react";

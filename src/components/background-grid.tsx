@@ -1,4 +1,4 @@
-// src/components/background-grid.tsx
+
 "use client";
 
 import React, { useEffect, useRef } from "react";
