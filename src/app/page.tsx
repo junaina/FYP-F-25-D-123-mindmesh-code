@@ -10,3 +10,4 @@ export default function HomePage() {
     </main>
   );
 }
+// this is hero or landing page
