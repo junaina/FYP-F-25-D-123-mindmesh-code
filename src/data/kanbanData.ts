@@ -1,4 +1,3 @@
-// src/data/kanbanData.ts
 import type { Board, Task } from "@/types/kanban";
 
 export const board: Board = {
