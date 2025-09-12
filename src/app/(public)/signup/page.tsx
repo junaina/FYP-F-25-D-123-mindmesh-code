@@ -1,3 +1,6 @@
+
+import BackgroundGrid from "@/components/background-grid";
+import SiteNavbar from "@/components/site-navbar";
 import SignupForm from "@/components/auth/signup-form";
 
 export default function SignupPage() {
