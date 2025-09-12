@@ -8,12 +8,12 @@ type Props = {
   onNext: () => void;
   mascot: { src: string; alt: string };
   title: ReactNode; // rich heading (can include <span> etc.)
-  subtitle?: string; // plain text; rendered inside a <p>
+  subtitle?: ReactNode | null; // plain text; rendered inside a <p>
 };
 
 export default function StepIntro({ onNext, mascot, title, subtitle }: Props) {
   return (
-    <section className="h-screen w-full bg-black text-white overflow-hidden flex items-center">
+    <section className="h-screen w-full bg-white text-black dark:bg-background dark:text-foreground overflow-hidden flex items-center">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full max-w-6xl mx-auto px-6 items-center">
         {/* LEFT: Mindy */}
         <div className="flex justify-center md:justify-start">
@@ -35,7 +35,9 @@ export default function StepIntro({ onNext, mascot, title, subtitle }: Props) {
             {title}
           </h1>
           {subtitle && (
-            <p className="text-zinc-400 max-w-md mx-auto md:mx-0">{subtitle}</p>
+            <p className="text-muted-foreground max-w-md mx-auto md:mx-0">
+              {subtitle}
+            </p>
           )}
           <Button onClick={onNext} variant="outline" className="px-5 py-2">
             Let’s Go
