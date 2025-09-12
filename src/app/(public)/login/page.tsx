@@ -1,4 +1,3 @@
-// src/app/(public)/login/page.tsx
 import SiteNavbar from "@/components/site-navbar";
 import LoginForm from "@/components/auth/login-form";
 import Link from "next/link";
