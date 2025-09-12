@@ -21,7 +21,7 @@ const STEPS: StepConfig[] = [
         get started!
       </>
     ),
-    // If your Step components expect string for subtitle, keep plain text:
+
     subtitle:
       "Productivity, simplified. All your project's info, tasks, and updates in one place.",
     mascot: {
@@ -81,9 +81,9 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<StepId>(1);
   const [projectName, setProjectName] = useState("");
-  const [invitees, setInvitees] = useState<string[]>([]); // <-- fixed type
+  const [invitees, setInvitees] = useState<string[]>([]);
 
-  // Restore/save current step locally (optional)
+  //storing ob_step to localstorage
   useEffect(() => {
     const saved = localStorage.getItem("ob_step");
     if (saved) setStep(Number(saved) as StepId);
@@ -92,7 +92,7 @@ export default function OnboardingPage() {
     localStorage.setItem("ob_step", String(step));
   }, [step]);
 
-  // Arrow key navigation
+  // arrow key navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight") next();
@@ -104,7 +104,6 @@ export default function OnboardingPage() {
 
   const current = useMemo(() => STEPS.find((s) => s.id === step)!, [step]);
 
-  // Only 4 steps now
   const next = () => setStep((s) => (s < 4 ? ((s + 1) as StepId) : s));
   const prev = () => setStep((s) => (s > 1 ? ((s - 1) as StepId) : s));
   const go = (id: StepId) => setStep(id);
@@ -115,7 +114,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="h-screen w-full bg-black text-white overflow-hidden flex flex-col relative">
+    <div className="h-screen w-full bg-white text-black dark:bg-background dark:text-foreground overflow-hidden flex flex-col relative">
       <main className="flex-1 flex items-center">
         <div className="w-full">
           <AnimatePresence mode="wait">

@@ -8,7 +8,7 @@ type Props = StepBaseProps & {
   mascot: { src: string; alt: string };
   title: React.ReactNode;
   /** Plain text, always rendered inside a <p> */
-  subtitle?: string;
+  subtitle?: React.ReactNode | null;
   primaryLabel: string;
 };
 
@@ -21,7 +21,7 @@ export default function StepDone({
   primaryLabel,
 }: Props) {
   return (
-    <section className="h-screen w-full bg-black text-white overflow-hidden flex items-center">
+    <section className="h-screen w-full bg-white text-black dark:bg-background dark:text-foreground overflow-hidden flex items-center">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full max-w-6xl mx-auto px-6 items-center">
         {/* LEFT: Mascot */}
         <div className="flex justify-center md:justify-start">
@@ -42,8 +42,11 @@ export default function StepDone({
           <h1 className="text-4xl md:text-5xl font-semibold leading-tight">
             {title}
           </h1>
+
           {subtitle && (
-            <p className="text-zinc-400 max-w-md mx-auto md:mx-0">{subtitle}</p>
+            <p className="text-muted-foreground max-w-md mx-auto md:mx-0">
+              {subtitle}
+            </p>
           )}
 
           <div className="flex gap-2 justify-center md:justify-start">
