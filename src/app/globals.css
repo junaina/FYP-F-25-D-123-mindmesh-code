@@ -51,19 +51,19 @@
   --brand: var(--accent);
   --brand-foreground: var(--accent-foreground);
   --grid-line: oklch(0.7 0 0);
-  --grid-core: 0;
+  --grid-core: 0; /* ← hides spotlight layers */
   --grid-blend: multiply;
 
   /* overlays */
-  --glow-opacity: 0;
-  --vignette-opacity: 0;
+  --glow-opacity: 0; /* very subtle pink glow on white */
+  --vignette-opacity: 0; /* soft vignette on white */
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.16 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.16 0 0); /* near-black */
+  --primary-foreground: oklch(0.985 0 0); /* near-white */
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -88,7 +88,7 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --accent: oklch(63.522% 0.21117 356.75); /* #F14491 */
-  --accent-foreground: oklch(0.98 0 0);
+  --accent-foreground: oklch(0.98 0 0); /* near-white text on pink */
 }
 
 .dark {
@@ -96,12 +96,12 @@
   --brand: var(--accent);
   --brand-foreground: var(--accent-foreground);
   --grid-line: oklch(0.98 0 0);
-  --grid-core: 0.19;
+  --grid-core: 0.19; /* brightness under cursor */
   --grid-blend: screen;
 
   /* overlays */
-  --glow-opacity: 0.08;
-  --vignette-opacity: 0.35;
+  --glow-opacity: 0.08; /* stronger glow on dark */
+  --vignette-opacity: 0.35; /* stronger vignette on dark */
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
@@ -134,16 +134,8 @@
   --sidebar-ring: oklch(0.556 0 0);
   --accent: oklch(63.522% 0.21117 356.75); /* #F14491 */
   --accent-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.145 0 0);
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  --primary: oklch(0.985 0 0); /* near-white */
+  --primary-foreground: oklch(0.145 0 0); /* near-black */
 }
 
 @layer base {
@@ -153,183 +145,4 @@
   body {
     @apply bg-background text-foreground;
   }
-}
-/* === MindMesh calendar glow === */
-@keyframes mm-glow {
-  0% {
-    box-shadow: 0 0 0px rgba(241, 68, 145, 0.35);
-  }
-  50% {
-    box-shadow: 0 0 18px rgba(241, 68, 145, 0.55);
-  }
-  100% {
-    box-shadow: 0 0 0px rgba(241, 68, 145, 0.35);
-  }
-}
-.mm-today {
-  animation: mm-glow 3s ease-in-out infinite;
-  border-radius: 0.5rem; /* match the chip */
-} /* ---------- MindMesh chip tokens (light) ---------- */
-:root {
-  --mm-chip-gray-bg: hsl(210 40% 96%);
-  --mm-chip-gray-fg: hsl(215 16% 27%);
-  --mm-chip-gray-br: hsl(214 32% 91%);
-
-  --mm-chip-pink-bg: #fde7f2;
-  --mm-chip-pink-fg: #9d174d;
-  --mm-chip-pink-br: #f9a8d4;
-
-  --mm-chip-red-bg: #fee2e2;
-  --mm-chip-red-fg: #991b1b;
-  --mm-chip-red-br: #fecaca;
-
-  --mm-chip-orange-bg: #ffedd5;
-  --mm-chip-orange-fg: #9a3412;
-  --mm-chip-orange-br: #fed7aa;
-
-  --mm-chip-yellow-bg: #fef9c3;
-  --mm-chip-yellow-fg: #854d0e;
-  --mm-chip-yellow-br: #fde68a;
-
-  --mm-chip-green-bg: #dcfce7;
-  --mm-chip-green-fg: #166534;
-  --mm-chip-green-br: #bbf7d0;
-
-  --mm-chip-teal-bg: #d1fae5;
-  --mm-chip-teal-fg: #115e59;
-  --mm-chip-teal-br: #a7f3d0;
-
-  --mm-chip-blue-bg: #dbeafe;
-  --mm-chip-blue-fg: #1e40af;
-  --mm-chip-blue-br: #bfdbfe;
-
-  --mm-chip-indigo-bg: #e0e7ff;
-  --mm-chip-indigo-fg: #3730a3;
-  --mm-chip-indigo-br: #c7d2fe;
-
-  --mm-chip-violet-bg: #ede9fe;
-  --mm-chip-violet-fg: #5b21b6;
-  --mm-chip-violet-br: #ddd6fe;
-
-  --mm-chip-purple-bg: #f3e8ff;
-  --mm-chip-purple-fg: #6b21a8;
-  --mm-chip-purple-br: #e9d5ff;
-}
-
-/* ---------- MindMesh chip tokens (dark) ---------- */
-.dark {
-  --mm-chip-gray-bg: hsl(217 33% 18%);
-  --mm-chip-gray-fg: hsl(218 15% 75%);
-  --mm-chip-gray-br: hsl(215 27% 24%);
-
-  --mm-chip-pink-bg: color-mix(in oklab, #f472b6 15%, transparent);
-  --mm-chip-pink-fg: #f9a8d4;
-  --mm-chip-pink-br: color-mix(in oklab, #f472b6 30%, transparent);
-
-  --mm-chip-red-bg: color-mix(in oklab, #ef4444 15%, transparent);
-  --mm-chip-red-fg: #fca5a5;
-  --mm-chip-red-br: color-mix(in oklab, #ef4444 30%, transparent);
-
-  --mm-chip-orange-bg: color-mix(in oklab, #f59e0b 15%, transparent);
-  --mm-chip-orange-fg: #fdba74;
-  --mm-chip-orange-br: color-mix(in oklab, #f59e0b 30%, transparent);
-
-  --mm-chip-yellow-bg: color-mix(in oklab, #eab308 20%, transparent);
-  --mm-chip-yellow-fg: #fde68a;
-  --mm-chip-yellow-br: color-mix(in oklab, #eab308 30%, transparent);
-
-  --mm-chip-green-bg: color-mix(in oklab, #22c55e 15%, transparent);
-  --mm-chip-green-fg: #86efac;
-  --mm-chip-green-br: color-mix(in oklab, #22c55e 30%, transparent);
-
-  --mm-chip-teal-bg: color-mix(in oklab, #14b8a6 15%, transparent);
-  --mm-chip-teal-fg: #99f6e4;
-  --mm-chip-teal-br: color-mix(in oklab, #14b8a6 30%, transparent);
-
-  --mm-chip-blue-bg: color-mix(in oklab, #3b82f6 15%, transparent);
-  --mm-chip-blue-fg: #93c5fd;
-  --mm-chip-blue-br: color-mix(in oklab, #3b82f6 30%, transparent);
-
-  --mm-chip-indigo-bg: color-mix(in oklab, #6366f1 15%, transparent);
-  --mm-chip-indigo-fg: #c7d2fe;
-  --mm-chip-indigo-br: color-mix(in oklab, #6366f1 30%, transparent);
-
-  --mm-chip-violet-bg: color-mix(in oklab, #8b5cf6 15%, transparent);
-  --mm-chip-violet-fg: #ddd6fe;
-  --mm-chip-violet-br: color-mix(in oklab, #8b5cf6 30%, transparent);
-
-  --mm-chip-purple-bg: color-mix(in oklab, #a855f7 15%, transparent);
-  --mm-chip-purple-fg: #e9d5ff;
-  --mm-chip-purple-br: color-mix(in oklab, #a855f7 30%, transparent);
-}
-
-/* ---------- Structural & color utility classes ---------- */
-.mm-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.375rem; /* px-1.5 py-0.5 */
-  font-size: 10px;
-  line-height: 1rem;
-  border-radius: 0.375rem; /* rounded-md */
-  border: 1px solid var(--mm-chip-br, var(--border));
-  background-color: var(--mm-chip-bg, var(--muted));
-  color: var(--mm-chip-fg, var(--muted-foreground));
-  white-space: nowrap;
-}
-
-.mm-chip--gray {
-  --mm-chip-bg: var(--mm-chip-gray-bg);
-  --mm-chip-fg: var(--mm-chip-gray-fg);
-  --mm-chip-br: var(--mm-chip-gray-br);
-}
-.mm-chip--pink {
-  --mm-chip-bg: var(--mm-chip-pink-bg);
-  --mm-chip-fg: var(--mm-chip-pink-fg);
-  --mm-chip-br: var(--mm-chip-pink-br);
-}
-.mm-chip--red {
-  --mm-chip-bg: var(--mm-chip-red-bg);
-  --mm-chip-fg: var(--mm-chip-red-fg);
-  --mm-chip-br: var(--mm-chip-red-br);
-}
-.mm-chip--orange {
-  --mm-chip-bg: var(--mm-chip-orange-bg);
-  --mm-chip-fg: var(--mm-chip-orange-fg);
-  --mm-chip-br: var(--mm-chip-orange-br);
-}
-.mm-chip--yellow {
-  --mm-chip-bg: var(--mm-chip-yellow-bg);
-  --mm-chip-fg: var(--mm-chip-yellow-fg);
-  --mm-chip-br: var(--mm-chip-yellow-br);
-}
-.mm-chip--green {
-  --mm-chip-bg: var(--mm-chip-green-bg);
-  --mm-chip-fg: var(--mm-chip-green-fg);
-  --mm-chip-br: var(--mm-chip-green-br);
-}
-.mm-chip--teal {
-  --mm-chip-bg: var(--mm-chip-teal-bg);
-  --mm-chip-fg: var(--mm-chip-teal-fg);
-  --mm-chip-br: var(--mm-chip-teal-br);
-}
-.mm-chip--blue {
-  --mm-chip-bg: var(--mm-chip-blue-bg);
-  --mm-chip-fg: var(--mm-chip-blue-fg);
-  --mm-chip-br: var(--mm-chip-blue-br);
-}
-.mm-chip--indigo {
-  --mm-chip-bg: var(--mm-chip-indigo-bg);
-  --mm-chip-fg: var(--mm-chip-indigo-fg);
-  --mm-chip-br: var(--mm-chip-indigo-br);
-}
-.mm-chip--violet {
-  --mm-chip-bg: var(--mm-chip-violet-bg);
-  --mm-chip-fg: var(--mm-chip-violet-fg);
-  --mm-chip-br: var(--mm-chip-violet-br);
-}
-.mm-chip--purple {
-  --mm-chip-bg: var(--mm-chip-purple-bg);
-  --mm-chip-fg: var(--mm-chip-purple-fg);
-  --mm-chip-br: var(--mm-chip-purple-br);
 }
