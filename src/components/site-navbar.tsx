@@ -1,18 +1,19 @@
+// src/components/site-navbar.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import ThemeToggle from "@/components/theme-toggle";
 import Logo from "./logo";
+import ThemeToggle from "./theme-toggle";
 import { Menu, X } from "lucide-react";
 
 export default function SiteNavbar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // Hide auth links on auth pages (toggle still shows)
+  // Hide auth links on auth pages
   const hideAuthLinks = pathname === "/login" || pathname === "/signup";
 
   // Close mobile menu whenever the route changes
@@ -24,7 +25,7 @@ export default function SiteNavbar() {
   return (
     <header className="relative z-40">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        {/* Logo */}
+        {/* Logo (slightly larger on md+) */}
         <div className="flex items-center">
           <div className="md:hidden">
             <Logo size={44} />
@@ -34,12 +35,8 @@ export default function SiteNavbar() {
           </div>
         </div>
 
-        {/* Desktop nav + theme toggle */}
+        {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-3">
-          {/* Theme toggle always visible on public routes */}
-          <ThemeToggle />
-
-          {/* Auth links only on non-auth pages */}
           {!hideAuthLinks && (
             <>
               <Link href="/login">
@@ -54,9 +51,10 @@ export default function SiteNavbar() {
               </Link>
             </>
           )}
+          <ThemeToggle />
         </nav>
 
-        {/* Mobile actions: theme toggle always; menu button only if there are links */}
+        {/* Mobile actions: theme + menu button (menu only if there are links) */}
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle />
           {!hideAuthLinks && (
