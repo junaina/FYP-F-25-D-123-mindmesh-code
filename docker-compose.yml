@@ -1,7 +1,16 @@
+version: "3.9"
 services:
-  web:
-    build: .
-    ports:
-      - "3000:3000"
-
+  db:
+    image: postgres:16
+    container_name: mindmesh-db
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mindmesh
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
