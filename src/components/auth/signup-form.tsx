@@ -1,4 +1,3 @@
-// src/components/auth/signup-form.tsx
 "use client";
 
 import * as React from "react";
@@ -31,7 +30,6 @@ const SignupSchema = z
 
 type FormValues = z.infer<typeof SignupSchema>;
 
-// tiny Google "G" icon (no extra assets)
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false" {...props}>
@@ -81,13 +79,11 @@ export default function SignupForm() {
   const password = watch("password");
   const confirm = watch("confirm");
 
-  // criteria booleans
   const hasLen = password.length >= 8;
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /\d/.test(password);
 
-  // simple strength 0–4
   const strength =
     (hasLen ? 1 : 0) +
     (hasUpper ? 1 : 0) +
@@ -108,12 +104,10 @@ export default function SignupForm() {
 
   const onContinueWithGoogle = () => {
     console.log("Continue with Google clicked");
-    // Wire up later (e.g. NextAuth: window.location.href = "/api/auth/signin/google")
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-      {/* First / Last name */}
       <div className="grid gap-2 md:grid-cols-2 md:gap-4">
         <div className="grid gap-2">
           <Label htmlFor="firstName">First name</Label>
@@ -135,7 +129,6 @@ export default function SignupForm() {
         </div>
       </div>
 
-      {/* Email */}
       <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -148,7 +141,6 @@ export default function SignupForm() {
         />
       </div>
 
-      {/* Password */}
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Password</Label>
@@ -181,7 +173,6 @@ export default function SignupForm() {
           ))}
         </div>
 
-        {/* Criteria list (green when met) */}
         <ul
           id="pw-criteria"
           className="mt-2 grid grid-cols-1 gap-y-1 gap-x-6 text-xs sm:grid-cols-2"
@@ -210,7 +201,6 @@ export default function SignupForm() {
         </ul>
       </div>
 
-      {/* Confirm */}
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="confirm">Confirm password</Label>
@@ -232,19 +222,16 @@ export default function SignupForm() {
         />
       </div>
 
-      {/* Submit */}
       <Button type="submit" className="w-full my-0" disabled={isSubmitting}>
         {isSubmitting ? "Creating account…" : "Create account"}
       </Button>
 
-      {/* Divider */}
       <div className="my-2 flex items-center gap-3">
         <div className="h-px flex-1 bg-border" />
         <span className="text-xs text-muted-foreground">or</span>
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      {/* Continue with Google */}
       <Button
         type="button"
         variant="outline"
