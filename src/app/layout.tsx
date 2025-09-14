@@ -48,7 +48,10 @@ export default async function RootLayout({
         <meta name="color-scheme" content="dark light" />
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
       </head>
-      <body className="min-h-screen bg-background text-foreground antialiased">
+      <body
+        className="min-h-screen bg-background text-foreground antialiased"
+        suppressHydrationWarning
+      >
         <ThemeProvider>
           <div className="mx-auto px-4 py-6">{children}</div>
         </ThemeProvider>
