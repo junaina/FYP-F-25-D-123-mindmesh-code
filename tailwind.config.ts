@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import animate from "tailwindcss-animate";
+import typography from "@tailwindcss/typography";
 
 const config: Config = {
   darkMode: "class",
@@ -47,9 +48,30 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      typography: {
+        DEFAULT: {
+          css: {
+            h1: {
+              fontWeight: "700",
+              fontSize: "1.875rem",
+              lineHeight: "2.25rem",
+            }, // text-3xl
+            h2: { fontWeight: "700", fontSize: "1.5rem", lineHeight: "2rem" }, // text-2xl
+            h3: {
+              fontWeight: "600",
+              fontSize: "1.25rem",
+              lineHeight: "1.75rem",
+            }, // text-xl
+            ul: { paddingLeft: "1.5rem" },
+            ol: { paddingLeft: "1.5rem" },
+            "ul > li::marker": { color: "inherit" },
+            "ol > li::marker": { color: "inherit" },
+          },
+        },
+      },
     },
   },
-  plugins: [animate],
+  plugins: [animate, typography],
 };
 
 export default config;

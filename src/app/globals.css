@@ -292,3 +292,78 @@
   --mm-chip-fg: var(--mm-chip-purple-fg);
   --mm-chip-br: var(--mm-chip-purple-br);
 }
+.mm-chip-lg {
+  padding: 0.25rem 0.5rem; /* px-2 py-1 */
+  font-size: 0.875rem; /* text-sm */
+  line-height: 1.25rem; /* leading-5 */
+  border-radius: 9999px; /* rounded-full */
+}
+/* compact, text-height-matched icon button used in select menus */
+.mm-icon-btn {
+  height: 1.75rem; /* ~28px, matches h-7 */
+  width: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.375rem; /* rounded-md */
+  border: 1px solid transparent;
+  font-size: 0.875rem; /* text-sm-ish so it matches row text */
+  line-height: 1;
+  color: var(--muted-foreground);
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  opacity: 0.75;
+}
+.mm-icon-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+  opacity: 1;
+}
+/* ---------- Outline button (theme-aware, subtle) ---------- */
+.mm-btn-outline {
+  /* size */
+  height: 2.25rem; /* h-9 */
+  padding-inline: 0.75rem; /* px-3 */
+  border-radius: var(--radius);
+
+  /* look */
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: color-mix(in oklab, var(--foreground) 80%, transparent);
+
+  /* smoothness */
+  transition: background-color 0.15s ease, color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.mm-btn-outline:hover {
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: color-mix(in oklab, var(--border) 80%, var(--foreground) 20%);
+}
+
+.mm-btn-outline:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* ---- Minimal icon button (theme-aware) ---- */
+.mm-icon-btn {
+  background: transparent;
+  border: 0;
+  padding: 0.25rem; /* ~px-1 */
+  line-height: 1;
+  border-radius: var(--radius);
+  color: color-mix(in oklab, var(--foreground) 65%, transparent);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.mm-icon-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+/* Show row actions only on hover to keep it tidy */
+.mm-row .mm-row-action {
+  opacity: 0;
+}
+.mm-row:hover .mm-row-action {
+  opacity: 1;
+}
