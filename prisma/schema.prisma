@@ -7,6 +7,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ---------- enums ----------
@@ -195,6 +196,7 @@ model Document {
   title       String
   content     Json
   parentId    String?  @db.Uuid
+  description String?  @db.Text
   isArchived  Boolean  @default(false)
   createdById String   @db.Uuid
   createdAt   DateTime @default(now())
