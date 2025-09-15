@@ -17,10 +17,12 @@ export function ItemProperties({
   properties,
   visible,
   className,
+  onToggleCheckbox,
 }: {
   properties?: Record<string, Property>;
   visible: Set<string>;
   className?: string;
+  onToggleCheckbox?: (propName: string, next: boolean) => void;
 }) {
   if (!properties) return null;
 
@@ -38,12 +40,14 @@ export function ItemProperties({
                 {v.value}
               </PropertyBadge>
             );
+
           case "number":
             return (
               <PropertyBadge key={p.id} kind="number" color={p.color}>
                 {v.value}
               </PropertyBadge>
             );
+
           case "select":
             return (
               <PropertyBadge
@@ -54,6 +58,7 @@ export function ItemProperties({
                 {optionLabel(v.value)}
               </PropertyBadge>
             );
+
           case "multi_select":
             return (
               <React.Fragment key={p.id}>
@@ -68,44 +73,58 @@ export function ItemProperties({
                 ))}
               </React.Fragment>
             );
+
           case "date_time":
             return (
               <PropertyBadge key={p.id} kind="date_time" color={p.color}>
                 {timeLabel(v.value.start)}
               </PropertyBadge>
             );
+
+          /* ===== Special renderings per your request ===== */
+
+          // Email: regular underlined link (no pill)
           case "email": {
-            const href = v.value ? `mailto:${v.value}` : undefined;
+            const mailto = v.value ? `mailto:${v.value}` : undefined;
+            const stop = (e: React.SyntheticEvent) => {
+              e.stopPropagation();
+            };
             return (
-              <PropertyBadge
+              <a
                 key={p.id}
-                as={href ? "a" : "span"}
-                href={href}
-                kind="email"
-                color={p.color}
+                href={mailto}
+                onClick={stop}
+                onPointerDown={stop}
+                className="underline text-primary text-[11px] leading-5"
               >
                 {v.value || "—"}
-              </PropertyBadge>
+              </a>
             );
           }
-          case "person":
+          case "checkbox": {
+            const stop = (e: React.SyntheticEvent) => {
+              e.stopPropagation();
+              // don't preventDefault so the input can change
+            };
             return (
-              <PropertyBadge key={p.id} kind="person" color={p.color}>
-                {v.value?.name ?? "Unassigned"}
-              </PropertyBadge>
+              <label
+                key={p.id}
+                onClick={stop}
+                onPointerDown={stop}
+                className="inline-flex items-center gap-1.5 text-[11px] leading-5 text-foreground/90 select-none"
+                title={p.name}
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-primary"
+                  checked={!!v.value}
+                  onChange={(e) => onToggleCheckbox?.(p.name, e.target.checked)}
+                  aria-label={p.name}
+                />
+                <span>{p.name}</span>
+              </label>
             );
-          case "checkbox":
-            return (
-              <PropertyBadge key={p.id} kind="checkbox" color={p.color}>
-                {v.value ? "Done" : "Pending"}
-              </PropertyBadge>
-            );
-          case "file":
-            return (
-              <PropertyBadge key={p.id} kind="file" color={p.color}>
-                {v.value.length} file{v.value.length === 1 ? "" : "s"}
-              </PropertyBadge>
-            );
+          }
           default:
             return null;
         }

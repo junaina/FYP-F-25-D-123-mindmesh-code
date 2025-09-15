@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PropertyVisibilityMenu } from "./PropertyVisibilityMenu";
 import { ItemProperties } from "@/components/ui/ItemProperties";
-
+import { Plus } from "lucide-react";
+import type { PropKind } from "@/types/calendar";
 // Editable inline title from your Kanban folder
 import { EditableText } from "@/components/kanban/EditableText";
 
@@ -62,7 +63,28 @@ export function Calendar() {
       return seedItems;
     }
   });
+  const handleToggleCheckbox = React.useCallback(
+    (itemId: string, propName: string, next: boolean) => {
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== itemId) return it;
+          if (!it.properties) return it;
 
+          const prop = it.properties[propName];
+          if (!prop || prop.value.kind !== "checkbox") return it;
+
+          return {
+            ...it,
+            properties: {
+              ...it.properties,
+              [propName]: { ...prop, value: { kind: "checkbox", value: next } },
+            },
+          };
+        })
+      );
+    },
+    [setItems]
+  );
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LS_ITEMS, JSON.stringify(items));
@@ -128,13 +150,17 @@ export function Calendar() {
       }),
     [gridStartTime]
   );
-  const allPropertyNames = React.useMemo(() => {
-    const s = new Set<string>();
+  const propertyIndex = React.useMemo(() => {
+    const map = new Map<string, PropKind>();
     for (const it of items) {
       if (!it.properties) continue;
-      for (const p of Object.values(it.properties)) s.add(p.name);
+      for (const p of Object.values(it.properties)) {
+        if (!map.has(p.name)) map.set(p.name, p.value.kind);
+      }
     }
-    return Array.from(s).sort();
+    return Array.from(map, ([name, kind]) => ({ name, kind })).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
   }, [items]);
 
   // navigation
@@ -198,7 +224,7 @@ export function Calendar() {
 
         <div className="flex items-center gap-1 sm:gap-2">
           <PropertyVisibilityMenu
-            allProps={allPropertyNames}
+            properties={propertyIndex}
             visible={visibleProps}
             onToggle={(name, next) =>
               setVisibleProps((prev) => {
@@ -208,7 +234,16 @@ export function Calendar() {
                 return s;
               })
             }
+            onOpenDetails={(name) => {
+              // we'll hook a dialog here later
+              // for now, just log or no-op
+              console.debug("open property details:", name);
+            }}
+            onNewProperty={() => {
+              console.debug("new property clicked");
+            }}
           />
+
           <Button
             variant="outline"
             size="icon"
@@ -262,7 +297,14 @@ export function Calendar() {
                 }}
               >
                 {dayItems.map((item) => (
-                  <Chip key={item.id} item={item} visibleProps={visibleProps} />
+                  <Chip
+                    key={item.id}
+                    item={item}
+                    visibleProps={visibleProps}
+                    onToggleCheckbox={(propName, next) =>
+                      handleToggleCheckbox(item.id, propName, next)
+                    }
+                  />
                 ))}
               </DayCell>
             );
@@ -280,7 +322,46 @@ export function Calendar() {
   );
 }
 
-/* ---------- Subcomponents in same file ---------- */
+function Chip({
+  item,
+  visibleProps,
+  onToggleCheckbox,
+}: {
+  item: CalendarItem;
+  visibleProps: Set<string>;
+  onToggleCheckbox: (propName: string, next: boolean) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: item.id });
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={style}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      className={cn(
+        "rounded px-1 py-0.5 outline-none bg-primary/10 text-primary",
+        "text-[11px] leading-5 space-y-0.5 pb-1",
+        isDragging && "opacity-60"
+      )}
+      role="button"
+      aria-grabbed={isDragging}
+    >
+      <div className="truncate">{item.title}</div>
+      <ItemProperties
+        properties={item.properties}
+        visible={visibleProps}
+        onToggleCheckbox={onToggleCheckbox}
+      />
+    </div>
+  );
+}
 
 function DayCell({
   date,
@@ -303,13 +384,16 @@ function DayCell({
     <div
       ref={setNodeRef}
       className={cn(
-        "min-h-[80px] sm:min-h-[120px] p-0.5 sm:p-1 flex flex-col transition-colors select-none",
+        "relative group min-h-[80px] sm:min-h-[120px] p-0.5 sm:p-1 flex flex-col transition-colors select-none",
         "bg-background",
         isOtherMonth && "bg-muted/50",
-        "hover:bg-muted/40 cursor-pointer",
+        "hover:bg-muted/40 cursor-default",
         isOver && "ring-2 ring-accent/40"
       )}
-      onClick={onAdd}
+      // open dialog ONLY when clicking empty background
+      onClick={(e) => {
+        if (e.currentTarget === e.target) onAdd();
+      }}
       aria-dropeffect="move"
     >
       <div className="flex items-center justify-between">
@@ -321,46 +405,34 @@ function DayCell({
         >
           {date.getDate()}
         </span>
+
         {isToday && (
           <span className="mm-today text-[10px] leading-none px-1.5 py-0.5 bg-pink-500/15 text-pink-400 border border-pink-400/30">
             Today
           </span>
         )}
       </div>
+
+      {/* Add button – top-right; visible on hover (always visible on touch) */}
+      <button
+        type="button"
+        aria-label="Add item"
+        onClick={(e) => {
+          e.stopPropagation();
+          onAdd();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={cn(
+          "absolute top-1 right-1 rounded p-1 text-muted-foreground",
+          "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          // desktop: fade in on hover; mobile: keep visible
+          "sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity"
+        )}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+
       <div className="flex flex-col gap-1 mt-1">{children}</div>
-    </div>
-  );
-}
-
-function Chip({
-  item,
-  visibleProps,
-}: {
-  item: CalendarItem;
-  visibleProps: Set<string>;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: item.id });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      style={style}
-      className={cn(
-        "rounded px-1 py-0.5 outline-none bg-primary/10 text-primary",
-        "text-[11px] leading-5 space-y-0.5 pb-1", // bottom padding so pills don't touch
-        isDragging && "opacity-60"
-      )}
-      role="button"
-      aria-grabbed={isDragging}
-    >
-      <div className="truncate font-semibold">{item.title}</div>
-      <ItemProperties properties={item.properties} visible={visibleProps} />
     </div>
   );
 }
