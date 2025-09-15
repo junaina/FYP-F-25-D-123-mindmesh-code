@@ -13,15 +13,13 @@ export default async function DocPage({ params }: PageProps) {
   // demo initial data (frontend-only)
   const createdAt = new Date().toISOString();
   const initialTitle = "Briefing Doc: GreenTrace";
-  const initialTags = ["Preliminary", "Documentation"];
-  const initialDescription = "";
+  const initialTags = ["Preliminary", "Do cumentation"];
 
   const initialContent: JSONContent = {
     type: "doc",
     content: [
       {
         type: "heading",
-        attrs: { level: 2 },
         content: [{ type: "text", text: "Overview" }],
       },
       {
