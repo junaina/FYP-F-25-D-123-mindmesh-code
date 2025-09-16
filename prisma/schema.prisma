@@ -5,8 +5,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
@@ -211,8 +211,9 @@ model Document {
   documentFiles   DocumentFile[]
   embeds          Embed[]
   collections     Collection[]
-  boardHostOf     TaskBoard[]            @relation("BoardHost")
+  boardHostOf     TaskBoard[]             @relation("BoardHost")
   properties      DocumentProperty[]
+  propertyValues  DocumentPropertyValue[]
   collectionItems CollectionItem[]
   taskBoardItems  TaskBoardItem[]
 
@@ -295,6 +296,7 @@ model PropertyDefinition {
   options        PropertyOption[]
   usedByDocs     DocumentProperty[]
   viewVisibility ViewPropertyVisibility[]
+  propertyValues DocumentPropertyValue[] // <-- Added opposite relation
 
   // Opposite relations for TaskBoardBindings
   statusBindings   TaskBoardBindings[] @relation("TB_StatusProp")
@@ -310,8 +312,9 @@ model PropertyOption {
   value      String
   color      String?
 
-  property PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  columns  TaskBoardColumn[]
+  property               PropertyDefinition      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  columns                TaskBoardColumn[]
+  documentPropertyValues DocumentPropertyValue[] @relation("DocumentPropertyValue_option")
 
   @@unique([propertyId, value]) // added
   @@index([propertyId])
@@ -325,6 +328,32 @@ model DocumentProperty {
   property PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@id([documentId, propertyId])
+}
+
+model DocumentPropertyValue {
+  id         String @id @default(uuid()) @db.Uuid
+  documentId String @db.Uuid
+  propertyId String @db.Uuid
+
+  // One of these will be used depending on PropertyDefinition.type
+  valueString String? // text, email
+  valueNumber Float? // number
+  valueBool   Boolean? // checkbox
+  valueDate   DateTime? // date (stored as timestamp)
+  valueJson   Json? // multi_select/person/file (array of strings or ids)
+  optionId    String?   @db.Uuid // select/status -> PropertyOption.id (FK)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  document Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  option   PropertyOption?    @relation("DocumentPropertyValue_option", fields: [optionId], references: [id], onDelete: SetNull)
+  property PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, propertyId]) // one value per property per doc
+  @@index([documentId])
+  @@index([propertyId])
+  @@index([optionId])
 }
 
 model Collection {
