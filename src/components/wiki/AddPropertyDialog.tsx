@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+// src/components/wiki/ui/AddPropertyDialog.tsx
 
 type Props = {
   onCreate: (def: UIPropertyDefinition) => void;
@@ -58,8 +59,9 @@ export default function AddPropertyDialog({
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
-      .map((v) => ({ id: crypto.randomUUID(), value: v }));
+      .map((v) => ({ id: crypto.randomUUID(), value: v, color: undefined }));
   }
+
   function submit() {
     const def: UIPropertyDefinition = {
       id: crypto.randomUUID(),
