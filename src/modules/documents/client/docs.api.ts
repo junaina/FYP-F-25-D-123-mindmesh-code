@@ -1,6 +1,8 @@
 // src/modules/documents/client/docs.api.ts
 import type {
   PatchDocHeaderDto,
+  PatchPropertyDefDto,
+  PropertyDefinitionDto,
   SavePropertyOptionsDto,
   PropertyOptionDto,
 } from "@/modules/documents/dto/doc.dto";
@@ -54,6 +56,30 @@ export async function savePropertyOptions(
       `Failed to save property options (${res.status}): ${
         text || res.statusText
       }`
+    );
+  }
+  return res.json();
+}
+
+// PATCH /api/projects/:projectId/docs/:docId/properties/:propertyId
+export async function patchPropertyDef(
+  projectId: string,
+  docId: string,
+  propertyId: string,
+  patch: PatchPropertyDefDto
+): Promise<PropertyDefinitionDto> {
+  const res = await fetch(
+    `/api/projects/${projectId}/docs/${docId}/properties/${propertyId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to patch property (${res.status}): ${text || res.statusText}`
     );
   }
   return res.json();
