@@ -1,24 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import AddPropertyDialog from "./AddPropertyDialog";
 import PropertyRow from "./PropertyRow";
 import type {
-  UIDocPropertyRow,
-  UIPropertyDefinition,
+  DocPropertyRow,
+  PropertyDefinition,
   PropertyValue,
-} from "@/types/wiki";
-
+  PropertyType,
+  PropertyOption,
+} from "@/modules/documents/domain/types";
+import { savePropertyOptions } from "@/modules/documents/client/docs.api";
 export type DocHeaderProps = {
+  docId: string;
   title: string;
   createdAt: string | Date;
   description?: string;
 
-  properties?: UIDocPropertyRow[];
+  properties?: DocPropertyRow[];
 
   onTitleChange?: (title: string) => void;
   onDescriptionChange?: (description: string) => void;
-  onPropertiesChange?: (rows: UIDocPropertyRow[]) => void;
+  onPropertiesChange?: (rows: DocPropertyRow[]) => void;
+  onSaveOptions?: (
+    defId: string,
+    opts: DocPropertyRow["definition"]["options"]
+  ) => Promise<void> | void;
 };
 
 function formatDate(d: string | Date) {
@@ -32,7 +39,7 @@ function formatDate(d: string | Date) {
   });
 }
 
-function defaultValue(def: UIPropertyDefinition): PropertyValue {
+function defaultValue(def: PropertyDefinition): PropertyValue {
   switch (def.type) {
     case "text":
       return { type: "text", value: null };
@@ -58,12 +65,14 @@ function defaultValue(def: UIPropertyDefinition): PropertyValue {
 }
 
 export default function DocHeader({
+  docId,
   title,
   createdAt,
   description = "",
   properties = [],
   onTitleChange,
   onDescriptionChange,
+  onSaveOptions,
   onPropertiesChange,
 }: DocHeaderProps) {
   // local echo while typing; parent is the source of truth
@@ -75,6 +84,31 @@ export default function DocHeader({
   useEffect(() => setLocalDesc(description || ""), [description]);
 
   const titleRef = useRef<HTMLDivElement>(null);
+  const handleSaveOptions = useCallback(
+    async (defId: string, opts: PropertyOption[] = []) => {
+      // optimistic UI
+      const prev = properties;
+      const next = prev.map((r) =>
+        r.definition.id === defId
+          ? { ...r, definition: { ...r.definition, options: opts } }
+          : r
+      );
+      onPropertiesChange?.(next);
+
+      try {
+        if (onSaveOptions) {
+          await onSaveOptions(defId, opts);
+        } else {
+          await savePropertyOptions(docId, defId, opts ?? []); // <-- pass docId, ensure array
+        }
+      } catch (e) {
+        console.error(e);
+        // optional: revert UI
+        onPropertiesChange?.(prev);
+      }
+    },
+    [docId, properties, onPropertiesChange, onSaveOptions]
+  );
 
   function handleTitleInput(e: React.FormEvent<HTMLDivElement>) {
     const text = (e.currentTarget.textContent ?? "").trim();
@@ -82,11 +116,21 @@ export default function DocHeader({
     setLocalTitle(next);
     onTitleChange?.(next);
   }
-
-  function handleCreateProperty(def: UIPropertyDefinition) {
-    const nextRow: UIDocPropertyRow = {
-      definition: def,
-      value: defaultValue(def),
+  function handleCreateProperty(def: {
+    id: string;
+    name: string;
+    type: PropertyType;
+    options?: PropertyOption[]; // may be missing
+  }) {
+    const fullDef: PropertyDefinition = {
+      id: def.id,
+      name: def.name,
+      type: def.type,
+      options: def.options ?? [], // normalize here
+    };
+    const nextRow: DocPropertyRow = {
+      definition: fullDef,
+      value: defaultValue(fullDef),
     };
     onPropertiesChange?.([...properties, nextRow]);
   }
@@ -147,13 +191,14 @@ export default function DocHeader({
                 );
                 onPropertiesChange?.(updated);
               }}
+              onSaveOptions={handleSaveOptions}
             />
           ))}
 
           {/* Add Property trigger */}
           <div className="flex items-center gap-3 text-sm">
             <span className="opacity-70 min-w-[90px]"> </span>
-            <AddPropertyDialog onCreate={handleCreateProperty} />
+            <AddPropertyDialog docId={docId} onCreate={handleCreateProperty} />
           </div>
         </div>
       </div>
