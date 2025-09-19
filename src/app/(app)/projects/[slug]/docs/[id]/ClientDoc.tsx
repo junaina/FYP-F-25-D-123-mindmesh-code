@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import DocHeader from "@/components/wiki/DocHeader";
 import type { JSONContent } from "@tiptap/core";
-import type { UIDocPropertyRow } from "@/types/wiki";
+import type { DocPropertyRow } from "@/modules/documents/domain/types";
 import {
   fetchDocHeader,
   patchDocHeader,
@@ -25,17 +25,32 @@ type Props = { docId: string };
 
 export default function ClientDoc({ docId }: Props) {
   const [doc, setDoc] = useState<DocHeaderAPI | null>(null);
-  const [rows, setRows] = useState<UIDocPropertyRow[]>([]);
+  const [rows, setRows] = useState<DocPropertyRow[]>([]);
   const [content, setContent] = useState<JSONContent | null>(null);
 
   // debounce PATCH
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  // keep the latest docId in a ref to avoid stale closures
+  const docIdRef = useRef(docId);
+  useEffect(() => {
+    docIdRef.current = docId;
+  }, [docId]);
+
   const debouncedPatch = (patch: PatchPayload) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      patchDocHeader(docId, patch).catch(console.error);
+      const id = docIdRef.current;
+      if (!id) return; // guard
+      patchDocHeader(id, patch).catch(console.error);
     }, 450);
   };
+
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current); // clear on unmount
+    },
+    []
+  );
 
   useEffect(() => {
     fetchDocHeader(docId)
@@ -51,6 +66,7 @@ export default function ClientDoc({ docId }: Props) {
   return (
     <div className="space-y-6">
       <DocHeader
+        docId={docId}
         title={doc.title}
         createdAt={doc.createdAt}
         description={doc.description ?? ""}
@@ -66,6 +82,7 @@ export default function ClientDoc({ docId }: Props) {
         onPropertiesChange={(nextRows) => {
           setRows(nextRows);
           const properties = uiRowsToPatchObject(nextRows);
+          console.log("PATCH payload", properties);
           debouncedPatch({ properties });
         }}
       />

@@ -1,36 +1,135 @@
-// src/modules/documents/services/document.service.ts
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { DocumentRepo } from "../repo/document.repo";
+import type {
+  PatchDocHeaderDto,
+  PropertyValueDto,
+} from "@/modules/documents/dto/doc.dto";
 import {
-  buildApiProps,
-  primitiveToDb,
-} from "@/modules/documents/mappers/property.mapper";
-import type { PrimitiveInput } from "@/modules/documents/mappers/property.mapper";
+  PROPERTY_TYPES,
+  type PropertyType,
+} from "@/modules/documents/domain/types";
 
-type PatchPayload = Partial<{
+/** --- repo payload shapes we read (minimal, matches your prisma selects) --- */
+type RepoPropertyOption = {
+  id: string;
+  value: string;
+  color: string | null;
+  position: number | null;
+};
+
+type RepoPropertyDefinition = {
+  id: string;
+  name: string;
+  type: string; // we’ll narrow to PropertyType safely
+  options: RepoPropertyOption[];
+};
+
+type RepoDocumentHeader = {
+  id: string;
+  projectId: string;
   title: string;
   description: string | null;
-  properties: Record<string, unknown>;
-}>;
+  createdAt: Date;
+  updatedAt: Date;
+  properties: Array<{
+    propertyId: string;
+    property: RepoPropertyDefinition;
+  }>;
+};
+
+/** --- the exact shape upsertValue expects based on your prisma model --- */
+type DbValueUpdate = {
+  valueString: string | null;
+  valueNumber: number | null;
+  valueBool: boolean | null;
+  valueDate: Date | null;
+  valueJson: string[] | null; // multi_select/person/file store string IDs
+  optionId: string | null; // select/status -> PropertyOption.id
+};
+export type SaveOptionInput = {
+  id?: string;
+  value: string;
+  color?: string | null;
+  position?: number | null;
+};
+
+export type OptionOut = {
+  id: string;
+  value: string;
+  color: string | null;
+  position: number | null;
+};
+/** narrow a string to PropertyType (fallback to "text" if unknown) */
+function toPropertyType(s: string): PropertyType {
+  return (PROPERTY_TYPES as readonly string[]).includes(s)
+    ? (s as PropertyType)
+    : "text";
+}
+
+/** map a PropertyValueDto to the DB update shape (no stale columns left set) */
+function valueDtoToDb(p: PropertyValueDto): DbValueUpdate {
+  const base: DbValueUpdate = {
+    valueString: null,
+    valueNumber: null,
+    valueBool: null,
+    valueDate: null,
+    valueJson: null,
+    optionId: null,
+  };
+
+  switch (p.type) {
+    case "text":
+    case "email":
+    case "url":
+      return { ...base, valueString: p.value ?? null };
+
+    case "number":
+      return { ...base, valueNumber: p.value ?? null };
+
+    case "checkbox":
+      return { ...base, valueBool: p.value ?? null };
+
+    case "date_time":
+      return { ...base, valueDate: p.value ? new Date(p.value) : null };
+
+    case "select":
+    case "status":
+      return { ...base, optionId: p.value ?? null };
+
+    case "multi_select":
+    case "person":
+    case "file":
+      return { ...base, valueJson: Array.isArray(p.value) ? p.value : [] };
+
+    default:
+      // exhaustive by design; base keeps all columns null
+      return base;
+  }
+}
 
 export const DocumentService = {
-  async getHeader(id: string) {
-    const row = await DocumentRepo.findHeaderById(id);
+  /** GET /api/docs/:id */
+  async getHeader(projectId: string, docId: string) {
+    await DocumentRepo.assertDocInProject(docId, projectId);
+    const row = (await DocumentRepo.findHeaderById(
+      projectId,
+      docId
+    )) as RepoDocumentHeader;
     if (!row) return null;
 
-    // Map Prisma payload to the minimal shape buildApiProps expects
-    const defs = row.properties.map((l) => ({
-      id: l.property.id,
-      name: l.property.name,
-      type: l.property.type as any, // coerce prisma string -> PropertyType
-      options: l.property.options.map((o) => ({
-        id: o.id,
-        value: o.value,
-        color: o.color ?? null,
-      })),
-    }));
-
-    const props = buildApiProps(defs);
+    const defs = row.properties.map((link) => {
+      const t = toPropertyType(link.property.type);
+      return {
+        id: link.property.id,
+        name: link.property.name,
+        type: t,
+        options: link.property.options.map((o) => ({
+          id: o.id,
+          value: o.value,
+          color: o.color ?? null,
+          position: o.position ?? null,
+        })),
+      };
+    });
 
     return {
       id: row.id,
@@ -39,81 +138,104 @@ export const DocumentService = {
       description: row.description,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
-      properties: props,
+      properties: defs,
     };
   },
 
-  async patchHeader(id: string, payload: PatchPayload) {
-    // basics
-    if (payload.title != null || payload.description !== undefined) {
-      await DocumentRepo.updateBasics(id, {
+  /** PATCH /api/docs/:id */
+  async patchHeader(
+    projectId: string,
+    docId: string,
+    payload: PatchDocHeaderDto
+  ) {
+    await DocumentRepo.assertDocInProject(docId, projectId);
+    // 1) basics
+    if ("title" in payload || "description" in payload) {
+      await DocumentRepo.updateBasics(docId, {
         title: payload.title,
         description: payload.description ?? null,
       });
     }
 
+    // 2) values (optional)
     if (payload.properties) {
-      const current = await DocumentRepo.findHeaderById(id);
+      const current = (await DocumentRepo.findHeaderById(
+        projectId,
+        docId
+      )) as RepoDocumentHeader | null;
       if (!current) throw new Error("Document not found");
 
-      const incomingNames = Object.keys(payload.properties);
+      const incoming = Object.entries(payload.properties); // [ [name, PropertyValueDto], ... ]
+      const incomingNames = incoming.map(([n]) => n);
 
-      // ensure defs
-      const defs = await DocumentRepo.defsByNames(
-        current.projectId,
+      // ensure defs (create if missing with incoming type)
+      const existingDefs = await DocumentRepo.defsByNames(
+        projectId,
         incomingNames
       );
-      const byName = new Map(defs.map((d) => [d.name, d]));
+      const byName = new Map(existingDefs.map((d) => [d.name, d]));
 
-      for (const n of incomingNames) {
-        if (!byName.has(n)) {
+      for (const [name, pv] of incoming) {
+        if (!byName.has(name)) {
           const created = await DocumentRepo.createDef(
-            current.projectId,
-            n,
-            "text"
+            projectId,
+            name,
+            pv.type // persist the first-seen type for this name
           );
-          byName.set(n, created);
+          byName.set(name, created);
         }
       }
 
       // ensure links
-      for (const n of incomingNames) {
-        const def = byName.get(n)!;
-        await DocumentRepo.ensureLink(id, def.id);
+      for (const [name] of incoming) {
+        const def = byName.get(name)!;
+        await DocumentRepo.ensureLink(docId, def.id);
       }
 
-      // remove stale links/values
-      const links = await DocumentRepo.linksForDoc(id);
+      // prune links/values not present in the payload (optional behavior)
+      const links = await DocumentRepo.linksForDoc(docId);
       for (const link of links) {
-        const keep = [...byName.entries()].some(
-          ([name, def]) =>
-            def.id === link.propertyId && incomingNames.includes(name)
-        );
+        const keep = incomingNames.includes(link.property.name);
         if (!keep) {
-          await DocumentRepo.deleteValue(id, link.propertyId).catch(() => {});
-          await DocumentRepo.deleteLink(id, link.propertyId).catch(() => {});
+          await DocumentRepo.deleteValue(docId, link.propertyId).catch(
+            () => {}
+          );
+          await DocumentRepo.deleteLink(docId, link.propertyId).catch(() => {});
         }
       }
 
       // upsert values
-      for (const [name, raw] of Object.entries(payload.properties)) {
+      for (const [name, pv] of incoming) {
         const def = byName.get(name)!;
-
-        // Coerce runtime into your discriminated union for mapper
-        const prim = { type: def.type as any, value: raw } as PrimitiveInput;
-
-        // Mapper now returns the exact shape expected by the repo
-        const data = primitiveToDb(prim);
-
-        // (guard) if some JSON path ended up 'null' by future edits, drop it
-        if ("valueJson" in data && (data as any).valueJson == null) {
-          delete (data as any).valueJson;
-        }
-
-        await DocumentRepo.upsertValue(id, def.id, data);
+        const data = valueDtoToDb(pv);
+        await DocumentRepo.upsertValue(docId, def.id, data);
       }
     }
 
-    return this.getHeader(id);
+    return this.getHeader(projectId, docId);
+  },
+
+  /** Upsert a property’s option list, returning the updated list (sorted by position). */
+  async savePropertyOptions(
+    projectId: string,
+    docId: string,
+    propertyId: string,
+    options: SaveOptionInput[]
+  ): Promise<OptionOut[]> {
+    return DocumentRepo.savePropertyOptions(
+      projectId,
+      docId,
+      propertyId,
+      options
+    );
+  },
+
+  /** Read current options for a property (guards that doc and property share a project). */
+  async readPropertyOptions(
+    projectId: string,
+    docId: string,
+    propertyId: string
+  ): Promise<OptionOut[]> {
+    return DocumentRepo.readPropertyOptions(projectId, docId, propertyId);
   },
 };

@@ -311,6 +311,7 @@ model PropertyOption {
   propertyId String  @db.Uuid
   value      String
   color      String?
+  position   Int?
 
   property               PropertyDefinition      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   columns                TaskBoardColumn[]

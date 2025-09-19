@@ -1,10 +1,12 @@
+// src/components/wiki/ui/AddPropertyDialog.tsx
 "use client";
+
 import { useMemo, useState } from "react";
 import type {
   PropertyOption,
   PropertyType,
-  UIPropertyDefinition,
-} from "@/types/wiki";
+  PropertyDefinition,
+} from "@/modules/documents/domain/types";
 import {
   Dialog,
   DialogContent,
@@ -22,12 +24,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-// src/components/wiki/ui/AddPropertyDialog.tsx
+
+import type { PrimitiveInput } from "@/modules/documents/mappers/property.mapper";
+import { patchDocHeader } from "@/modules/documents/client/docs.api"; // <-- make sure this exists
 
 type Props = {
-  onCreate: (def: UIPropertyDefinition) => void;
+  /** Document to attach the new property to */
+  docId: string;
+  /** Update local UI state immediately */
+  onCreate: (def: PropertyDefinition) => void;
   triggerClassName?: string;
 };
+
 const TYPES: { value: PropertyType; label: string }[] = [
   { value: "text", label: "Text" },
   { value: "number", label: "Number" },
@@ -42,6 +50,7 @@ const TYPES: { value: PropertyType; label: string }[] = [
 ];
 
 export default function AddPropertyDialog({
+  docId,
   onCreate,
   triggerClassName,
 }: Props) {
@@ -54,6 +63,7 @@ export default function AddPropertyDialog({
     () => type === "select" || type === "multi_select" || type === "status",
     [type]
   );
+
   function makeOptions(src: string): PropertyOption[] {
     return src
       .split(",")
@@ -62,20 +72,48 @@ export default function AddPropertyDialog({
       .map((v) => ({ id: crypto.randomUUID(), value: v, color: undefined }));
   }
 
-  function submit() {
-    const def: UIPropertyDefinition = {
+  /** Initial primitive value per type (no `any`, fully typed) */
+  function defaultPrimitive(t: PropertyType): PrimitiveInput {
+    const byType: Record<PropertyType, PrimitiveInput> = {
+      text: { type: "text", value: null },
+      number: { type: "number", value: null },
+      email: { type: "email", value: null },
+      checkbox: { type: "checkbox", value: false },
+      date_time: { type: "date_time", value: null },
+      select: { type: "select", value: null },
+      status: { type: "status", value: null },
+      multi_select: { type: "multi_select", value: [] },
+      person: { type: "person", value: [] },
+      file: { type: "file", value: [] },
+    };
+    return byType[t];
+  }
+
+  async function submit() {
+    const def: PropertyDefinition = {
       id: crypto.randomUUID(),
-      name: name.trim() || "Untitled",
+      name: (name || "Untitled").trim(),
       type,
       options: needsOptions ? makeOptions(optionsText) : undefined,
     };
+
+    // 1) Update local UI immediately
     onCreate(def);
-    // reset & close
+
+    // 2) Persist to server (create definition + link + initial value)
+    await patchDocHeader(docId, {
+      properties: {
+        [def.name]: defaultPrimitive(def.type),
+      },
+    });
+
+    // Reset & close
     setName("");
     setType("text");
     setOptionsText("");
     setOpen(false);
   }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -83,6 +121,7 @@ export default function AddPropertyDialog({
           + Add a Property
         </Button>
       </DialogTrigger>
+
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>New Property</DialogTitle>

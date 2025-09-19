@@ -11,7 +11,26 @@ import type {
   DocPropertyRow,
   PropertyValue,
 } from "@/modules/documents/domain/types";
+function isoToLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  // datetime-local wants local time without timezone
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mi = pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
 
+/** Convert "YYYY-MM-DDTHH:mm" (local) -> ISO */
+function localInputToIso(local: string): string | null {
+  if (!local) return null;
+  const d = new Date(local); // interpreted as local by JS
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
 export default function PropertyRow({
   row,
   onChange,
@@ -21,12 +40,11 @@ export default function PropertyRow({
   row: DocPropertyRow;
   onChange: (next: DocPropertyRow) => void;
   onDelete: (definitionId: string) => void;
-  onSaveOptions: (
+  onSaveOptions?: (
     defId: string,
     opts: DocPropertyRow["definition"]["options"]
   ) => Promise<void> | void;
 }) {
-  const value = row.value;
   const def = row.definition;
   const v = row.value;
 
@@ -79,36 +97,23 @@ export default function PropertyRow({
         {def.type === "date_time" && (
           <Input
             type="datetime-local"
-            value={
-              typeof value.value === "string" &&
-              value.value &&
-              !Number.isNaN(Date.parse(value.value))
-                ? new Date(value.value).toISOString().slice(0, 16)
-                : ""
+            value={v.type === "date_time" ? isoToLocalInput(v.value) : ""}
+            onChange={(e) =>
+              set({
+                type: "date_time",
+                value: localInputToIso(e.target.value),
+              })
             }
-            onChange={(e) => {
-              const v = e.target.value; // "YYYY-MM-DDTHH:mm"
-              onChange({
-                ...row,
-                value: {
-                  type: "date_time",
-                  value: v ? new Date(v).toISOString() : null,
-                },
-              });
-            }}
             className="w-full"
           />
         )}
 
         {(def.type === "select" || def.type === "status") && (
           <MiniSelect
-            value={v.type === def.type ? v.value : null}
-            options={def.options}
+            value={v.type === def.type ? v.value : null} // string | null (optionId)
+            options={def.options ?? []} // PropertyOption[]
             onChange={(optId) =>
-              set({
-                type: def.type as "select" | "status",
-                value: optId,
-              })
+              set({ type: def.type as "select" | "status", value: optId })
             }
             pillLeftDot={def.type === "status"}
           />
@@ -117,23 +122,22 @@ export default function PropertyRow({
         {def.type === "multi_select" && (
           <MiniMultiSelect
             values={v.type === "multi_select" ? v.value : []}
-            options={def.options}
+            options={def.options ?? []}
             onChange={(ids) => set({ type: "multi_select", value: ids })}
           />
         )}
-
-        {/* person/file -> plug in your components; keep same shape */}
+        {/* person/file -> plug in your people/file pickers; keep same shape */}
         {def.type === "person" && (
           <MiniMultiSelect
             values={v.type === "person" ? v.value : []}
-            options={def.options}
+            options={def.options ?? []}
             onChange={(ids) => set({ type: "person", value: ids })}
           />
         )}
         {def.type === "file" && (
           <MiniMultiSelect
             values={v.type === "file" ? v.value : []}
-            options={def.options}
+            options={def.options ?? []}
             onChange={(ids) => set({ type: "file", value: ids })}
           />
         )}
@@ -141,10 +145,10 @@ export default function PropertyRow({
 
       {["select", "multi_select", "status"].includes(def.type) && (
         <OptionEditorDialog
-          initial={[...def.options].sort(
+          initial={[...(def.options ?? [])].sort(
             (a, b) => (a.position ?? 0) - (b.position ?? 0)
           )}
-          onSave={(opts) => onSaveOptions(def.id, opts)}
+          onSave={(opts) => onSaveOptions?.(def.id, opts)}
         />
       )}
 
