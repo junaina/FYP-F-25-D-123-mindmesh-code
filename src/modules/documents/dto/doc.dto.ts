@@ -13,8 +13,62 @@ export type ProjectDocParamsDto = z.infer<typeof ProjectDocParamsDto>;
 export const ProjectDocPropParamsDto = ProjectDocParamsDto.extend({
   propertyId: z.string().uuid(),
 });
+
+export const paramIdsDto = z.object({
+  projectId: z.string().min(1),
+  docId: z.string().min(1),
+});
+export const propertyTypeDto = z.enum([
+  "text",
+  "number",
+  "email",
+  "url",
+  "checkbox",
+  "select",
+  "multi_select",
+  "status",
+  "person",
+  "file",
+  "date_time",
+]);
 export type ProjectDocPropParamsDto = z.infer<typeof ProjectDocPropParamsDto>;
 export type PropertyTypeDto = z.infer<typeof PropertyTypeDto>;
+
+//when creating
+export const propertyOptionInputDto = z.object({
+  value: z.string().min(1),
+  color: z.string().min(1).optional(),
+  position: z.number().int().nonnegative().optional(),
+});
+export type PropertyOptionInputDto = z.infer<typeof propertyOptionInputDto>;
+
+export const createPropertyBodyDto = z
+  .object({
+    name: z.string().min(1).max(128),
+    type: propertyTypeDto,
+    options: z.array(propertyOptionInputDto).optional(),
+  })
+  .refine(
+    (b) => {
+      const optTypes = new Set([
+        "select",
+        "multi_select",
+        "status",
+        "person",
+        "file",
+        "url",
+        "email",
+      ]);
+      return !b.options || optTypes.has(b.type);
+    },
+    {
+      message:
+        "Options can only be set for select, multi_select, status, person, file, url, or email types",
+    }
+  );
+export type CreatePropertyBodyDto = z.infer<typeof createPropertyBodyDto>;
+
+//when updating
 export const PropertyOptionDto = z.object({
   id: z.string().uuid(), // PropertyOption.id (UUID in DB)
   value: z.string().min(0).max(200),
@@ -101,6 +155,32 @@ export const SavePropertyOptionsDto = z.object({
   ),
 });
 export type SavePropertyOptionsDto = z.infer<typeof SavePropertyOptionsDto>;
+
+export const PatchPropertyDefDto = z
+  .object({
+    name: z.string().trim().min(1).max(128).optional(),
+    type: PropertyTypeDto.optional(),
+    dropOptionsOnTypeChange: z.boolean().optional(),
+  })
+  .refine((b) => b.name !== undefined || b.type !== undefined, {
+    message: "provide at least one of name or type",
+  });
+export type PatchPropertyDefDto = z.infer<typeof PatchPropertyDefDto>;
+//body for editiing a single option's appearance
+export const patchPropertyOptionDto = z
+  .object({
+    value: z.string().trim().min(1).max(200).optional(),
+    color: z.string().nullable().optional(),
+    position: z.number().int().nonnegative().nullable().optional(),
+  })
+  .refine(
+    (d) =>
+      d.value !== undefined ||
+      d.color !== undefined ||
+      d.position !== undefined,
+    { message: "Provide at least one of value, color, or position" }
+  );
+export type PatchPropertyOptionDto = z.infer<typeof patchPropertyOptionDto>;
 /* ---------------------------------
    Tiny helpers so routes stay tidy
 ---------------------------------- */
@@ -120,3 +200,8 @@ export const parseProjectDocParams = (p: unknown) =>
   ProjectDocParamsDto.parse(p);
 export const parseProjectDocPropParams = (p: unknown) =>
   ProjectDocPropParamsDto.parse(p);
+export const parsePatchPropertyDef = (b: unknown) =>
+  PatchPropertyDefDto.parse(b);
+export const parseParamIds = (p: unknown) => paramIdsDto.parse(p);
+export const parsePatchPropertyOption = (b: unknown) =>
+  patchPropertyOptionDto.parse(b);

@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+feat(docs-api): project-scoped DocHeader endpoints + options CRUD (read/write)
 
-## Getting Started
+✅ What’s working
 
-First, run the development server:
+- Project-scoped routes:
+  - GET /api/projects/:projectId/docs/:docId → fetch DocHeader (id, projectId, title, description, created/updated, doc-scoped property defs with options)
+  - PATCH /api/projects/:projectId/docs/:docId → update DocHeader title/description and upsert property _values_
+  - PUT /api/projects/:projectId/docs/:docId/properties/:propertyId/options → upsert options for a property
+  - GET /api/projects/:projectId/docs/:docId/properties/:propertyId/options → read options for a property
+- DTOs with Zod for strict validation (no `any`): params, header patch body, property values, option payloads.
+- Next 15 param handling: `params` awaited before parsing (fixes “params should be awaited”).
+- Service/Repo layers:
+  - `DocumentService`: `getHeader`, `patchHeader`, `savePropertyOptions`, `readPropertyOptions`
+  - `DocumentRepo`: header read, basics update, def lookup/create, link ensure/remove, value upsert, options upsert/read (transactional), cross-project guard.
+- Prisma shapes mapped correctly:
+  - Value mapping to `valueString | valueNumber | valueBool | valueDate | valueJson | optionId`
+  - Options ordered by `position, value`; colors nullable; position normalized.
+- Client helpers updated (`docs.api.ts`) to hit project-scoped endpoints.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+🧭 Design choices
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Properties/options are **project-scoped**; documents reference definitions via links.
+- Value upserts are per-doc/per-property; options are upserted with soft delete of removed rows.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+🧩 Still to implement (next passes)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Properties collection endpoints (project-scoped under a doc):
+  - GET /api/projects/:projectId/docs/:docId/properties → list linked properties (+options)
+  - POST /api/projects/:projectId/docs/:docId/properties → create & link a property (name, type, initial options)
+  - PATCH/DELETE /api/projects/:projectId/docs/:docId/properties/:propertyId → rename/change type (⚠ reset incompatible values), unlink/delete
+- Options single-item ops (optional sugar on top of bulk PUT):
+  - PATCH/DELETE /…/properties/:propertyId/options/:optionId → rename/recolor/remove one
+  - PATCH /…/properties/:propertyId/options/reorder → reorder by positions
+- Stronger error mapping (Prisma unique/foreign-key → 409/422 with field hints).
+- Auth/permissions checks.
+- Unit/integration tests (DTOs, service, repo), seed data, and OpenAPI/README.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Refs: project scoping, Next 15 params, Prisma transactions.

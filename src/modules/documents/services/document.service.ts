@@ -1,12 +1,61 @@
 import { DocumentRepo } from "../repo/document.repo";
 import type {
   PatchDocHeaderDto,
+  PatchPropertyDefDto,
   PropertyValueDto,
+  CreatePropertyBodyDto,
+  PatchPropertyOptionDto,
 } from "@/modules/documents/dto/doc.dto";
 import {
   PROPERTY_TYPES,
   type PropertyType,
 } from "@/modules/documents/domain/types";
+
+//wen updating a property definition
+type UpdatePropertyArgs = {
+  projectId: string;
+  docId: string;
+  propertyId: string;
+  body: PatchPropertyDefDto;
+};
+
+const TARGET_FIELD: Record<
+  PropertyType,
+  | "optionId"
+  | "valueString"
+  | "valueNumber"
+  | "valueBool"
+  | "valueDate"
+  | "valueJson"
+> = {
+  text: "valueString",
+  number: "valueNumber",
+  email: "valueString",
+  url: "valueString",
+  checkbox: "valueBool",
+  date_time: "valueDate",
+  select: "optionId",
+  status: "optionId",
+  multi_select: "valueJson",
+  person: "valueJson",
+  file: "valueJson",
+};
+
+const OPTION_TYPES = new Set<PropertyType>([
+  "select",
+  "status",
+  "multi_select",
+  "person",
+  "file",
+  "url",
+  "email",
+]);
+//when creating a property
+type CreatePropertyArgs = {
+  projectId: string;
+  docId: string;
+  body: CreatePropertyBodyDto;
+};
 
 /** --- repo payload shapes we read (minimal, matches your prisma selects) --- */
 type RepoPropertyOption = {
@@ -107,6 +156,62 @@ function valueDtoToDb(p: PropertyValueDto): DbValueUpdate {
 }
 
 export const DocumentService = {
+  // when updating a property definition
+  // PATCH /api/projects/:projectId/docs/:docId/properties/:propertyId
+  async updatePropertyDefinition({
+    projectId,
+    docId,
+    propertyId,
+    body,
+  }: UpdatePropertyArgs) {
+    // 1. verify project/doc/property exist and are linked
+    await DocumentRepo.assertDocInProject(docId, projectId);
+    //load current def (with options)
+    const current = await DocumentRepo.getPropertyDefinition(
+      projectId,
+      propertyId
+    );
+    if (!current) throw new Error("PropertyDefinition not found");
+    const fromType = (PROPERTY_TYPES as readonly string[]).includes(
+      current.type
+    )
+      ? (current.type as PropertyType)
+      : "text";
+    const toType = body.type ?? fromType;
+    //update using repo
+    return DocumentRepo.txUpdatePropertyDefinition({
+      projectId,
+      propertyId,
+      updateBasics: { name: body.name ?? current.name, type: toType },
+      fromType,
+      toType,
+      keepField: TARGET_FIELD[toType],
+    });
+  },
+
+  // POST /api/projects/:projectId/docs/:docId/properties
+  async createProperty(args: CreatePropertyArgs) {
+    const { projectId, docId, body } = args;
+
+    // 1. verifying project/doc exist and are linked
+    await DocumentRepo.assertDocInProject(docId, projectId);
+    //2. create definition
+    const def = await DocumentRepo.createDef(projectId, body.name, body.type);
+    //3.. upsert options if provided
+    let options: Array<OptionOut> = [];
+    if (body.options?.length) {
+      options = await DocumentRepo.savePropertyOptions(
+        projectId,
+        docId,
+        def.id,
+        body.options
+      );
+    }
+    //4. link to doc
+    await DocumentRepo.ensureLink(docId, def.id);
+    return { ...def, options };
+  },
+
   /** GET /api/docs/:id */
   async getHeader(projectId: string, docId: string) {
     await DocumentRepo.assertDocInProject(docId, projectId);
@@ -237,5 +342,56 @@ export const DocumentService = {
     propertyId: string
   ): Promise<OptionOut[]> {
     return DocumentRepo.readPropertyOptions(projectId, docId, propertyId);
+  },
+  // DELETE /api/projects/:projectId/docs/:docId/properties/:propertyId
+  async deleteProperty(args: {
+    projectId: string;
+    docId: string;
+    propertyId: string;
+  }) {
+    const { projectId, docId, propertyId } = args;
+    await DocumentRepo.assertDocAndPropertySameProject(
+      projectId,
+      docId,
+      propertyId
+    );
+    await DocumentRepo.txDeletePropertyFromDocAndMaybeGC({
+      projectId,
+      docId,
+      propertyId,
+    });
+  },
+  async deletePropertyOption(args: {
+    projectId: string;
+    docId: string;
+    propertyId: string;
+    optionId: string;
+  }): Promise<void> {
+    const { projectId, docId, propertyId, optionId } = args;
+
+    await DocumentRepo.assertDocAndPropertySameProject(
+      projectId,
+      docId,
+      propertyId
+    );
+
+    await DocumentRepo.txDeleteOptionSafe({ propertyId, optionId });
+  },
+  async patchPropertyOption(args: {
+    projectId: string;
+    docId: string;
+    propertyId: string;
+    optionId: string;
+    body: PatchPropertyOptionDto;
+  }) {
+    const { projectId, docId, propertyId, optionId, body } = args;
+
+    await DocumentRepo.assertDocAndPropertySameProject(
+      projectId,
+      docId,
+      propertyId
+    );
+
+    return DocumentRepo.updateOption(propertyId, optionId, body);
   },
 };
