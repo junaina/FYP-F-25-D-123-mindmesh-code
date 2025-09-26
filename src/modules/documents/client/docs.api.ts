@@ -1,14 +1,21 @@
 // src/modules/documents/client/docs.api.ts
-import type {
+import {
   PatchDocHeaderDto,
   PatchPropertyDefDto,
   PropertyDefinitionDto,
   SavePropertyOptionsDto,
   PropertyOptionDto,
+  CreatePropertyBodyDto,
+  createPropertyBodyDto,
 } from "@/modules/documents/dto/doc.dto";
 
 /** GET /api/projects/:projectId/docs/:docId */
 export async function fetchDocHeader(projectId: string, docId: string) {
+  console.log(
+    "fetchDocHeader url:",
+    `/api/projects/${projectId}/docs/${docId}`
+  );
+
   const res = await fetch(`/api/projects/${projectId}/docs/${docId}`, {
     cache: "no-store",
   });
@@ -33,6 +40,27 @@ export async function patchDocHeader(
       `Failed to patch doc header (${res.status}): ${text || res.statusText}`
     );
   }
+}
+export async function createProperty(
+  projectId: string,
+  docId: string,
+  body: CreatePropertyBodyDto
+): Promise<PropertyDefinitionDto> {
+  const res = await fetch(
+    `/api/projects/${projectId}/docs/${docId}/properties`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to create property (${res.status}): ${text || res.statusText}`
+    );
+  }
+  return res.json() as Promise<PropertyDefinitionDto>;
 }
 
 /** PUT /api/projects/:projectId/docs/:docId/properties/:propertyId/options */
@@ -84,3 +112,4 @@ export async function patchPropertyDef(
   }
   return res.json();
 }
+/////////////////WRAPPERS//////////////////////

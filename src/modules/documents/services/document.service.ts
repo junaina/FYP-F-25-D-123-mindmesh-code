@@ -41,15 +41,15 @@ const TARGET_FIELD: Record<
   file: "valueJson",
 };
 
-const OPTION_TYPES = new Set<PropertyType>([
-  "select",
-  "status",
-  "multi_select",
-  "person",
-  "file",
-  "url",
-  "email",
-]);
+// const OPTION_TYPES = new Set<PropertyType>([
+//   "select",
+//   "status",
+//   "multi_select",
+//   "person",
+//   "file",
+//   "url",
+//   "email",
+// ]);
 //when creating a property
 type CreatePropertyArgs = {
   projectId: string;

@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+// src/app/(app)/api/projects/[projectId]/docs/[docId]/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import {
   parseProjectDocParams,
@@ -6,34 +7,58 @@ import {
   parsePatchDocHeader,
 } from "@/modules/documents/dto/doc.dto";
 import { DocumentService } from "@/modules/documents/services/document.service";
-type RouteParams = { params: { projectId: string; docId: string } }; //the second id is for docs
+
+// (optional) keep API always dynamic
+export const dynamic = "force-dynamic";
 
 function jsonError(err: unknown) {
   if (err instanceof ZodError) {
     return NextResponse.json(
-      { error: "Validation Error", issue: err.issues },
+      { error: "Validation Error", issues: err.issues },
       { status: 400 }
     );
   }
+  // surface simple codes if you throw {code:"NOT_FOUND"} etc in services
+  const code = (err as { code?: string })?.code;
+  if (code === "NOT_FOUND") {
+    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+  }
+  console.error("[docs route] unhandled error:", err);
   return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
 }
 
-export async function GET(_req: Request, { params }: RouteParams) {
+export async function GET(
+  _req: NextRequest,
+  ctx: {
+    params: Promise<{ projectId: string; docId: string }>;
+  }
+) {
   try {
+    const params = await ctx.params; // 👈 Next 15: MUST await
     const { projectId, docId } = parseProjectDocParams(params);
-    const data = await DocumentService.getHeader(projectId, docId); //service function that retrieves document header by id
+
+    const data = await DocumentService.getHeader(projectId, docId);
     if (!data)
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
-    return NextResponse.json(DocHeaderDto.parse(data)); //todo: implement DocHeaderDto
+
+    return NextResponse.json(DocHeaderDto.parse(data));
   } catch (err) {
     return jsonError(err);
   }
 }
-export async function PATCH(req: Request, { params }: RouteParams) {
+
+export async function PATCH(
+  req: NextRequest,
+  ctx: {
+    params: Promise<{ projectId: string; docId: string }>;
+  }
+) {
   try {
+    const params = await ctx.params; // 👈 await here too
     const { projectId, docId } = parseProjectDocParams(params);
-    const body = parsePatchDocHeader(await req.json()); //todo: implement parsePatchDocHeader, it validates and parses the request body
-    const updated = await DocumentService.patchHeader(projectId, docId, body); //service function that updates document header by id
+
+    const body = parsePatchDocHeader(await req.json());
+    const updated = await DocumentService.patchHeader(projectId, docId, body);
     return NextResponse.json(updated);
   } catch (err) {
     return jsonError(err);
