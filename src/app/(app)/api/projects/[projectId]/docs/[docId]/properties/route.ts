@@ -44,3 +44,16 @@ export async function POST(
     return NextResponse.json({ message: "Unexpected error" }, { status: 500 });
   }
 }
+
+//get properties and values
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: Promise<{ projectId: string; docId: string }> }
+) {
+  const { projectId, docId } = paramIdsDto.parse(await ctx.params);
+  const props = await DocumentService.readPropertiesWithValues(
+    projectId,
+    docId
+  );
+  return NextResponse.json({ properties: props });
+}

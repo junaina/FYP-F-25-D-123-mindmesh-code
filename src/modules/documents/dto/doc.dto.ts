@@ -110,6 +110,13 @@ export type PropertyValueDto = z.infer<typeof PropertyValueDto>;
 /* ---------------------------------
    GET /api/docs/:id response
 ---------------------------------- */
+
+export const PropertyDefinitionWithValueDto = PropertyDefinitionDto.extend({
+  value: PropertyValueDto.nullable().optional(),
+});
+export type PropertyDefinitionWithValueDto = z.infer<
+  typeof PropertyDefinitionWithValueDto
+>;
 export const DocHeaderDto = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(), // include this to match your service response
@@ -117,7 +124,7 @@ export const DocHeaderDto = z.object({
   description: z.string().nullable(),
   createdAt: z.string(), // ISO
   updatedAt: z.string(), // ISO
-  properties: z.array(PropertyDefinitionDto), // doc-scoped definitions
+  properties: z.array(PropertyDefinitionWithValueDto), // doc-scoped definitions
 });
 export type DocHeaderDto = z.infer<typeof DocHeaderDto>;
 /* ---------------------------------
