@@ -44,6 +44,7 @@ export default function CreatePropertyForm({
   );
   const [touched, setTouched] = React.useState(false); // NEW
   const [showDiscard, setShowDiscard] = React.useState(false); // NEW
+  const [saving, setSaving] = React.useState(false);
 
   const ensurePropertyId = React.useCallback(async (): Promise<string> => {
     if (created?.id) return created.id;
@@ -113,6 +114,7 @@ export default function CreatePropertyForm({
           propertyId={created?.id}
           ensurePropertyId={ensurePropertyId}
           onFirstPersist={() => setTouched(true)} // mark dirty on first successful save
+          onBusyChange={setSaving}
         />
 
         <div className="flex items-center justify-end gap-2 pt-2">
@@ -125,9 +127,10 @@ export default function CreatePropertyForm({
               if (!created) await ensurePropertyId();
               onCreated();
             }}
-            disabled={loading || !name.trim()}
+            disabled={saving}
+            aria-busy={saving}
           >
-            Done
+            {saving ? "Saving…" : "Done"}
           </Button>
         </div>
       </div>
