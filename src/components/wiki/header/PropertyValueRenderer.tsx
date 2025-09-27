@@ -6,12 +6,20 @@ import {
 } from "@/modules/documents/dto/doc.dto";
 import { format, isValid, isEqual, startOfDay } from "date-fns";
 // Example: you might already have Chip/Badge components
-import { Badge } from "@/components/ui/badge";
+import { GripVertical } from "lucide-react";
 
 type Props = {
   def: PropertyDefinitionDto;
   value: PropertyValueDto | null | undefined;
 };
+function Chip({ label, color }: { label: string; color?: string | null }) {
+  return (
+    <span className={`mm-chip ${String(color ?? "mm-chip--gray")}`}>
+      <GripVertical className="h-3 w-3 opacity-70" />
+      {label}
+    </span>
+  );
+}
 function prettyDateTime(iso: string | null | undefined): string {
   if (!iso) return "Empty";
   const d = new Date(iso);
@@ -63,34 +71,24 @@ export default function PropertyValueRenderer({ def, value }: Props) {
     case "status": {
       const opt = def.options.find((o) => o.id === value.value);
       return opt ? (
-        <Badge style={{ backgroundColor: opt.color ?? undefined }}>
-          {opt.value}
-        </Badge>
+        <Chip label={opt.value} color={opt.color} />
       ) : (
         <span className="text-muted-foreground">Empty</span>
       );
     }
 
     case "multi_select": {
+      const ids = value.value as string[];
+      if (!ids?.length)
+        return <span className="text-muted-foreground">Empty</span>;
       return (
         <div className="flex gap-1 flex-wrap">
-          {value.value.length > 0 ? (
-            value.value.map((id) => {
-              const opt = def.options.find((o) => o.id === id);
-              return (
-                opt && (
-                  <Badge
-                    key={id}
-                    style={{ backgroundColor: opt.color ?? undefined }}
-                  >
-                    {opt.value}
-                  </Badge>
-                )
-              );
-            })
-          ) : (
-            <span className="text-muted-foreground">Empty</span>
-          )}
+          {ids.map((id) => {
+            const opt = def.options.find((o) => o.id === id);
+            return opt ? (
+              <Chip key={id} label={opt.value} color={opt.color} />
+            ) : null;
+          })}
         </div>
       );
     }
