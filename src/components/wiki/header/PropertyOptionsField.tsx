@@ -60,31 +60,6 @@ export default function PropertyOptionsField({
     [opts.length]
   );
   const alreadyTouchedRef = React.useRef(false);
-  async function persist(all: Option[]) {
-    let pid = propertyId;
-    if (!pid && ensurePropertyId) pid = await ensurePropertyId();
-    if (!pid) return;
-
-    setBusy(true);
-    try {
-      const res = await savePropertyOptions(projectId, docId, pid, all);
-      const normalized = (res.options ?? []).map((o, idx) => ({
-        id: o.id,
-        value: o.value,
-        color: o.color ?? all[idx]?.color ?? null,
-        position: o.position ?? idx,
-      }));
-      setOpts(normalized);
-      if (!alreadyTouchedRef.current) {
-        alreadyTouchedRef.current = true;
-        onFirstPersist?.(); // tell parent something was created/changed
-      }
-      // 🔔 tell parent immediately (lets the dropdown update without refresh)
-      onSaved?.(normalized);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function add(label: string) {
     const trimmed = label.trim();
@@ -103,7 +78,47 @@ export default function PropertyOptionsField({
     setValue("");
     await persist(all); // PUT full list; backend upserts & prunes non-sent
   }
+  // remember a resolved id and/or the in-flight creation promise
+  const ensuredIdRef = React.useRef<string | undefined>(propertyId);
+  const ensureOnceRef = React.useRef<Promise<string> | null>(null);
 
+  async function getPropertyId(): Promise<string | undefined> {
+    if (ensuredIdRef.current) return ensuredIdRef.current;
+    if (!ensurePropertyId) return undefined;
+
+    // run ensurePropertyId only once; reuse the same promise while it is in flight
+    if (!ensureOnceRef.current) {
+      ensureOnceRef.current = ensurePropertyId().then((id) => {
+        ensuredIdRef.current = id;
+        return id;
+      });
+    }
+    return ensureOnceRef.current;
+  }
+  async function persist(all: Option[]) {
+    const pid = await getPropertyId();
+    if (!pid) return;
+
+    setBusy(true);
+    try {
+      const res = await savePropertyOptions(projectId, docId, pid, all);
+      const normalized = (res.options ?? []).map((o, idx) => ({
+        id: o.id,
+        value: o.value,
+        color: o.color ?? all[idx]?.color ?? null,
+        position: o.position ?? idx,
+      }));
+      setOpts(normalized);
+
+      if (!alreadyTouchedRef.current) {
+        alreadyTouchedRef.current = true;
+        onFirstPersist?.();
+      }
+      onSaved?.(normalized);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="space-y-1.5">
       <Label>Options</Label>
