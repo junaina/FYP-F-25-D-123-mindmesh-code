@@ -20,6 +20,11 @@ type Props = {
   initialOptions?: Option[];
   onFirstPersist?: () => void;
   onSaved?: (opts: Option[]) => void;
+  clickable?: boolean;
+  selectionKind?: "single" | "multi";
+  selectedId?: string | null;
+  selectedIds?: string[];
+  onChipClick?: (id: string) => void;
 };
 
 const COLOR_CYCLE = [
@@ -44,7 +49,13 @@ export default function PropertyOptionsField({
   ensurePropertyId,
   onFirstPersist,
   onSaved,
-}: Props) {
+  onBusyChange,
+  clickable = false,
+  selectionKind = "single",
+  selectedId = null,
+  selectedIds = [],
+  onChipClick,
+}: Props & { onBusyChange?: (busy: boolean) => void }) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false); // do NOT disable input because of this
   const [opts, setOpts] = useState<Option[]>([]);
@@ -55,6 +66,9 @@ export default function PropertyOptionsField({
       seeded.current = true;
     }
   }, [initialOptions]);
+  React.useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
   const nextColor = useMemo(
     () => COLOR_CYCLE[opts.length % COLOR_CYCLE.length],
     [opts.length]
@@ -119,6 +133,12 @@ export default function PropertyOptionsField({
       setBusy(false);
     }
   }
+  function isActive(id?: string) {
+    if (!id) return false;
+    return selectionKind === "multi"
+      ? selectedIds.includes(id)
+      : selectedId === id;
+  }
   return (
     <div className="space-y-1.5">
       <Label>Options</Label>
@@ -138,22 +158,29 @@ export default function PropertyOptionsField({
         />
 
         {opts.length > 0 && (
-          <div className="mt-2 max-h-44 overflow-auto rounded-md border">
-            {opts.map((o) => (
-              <div
-                key={(o.id ?? o.value) + "_row"}
-                className="mm-row flex items-center justify-between px-2 py-1.5 text-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`mm-chip ${String(o.color ?? "mm-chip--gray")}`}
-                  >
-                    <GripVertical className="h-3 w-3 opacity-70" />
-                    {o.value}
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="mt-2 max-h-44 overflow-auto rounded-md border p-2 flex gap-2">
+            {opts.map((o) => {
+              const active = isActive(o.id);
+              const cls = `mm-chip ${String(o.color ?? "mm-chip--gray")} ${
+                clickable ? "cursor-pointer" : ""
+              } ${active ? "ring-2 ring-primary" : ""}`;
+
+              return (
+                <span
+                  key={(o.id ?? o.value) + "_row"}
+                  className={cls}
+                  onClick={
+                    clickable && onChipClick && o.id
+                      ? () => onChipClick(o.id!)
+                      : undefined
+                  }
+                  title={clickable ? "Click to select" : undefined}
+                >
+                  <GripVertical className="h-3 w-3 opacity-70" />
+                  {o.value}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>
