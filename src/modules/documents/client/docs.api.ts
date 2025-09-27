@@ -6,7 +6,9 @@ import {
   SavePropertyOptionsDto,
   PropertyOptionDto,
   CreatePropertyBodyDto,
+  PropertyValueDto,
   createPropertyBodyDto,
+  DocHeaderDto,
 } from "@/modules/documents/dto/doc.dto";
 
 /** GET /api/projects/:projectId/docs/:docId */
@@ -17,10 +19,13 @@ export async function fetchDocHeader(projectId: string, docId: string) {
   );
 
   const res = await fetch(`/api/projects/${projectId}/docs/${docId}`, {
+    method: "GET",
     cache: "no-store",
+    next: { revalidate: 0 },
   });
   if (!res.ok) throw new Error("Failed to fetch doc");
-  return res.json();
+  const data = (await res.json()) as DocHeaderDto;
+  return data;
 }
 
 /** PATCH /api/projects/:projectId/docs/:docId */
@@ -112,4 +117,82 @@ export async function patchPropertyDef(
   }
   return res.json();
 }
-/////////////////WRAPPERS//////////////////////
+//patch property value
+export async function patchPropertyValue(
+  projectId: string,
+  docId: string,
+  propertyId: string,
+  value: PropertyValueDto
+) {
+  const res = await fetch(
+    `/api/projects/${projectId}/docs/${docId}/properties/${propertyId}/value`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Failed to save property value");
+  }
+  return (await res.json()) as { ok: true };
+}
+
+// src/modules/documents/client/docs.api.ts
+export async function deleteProperty(
+  projectId: string,
+  docId: string,
+  propertyId: string
+): Promise<void> {
+  const res = await fetch(
+    `/api/projects/${projectId}/docs/${docId}/properties/${propertyId}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to delete property (${res.status}): ${text || res.statusText}`
+    );
+  }
+}
+// GET /api/projects/:projectId/docs/:docId/properties/:propertyId/options
+export async function readPropertyOptions(
+  projectId: string,
+  docId: string,
+  propertyId: string
+): Promise<{
+  options: {
+    id: string;
+    value: string;
+    color: string | null;
+    position: number | null;
+  }[];
+}> {
+  const res = await fetch(
+    `/api/projects/${projectId}/docs/${docId}/properties/${propertyId}/options`,
+    { cache: "no-store" }
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to read property options (${res.status}): ${
+        text || res.statusText
+      }`
+    );
+  }
+  return res.json();
+}
+export async function readDocProperties(
+  projectId: string,
+  docId: string
+): Promise<{
+  properties: (PropertyDefinitionDto & { value?: PropertyValueDto })[];
+}> {
+  const res = await fetch(
+    `/api/projects/${projectId}/docs/${docId}/properties`,
+    { cache: "no-store" }
+  );
+  if (!res.ok) throw new Error("Failed to fetch properties with values");
+  return res.json();
+}

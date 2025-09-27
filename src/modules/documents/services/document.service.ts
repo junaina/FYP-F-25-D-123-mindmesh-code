@@ -107,7 +107,58 @@ export type OptionOut = {
   color: string | null;
   position: number | null;
 };
-/** narrow a string to PropertyType (fallback to "text" if unknown) */
+/** map DB value shape -> PropertyValueDto */
+function dbValueToDto(
+  propType: PropertyType,
+  db: {
+    valueString: string | null;
+    valueNumber: number | null;
+    valueBool: boolean | null;
+    valueDate: Date | string | null;
+    valueJson: unknown | null;
+    optionId: string | null;
+  } | null
+): PropertyValueDto | null {
+  if (!db) return null;
+
+  switch (propType) {
+    case "text":
+      return { type: "text", value: db.valueString ?? null };
+    case "number":
+      return { type: "number", value: db.valueNumber ?? null };
+    case "email":
+      return { type: "email", value: db.valueString ?? null };
+    case "url":
+      return { type: "url", value: (db.valueString ?? null) as string | null };
+    case "checkbox":
+      return { type: "checkbox", value: !!db.valueBool };
+    case "date_time":
+      return {
+        type: "date_time",
+        value: db.valueDate ? new Date(db.valueDate).toISOString() : null,
+      };
+    case "select":
+      return { type: "select", value: db.optionId ?? null };
+    case "status":
+      return { type: "status", value: db.optionId ?? null };
+    case "multi_select": {
+      const arr = Array.isArray(db.valueJson) ? (db.valueJson as string[]) : [];
+      return { type: "multi_select", value: arr };
+    }
+    case "person": {
+      const arr = Array.isArray(db.valueJson) ? (db.valueJson as string[]) : [];
+      return { type: "person", value: arr };
+    }
+    case "file": {
+      const arr = Array.isArray(db.valueJson) ? (db.valueJson as string[]) : [];
+      return { type: "file", value: arr };
+    }
+    default:
+      return { type: "text", value: db.valueString ?? null };
+  }
+}
+
+/** narrow string -> PropertyType */
 function toPropertyType(s: string): PropertyType {
   return (PROPERTY_TYPES as readonly string[]).includes(s)
     ? (s as PropertyType)
@@ -215,24 +266,29 @@ export const DocumentService = {
   /** GET /api/docs/:id */
   async getHeader(projectId: string, docId: string) {
     await DocumentRepo.assertDocInProject(docId, projectId);
-    const row = (await DocumentRepo.findHeaderById(
-      projectId,
-      docId
-    )) as RepoDocumentHeader;
+    const row = await DocumentRepo.findHeaderById(projectId, docId);
     if (!row) return null;
 
-    const defs = row.properties.map((link) => {
-      const t = toPropertyType(link.property.type);
+    const defs = (row as any).properties.map((link: any) => {
+      // in your current repo, each element is already flat -> use it directly
+      const p = link; // 👈 THIS was missing
+      const t = toPropertyType(String(p.type));
+
+      // p.value is DB shape or undefined/null
+      const valueDto =
+        p.value !== undefined ? dbValueToDto(t, p.value ?? null) : undefined;
+
       return {
-        id: link.property.id,
-        name: link.property.name,
+        id: p.id,
+        name: p.name,
         type: t,
-        options: link.property.options.map((o) => ({
+        options: (p.options ?? []).map((o: any) => ({
           id: o.id,
           value: o.value,
           color: o.color ?? null,
           position: o.position ?? null,
         })),
+        ...(valueDto !== undefined ? { value: valueDto } : {}),
       };
     });
 
@@ -241,12 +297,17 @@ export const DocumentService = {
       projectId: row.projectId,
       title: row.title,
       description: row.description,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
+      createdAt:
+        row.createdAt instanceof Date
+          ? row.createdAt.toISOString()
+          : row.createdAt,
+      updatedAt:
+        row.updatedAt instanceof Date
+          ? row.updatedAt.toISOString()
+          : row.updatedAt,
       properties: defs,
     };
   },
-
   /** PATCH /api/docs/:id */
   async patchHeader(
     projectId: string,
@@ -342,6 +403,26 @@ export const DocumentService = {
     propertyId: string
   ): Promise<OptionOut[]> {
     return DocumentRepo.readPropertyOptions(projectId, docId, propertyId);
+  },
+  async setPropertyValue(
+    projectId: string,
+    docId: string,
+    propertyId: string,
+    pv: PropertyValueDto
+  ) {
+    await DocumentRepo.assertDocAndPropertySameProject(
+      projectId,
+      docId,
+      propertyId
+    );
+    const data = valueDtoToDb(pv); // maps DTO -> DB columns (optionId, valueString, etc.)
+    await DocumentRepo.upsertValue(docId, propertyId, data);
+    return { ok: true };
+  },
+
+  async readPropertiesWithValues(projectId: string, docId: string) {
+    await DocumentRepo.assertDocInProject(docId, projectId);
+    return DocumentRepo.readPropertiesWithValues(projectId, docId);
   },
   // DELETE /api/projects/:projectId/docs/:docId/properties/:propertyId
   async deleteProperty(args: {

@@ -1,15 +1,23 @@
 "use client";
+
 import * as React from "react";
-import type { PropertyDefinitionDto } from "@/modules/documents/dto/doc.dto";
+import type {
+  PropertyDefinitionDto,
+  PropertyValueDto,
+} from "@/modules/documents/dto/doc.dto";
 import PropertyRow from "./PropertyRow";
 import AddPropertyButton from "./AddPropertyButton";
+import { fetchDocHeader } from "@/modules/documents/client/docs.api";
 
 type Props = {
   projectId: string;
   docId: string;
-  properties: PropertyDefinitionDto[];
-  onCreated?: () => void; // call router.refresh from parent if you like
-  // values?:
+  properties: Array<
+    PropertyDefinitionDto & { value?: PropertyValueDto | null }
+  >;
+  onCreated?: (p: PropertyDefinitionDto) => void;
+  onDeleted?: (id: string) => void;
+  onUpdated?: (p: PropertyDefinitionDto) => void;
 };
 
 export default function PropertiesPanel({
@@ -17,24 +25,58 @@ export default function PropertiesPanel({
   docId,
   properties,
   onCreated,
-}: // values = {},
-Props) {
+  onUpdated,
+  onDeleted,
+}: Props) {
+  const [list, setList] = React.useState(properties);
+
+  // keep local list in sync when parent props change
+  React.useEffect(() => setList(properties), [properties]);
+
+  // central re-fetch
+  const refresh = React.useCallback(async () => {
+    try {
+      const header = await fetchDocHeader(projectId, docId);
+      setList(header?.properties ?? []);
+    } catch (e) {
+      console.error("Failed to refresh properties", e);
+    }
+  }, [projectId, docId]);
+
+  // works with both () => void and (p: PropertyDefinitionDto) => void
+  const handleCreated = React.useCallback(
+    async (...args: unknown[]) => {
+      const maybe = args[0] as PropertyDefinitionDto | undefined;
+      if (maybe && onCreated) onCreated(maybe);
+      await refresh();
+    },
+    [onCreated, refresh]
+  );
+
   return (
     <section className="space-y-1">
-      {properties.map((p) => (
+      {list.map((def) => (
         <PropertyRow
-          key={p.id}
-          name={p.name}
-          type={p.type}
-          //value
+          key={def.id}
+          projectId={projectId}
+          docId={docId}
+          property={def}
+          onUpdated={async (p) => {
+            onUpdated?.(p);
+            await refresh(); // ensure options/values are fresh
+          }}
+          onDeleted={async () => {
+            onDeleted?.(def.id);
+            await refresh();
+          }}
         />
-        //later: will pass actual vals for this doc e.g, value= {values[p.id]}
       ))}
+
       <div className="pt-2">
         <AddPropertyButton
           projectId={projectId}
           docId={docId}
-          onCreated={onCreated}
+          onCreated={handleCreated}
         />
       </div>
     </section>

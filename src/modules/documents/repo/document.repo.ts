@@ -155,16 +155,72 @@ async function updateOption(
     throw e;
   }
 }
+//function to read a property and its value.
+async function readPropertiesWithValues(projectId: string, docId: string) {
+  //ensure doc belongs to a project
+  await assertDocInProject(docId, projectId);
+  const links = await prisma.documentProperty.findMany({
+    where: { documentId: docId },
+    include: {
+      property: {
+        include: {
+          options: {
+            orderBy: [{ position: "asc" }, { value: "asc" }],
+          },
+        },
+      },
+    },
+  });
+  //fetching all values for the doc in one go
+  const values = await prisma.documentPropertyValue.findMany({
+    where: { documentId: docId },
+    include: {
+      option: true, //this is so select and status come back w option's colors and labels etc
+    },
+  });
+  const valuesByProp = new Map(values.map((v) => [v.propertyId, v]));
+  return links.map((link) => {
+    const def = link.property;
+    const val = valuesByProp.get(def.id);
+    return {
+      id: def.id,
+      name: def.name,
+      type: def.type,
+      options: def.options.map((o) => ({
+        id: o.id,
+        value: o.value,
+        color: o.color,
+        position: o.position,
+      })),
+      value: val
+        ? {
+            valueString: val.valueString,
+            valueNumber: val.valueNumber,
+            valueBool: val.valueBool,
+            valueDate: val.valueDate,
+            valueJson: val.valueJson as string[] | null,
+            optionId: val.optionId,
+            option: val.option
+              ? {
+                  id: val.option.id,
+                  value: val.option.value,
+                  color: val.option.color,
+                }
+              : null,
+          }
+        : null,
+    };
+  });
+}
+
 export const DocumentRepo = {
+  readPropertiesWithValues,
   updateOption,
   txDeleteOptionSafe,
   assertDocAndPropertySameProject,
   assertDocInProject,
-  async findHeaderById(
-    projectId: string,
-    docId: string
-  ): Promise<RepoDocumentHeader | null> {
-    const row = await prisma.document.findUnique({
+  async findHeaderById(projectId: string, docId: string) {
+    const doc = await prisma.document.findUnique({
       where: { id: docId, projectId },
       select: {
         id: true,
@@ -173,34 +229,14 @@ export const DocumentRepo = {
         description: true,
         createdAt: true,
         updatedAt: true,
-        properties: {
-          select: {
-            propertyId: true,
-            property: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                options: {
-                  select: {
-                    id: true,
-                    value: true,
-                    color: true,
-                    position: true,
-                  },
-                  orderBy: [
-                    { position: "asc" as const },
-                    { value: "asc" as const },
-                  ],
-                },
-              },
-            },
-          },
-        },
       },
     });
 
-    return row as unknown as RepoDocumentHeader | null;
+    if (!doc) return null;
+
+    const properties = await readPropertiesWithValues(projectId, docId);
+
+    return { ...doc, properties };
   },
 
   // get property definition by ID

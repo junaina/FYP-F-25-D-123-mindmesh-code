@@ -1,4 +1,5 @@
 // src/app/(app)/api/projects/[projectId]/docs/[docId]/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import {
@@ -8,9 +9,10 @@ import {
 } from "@/modules/documents/dto/doc.dto";
 import { DocumentService } from "@/modules/documents/services/document.service";
 
-// (optional) keep API always dynamic
+// at top of the file:
+export const revalidate = 0;
 export const dynamic = "force-dynamic";
-
+export const fetchCache = "force-no-store";
 function jsonError(err: unknown) {
   if (err instanceof ZodError) {
     return NextResponse.json(
@@ -40,8 +42,9 @@ export async function GET(
     const data = await DocumentService.getHeader(projectId, docId);
     if (!data)
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
-
-    return NextResponse.json(DocHeaderDto.parse(data));
+    const res = NextResponse.json(DocHeaderDto.parse(data));
+    res.headers.set("Cache-Control", "no-store");
+    return res;
   } catch (err) {
     return jsonError(err);
   }
