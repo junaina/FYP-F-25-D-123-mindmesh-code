@@ -27,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { formatISO } from "date-fns";
 import { patchPropertyValue } from "@/modules/documents/client/docs.api";
-
+import { GripVertical } from "lucide-react";
 type Props = {
   projectId: string;
   docId: string;
@@ -132,6 +132,28 @@ export default function PropertyRow({
         return { type: "text", value: null };
     }
   }
+  function Chip({
+    label,
+    color,
+    selected,
+  }: {
+    label: string;
+    color?: string | null;
+    selected?: boolean;
+  }) {
+    return (
+      <span
+        className={[
+          "mm-chip",
+          String(color ?? "mm-chip--gray"),
+          selected ? "ring-1 ring-primary" : "",
+        ].join(" ")}
+      >
+        <GripVertical className="h-3 w-3 opacity-70" />
+        {label}
+      </span>
+    );
+  }
 
   // --- Small editors ---------------------------------------------------------
 
@@ -224,13 +246,12 @@ export default function PropertyRow({
       </div>
     );
   }
-
   function SelectEditor({
     options,
     currentId,
     onCommit,
   }: {
-    options: { id: string; value: string }[];
+    options: { id: string; value: string; color?: string | null }[];
     currentId: string | null;
     onCommit: (id: string | null) => Promise<void> | void;
   }) {
@@ -244,14 +265,19 @@ export default function PropertyRow({
                 key={o.id}
                 value={o.value}
                 onSelect={async () => onCommit(o.id)}
+                className="px-2 py-2"
               >
-                {o.value}
-                {currentId === o.id && <span className="ml-auto">✓</span>}
+                <Chip
+                  label={o.value}
+                  color={o.color}
+                  selected={currentId === o.id}
+                />
               </CommandItem>
             ))}
             <CommandItem
               value="__clear__"
               onSelect={async () => onCommit(null)}
+              className="px-2 py-2"
             >
               Clear
             </CommandItem>
@@ -267,7 +293,7 @@ export default function PropertyRow({
     onCommit,
     onCancel,
   }: {
-    options: { id: string; value: string }[];
+    options: { id: string; value: string; color?: string | null }[];
     selected: string[];
     onCommit: (ids: string[]) => Promise<void> | void;
     onCancel: () => void;
@@ -275,30 +301,34 @@ export default function PropertyRow({
     const [setIds, setSetIds] = React.useState<Set<string>>(new Set(selected));
     const toggle = (id: string) => {
       const next = new Set(setIds);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       setSetIds(next);
     };
     const commit = async () => onCommit(Array.from(setIds));
+
     return (
-      <div className="p-2 w-64">
+      <div className="p-2 w-full">
         <Command>
           <CommandList>
             <CommandEmpty>No options</CommandEmpty>
             <CommandGroup>
-              {options.map((o) => (
-                <CommandItem
-                  key={o.id}
-                  value={o.value}
-                  onSelect={() => toggle(o.id)}
-                >
-                  <Checkbox checked={setIds.has(o.id)} className="mr-2" />
-                  {o.value}
-                </CommandItem>
-              ))}
+              {options.map((o) => {
+                const isOn = setIds.has(o.id);
+                return (
+                  <CommandItem
+                    key={o.id}
+                    value={o.value}
+                    onSelect={() => toggle(o.id)}
+                    className="px-2 py-2"
+                  >
+                    <Chip label={o.value} color={o.color} selected={isOn} />
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </CommandList>
         </Command>
+
         <div className="mt-2 flex justify-end gap-2">
           <button
             className="text-sm px-2 py-1 rounded bg-muted"
@@ -384,7 +414,11 @@ export default function PropertyRow({
       case "status":
         return (
           <SelectEditor
-            options={def.options.map((o) => ({ id: o.id, value: o.value }))}
+            options={def.options.map((o) => ({
+              id: o.id,
+              value: o.value,
+              color: o.color,
+            }))}
             currentId={selId}
             onCommit={async (id) => {
               await save(makeDto(t, id));
@@ -396,7 +430,11 @@ export default function PropertyRow({
       case "multi_select":
         return (
           <MultiSelectEditor
-            options={def.options.map((o) => ({ id: o.id, value: o.value }))}
+            options={def.options.map((o) => ({
+              id: o.id,
+              value: o.value,
+              color: o.color,
+            }))}
             selected={multi}
             onCommit={async (ids) => {
               await save(makeDto("multi_select", ids));
@@ -460,7 +498,8 @@ export default function PropertyRow({
         >
           <PopoverTrigger asChild>
             <div
-              className="min-h-6 min-w-[12rem] cursor-pointer rounded px-2 py-1 hover:bg-muted"
+              ref={valueRef}
+              className="min-h-8 flex-1 cursor-pointer rounded px-2 py-1 hover:bg-accent/40 border border-transparent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border"
               onClick={handleValueClick}
             >
               <div className="text-sm">
@@ -469,11 +508,17 @@ export default function PropertyRow({
             </div>
           </PopoverTrigger>
           <PopoverContent
-            className="p-0 w-auto"
-            align="end"
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            // match the value column’s width (Notion-style)
+            style={{ width: panelWidth }}
+            className="p-0 border rounded-lg bg-popover text-popover-foreground shadow-xl overflow-hidden"
             key={`${def.id}-${def.type}`}
           >
-            <ValueEditor />
+            <div className="max-h-72 overflow-auto">
+              <ValueEditor />
+            </div>
           </PopoverContent>
         </Popover>
       )}
