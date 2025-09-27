@@ -15,6 +15,16 @@ import {
   ChevronLeft,
   ChevronsUpDown,
   ListChecks,
+  CheckSquare,
+  Hash,
+  Calendar,
+  AtSign,
+  Link as LinkIcon,
+  ToggleLeft,
+  Tags,
+  Users,
+  Paperclip,
+  Type as TextIcon,
 } from "lucide-react";
 import CreatePropertyForm from "@/components/wiki/header/CreatePropertyForm";
 import * as React from "react";
@@ -28,8 +38,38 @@ type Props = {
 };
 
 type Step = "picker" | "form";
-type PropertyKind = "select"; //will extend this later w select, multi-select, text, number, status and more
+type PropertyKind =
+  | "text"
+  | "number"
+  | "date_time"
+  | "email"
+  | "url"
+  | "checkbox"
+  | "select"
+  | "multi_select"
+  | "status"
+  | "person"
+  | "file";
+const TYPES: Array<{
+  kind: PropertyKind;
+  label: string;
+  Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  group: "Basic" | "Choice" | "People & Files";
+}> = [
+  { kind: "text", label: "Text", Icon: TextIcon, group: "Basic" },
+  { kind: "number", label: "Number", Icon: Hash, group: "Basic" },
+  { kind: "date_time", label: "Date Time", Icon: Calendar, group: "Basic" },
+  { kind: "email", label: "Email", Icon: AtSign, group: "Basic" },
+  { kind: "url", label: "Url", Icon: LinkIcon, group: "Basic" },
+  { kind: "checkbox", label: "Checkbox", Icon: ToggleLeft, group: "Basic" },
 
+  { kind: "select", label: "Select", Icon: ListChecks, group: "Choice" },
+  { kind: "multi_select", label: "Multi Select", Icon: Tags, group: "Choice" },
+  { kind: "status", label: "Status", Icon: BadgeCheck, group: "Choice" },
+
+  { kind: "person", label: "Person", Icon: Users, group: "People & Files" },
+  { kind: "file", label: "File", Icon: Paperclip, group: "People & Files" },
+];
 export default function AddPropertyPopover({
   open,
   onOpenChange,
@@ -42,14 +82,33 @@ export default function AddPropertyPopover({
   React.useEffect(() => {
     if (open) setStep("picker");
   }, [open]);
-
+  const goForm = (k: PropertyKind) => {
+    setKind(k);
+    setStep("form");
+  };
+  const renderGroup = (title: (typeof TYPES)[number]["group"]) => (
+    <CommandGroup key={title} heading={title}>
+      {TYPES.filter((t) => t.group === title).map(({ kind, label, Icon }) => (
+        <CommandItem
+          key={kind}
+          value={kind}
+          onSelect={() => goForm(kind)}
+          className="cursor-pointer"
+        >
+          <Icon className="mr-2 h-4 w-4" />
+          {label}
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  );
   // the actual component
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      {/** will control the trigger from AddPropertyButton */}
+      {/* trigger is controlled by AddPropertyButton */}
       <PopoverTrigger asChild>
         <span className="sr-only" />
       </PopoverTrigger>
+
       <PopoverContent className="w-80 p-0">
         {step === "picker" ? (
           <div className="p-2">
@@ -58,20 +117,9 @@ export default function AddPropertyPopover({
             </div>
             <Command>
               <CommandList>
-                <CommandGroup heading="Types">
-                  <CommandItem
-                    value="select"
-                    onSelect={() => {
-                      setKind("select");
-                      setStep("form");
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <ListChecks className="mr-2 h-4 w-4" />
-                    Select
-                  </CommandItem>
-                  {/*later will add more types here*/}
-                </CommandGroup>
+                {renderGroup("Basic")}
+                {renderGroup("Choice")}
+                {renderGroup("People & Files")}
               </CommandList>
             </Command>
           </div>
@@ -91,7 +139,7 @@ export default function AddPropertyPopover({
             <CreatePropertyForm
               projectId={projectId}
               docId={docId}
-              initialValue={kind}
+              initialValue={kind} // ← pass exact selected type
               onCancel={() => onOpenChange(false)}
               onCreated={() => {
                 onOpenChange(false);
