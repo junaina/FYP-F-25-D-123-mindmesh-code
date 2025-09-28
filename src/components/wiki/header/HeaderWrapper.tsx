@@ -1,12 +1,11 @@
-// src/app/(app)/projects/[projectId]/docs/[docId]/ClientDoc.tsx
 "use client";
 
 import * as React from "react";
 import { fetchDocHeader } from "@/modules/documents/client/docs.api";
 import type { DocHeaderDto } from "@/modules/documents/dto/doc.dto";
-import DocHeader from "@/components/wiki/header/DocHeader";
 import PropertiesPanel from "@/components/wiki/header/PropertiesPanel";
 import { useRouter } from "next/navigation";
+import HeaderTitle from "@/components/wiki/header/HeaderTitle";
 
 type Props = {
   projectId: string;
@@ -14,7 +13,11 @@ type Props = {
   initialHeader?: DocHeaderDto;
 };
 
-export default function ClientDoc({ projectId, docId, initialHeader }: Props) {
+export default function HeaderWrapper({
+  projectId,
+  docId,
+  initialHeader,
+}: Props) {
   const router = useRouter();
   const [header, setHeader] = React.useState<DocHeaderDto | null>(
     initialHeader ?? null
@@ -49,7 +52,7 @@ export default function ClientDoc({ projectId, docId, initialHeader }: Props) {
 
   return (
     <div className="space-y-4">
-      <DocHeader projectId={projectId} docId={docId} title={header.title} />
+      <HeaderTitle projectId={projectId} docId={docId} title={header.title} />
 
       {/*properties panel*/}
       <PropertiesPanel
