@@ -8,7 +8,7 @@ type Props = {
   docId: string;
   title?: string;
 };
-export default function DocHeder({ projectId, docId, title }: Props) {
+export default function HeaderTitle({ projectId, docId, title }: Props) {
   const router = useRouter();
   const [value, setValue] = useState(title ?? "Untitled");
   const [editing, setEditing] = useState(false);
@@ -29,7 +29,7 @@ export default function DocHeder({ projectId, docId, title }: Props) {
     <header className="flex items-center justify-between gap-3">
       {editing ? (
         <input
-          className="text-xl font-semibold bg-transparent border-none focus:outline-none"
+          className="text-2xl font-semibold bg-transparent border-none focus:outline-none"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onBlur={() => {
@@ -45,7 +45,7 @@ export default function DocHeder({ projectId, docId, title }: Props) {
         />
       ) : (
         <h1
-          className="text-xl font-semibold truncate cursor-text"
+          className="text-2xl font-semibold truncate cursor-text"
           onClick={() => setEditing(true)}
         >
           {value}
