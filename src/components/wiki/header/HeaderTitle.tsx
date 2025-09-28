@@ -1,5 +1,4 @@
 "use client";
-import AddPropertyButton from "./AddPropertyButton";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { patchDocHeader } from "@/modules/documents/client/docs.api";
