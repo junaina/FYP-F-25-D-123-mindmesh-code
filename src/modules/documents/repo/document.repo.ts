@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import type { PropertyType } from "@/modules/documents/domain/types";
 import { Prisma } from "@/generated/prisma";
+import { isAuthDisabled } from "@/lib/auth";
+import type { DocCollaboratorRole } from "@/generated/prisma";
 export type RepoPropertyOption = {
   id: string;
   value: string;
@@ -535,5 +537,68 @@ export const DocumentRepo = {
       // delete definition
       await tx.propertyDefinition.delete({ where: { id: propertyId } });
     });
+  },
+
+  ////////////////////////////////////////////////////////////Doc Editor/////////////////////////////////////
+
+  async canRead(projectId: string, docId: string, userId: string) {
+    if (isAuthDisabled()) return true;
+    const member = await prisma.projectMember.findFirst({
+      where: { projectId, userId },
+    });
+    if (member) return true;
+    const collab = await prisma.documentCollaborator.findFirst({
+      where: { documentId: docId, userId },
+    });
+    return !!collab;
+  },
+
+  async canEdit(projectId: string, docId: string, userId: string) {
+    if (isAuthDisabled()) return true;
+    const member = await prisma.projectMember.findFirst({
+      where: { projectId, userId },
+    });
+    if (member) return true;
+    const collab = await prisma.documentCollaborator.findFirst({
+      where: {
+        documentId: docId,
+        userId,
+        role: { in: ["COMMENTER", "EDITOR"] },
+      },
+    });
+    return !!collab;
+  },
+  async findContent(projectId: string, docId: string) {
+    return prisma.document.findFirst({
+      where: { id: docId, projectId },
+      select: { id: true, content: true, updatedAt: true },
+    });
+  },
+  async currentMeta(projectId: string, docId: string) {
+    const row = await prisma.document.findFirst({
+      where: { id: docId, projectId },
+      select: { updatedAt: true },
+    });
+    if (!row) throw new Error("Not found");
+    return row;
+  },
+  async updateContentIfCurrent(
+    projectId: string,
+    docId: string,
+    content: Prisma.InputJsonValue,
+    lastKnownUpdatedAt?: Date
+  ) {
+    if (lastKnownUpdatedAt) {
+      const res = await prisma.document.updateMany({
+        where: { id: docId, projectId, updatedAt: lastKnownUpdatedAt },
+        data: { content },
+      });
+      return res.count > 0;
+    }
+    await prisma.document.update({
+      where: { id: docId },
+      data: { content },
+    });
+    return true;
   },
 };

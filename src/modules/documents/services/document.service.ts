@@ -1,4 +1,8 @@
 import { DocumentRepo } from "../repo/document.repo";
+import type { DocContent } from "../domain/content.types";
+import { isAuthDisabled } from "@/lib/auth";
+import { accessRepo } from "@/modules/documents/repo/access.repo";
+import { Prisma } from "@/generated/prisma";
 import type {
   PatchDocHeaderDto,
   PatchPropertyDefDto,
@@ -41,6 +45,10 @@ const TARGET_FIELD: Record<
   file: "valueJson",
 };
 
+const MAX_CONTENT_BYTES = 2_000_000;
+/** Safely coerce Tiptap JSON to Prisma's JSON input type */
+const toInputJson = (c: DocContent): Prisma.InputJsonValue =>
+  JSON.parse(JSON.stringify(c)) as Prisma.InputJsonValue;
 // const OPTION_TYPES = new Set<PropertyType>([
 //   "select",
 //   "status",
@@ -107,6 +115,25 @@ export type OptionOut = {
   color: string | null;
   position: number | null;
 };
+/////////////////////////////Editor Types///////////////////////////////////////
+export type GetContentResult = {
+  id: string;
+  content: DocContent;
+  updatedAt: Date;
+};
+
+export type UpdateContentArgs = {
+  projectId: string;
+  docId: string;
+  userId: string;
+  content: DocContent; // already Zod-validated at the route
+  lastKnownUpdatedAt?: Date; // OCC token from the client
+};
+
+export type UpdateContentResult =
+  | { mutated: true; updatedAt: Date }
+  | { mutated: false; currentUpdatedAt: Date }; // return server ts on conflict
+////////////////////////////////////////////////////////////////////////////////
 /** map DB value shape -> PropertyValueDto */
 function dbValueToDto(
   propType: PropertyType,
@@ -475,4 +502,78 @@ export const DocumentService = {
 
     return DocumentRepo.updateOption(propertyId, optionId, body);
   },
+  ///////////////////////////////////////Editor Content ///////////////////////////////////////
+
+  // GET /api/projects/:projectId/docs/:docId/content
+  async getContent(args: {
+    projectId: string;
+    docId: string;
+    userId: string;
+  }): Promise<GetContentResult> {
+    const { projectId, docId, userId } = args;
+
+    if (!(await canRead(projectId, docId, userId))) {
+      throw new Error("Forbidden");
+    }
+
+    const row = await DocumentRepo.findContent(projectId, docId);
+    if (!row) throw new Error("Not found");
+
+    return {
+      id: row.id,
+      content: row.content as unknown as DocContent, // we trust our own writes
+      updatedAt: row.updatedAt,
+    };
+  },
+  // PATCH /api/projects/:projectId/docs/:docId/content
+  //autosaves with optimistic concurrency control (OCC)
+  async updateContent(args: UpdateContentArgs): Promise<UpdateContentResult> {
+    const { projectId, docId, userId, content, lastKnownUpdatedAt } = args;
+
+    if (!(await canEdit(projectId, docId, userId))) {
+      throw new Error("Forbidden");
+    }
+
+    // Payload size guard (protect DB + network)
+    const bytes = Buffer.byteLength(JSON.stringify(content ?? ""));
+    if (bytes > MAX_CONTENT_BYTES) {
+      throw new Error("Content too large");
+    }
+
+    // OCC: update only if updatedAt matches client's lastKnownUpdatedAt (when provided)
+    const updated = await DocumentRepo.updateContentIfCurrent(
+      projectId,
+      docId,
+      toInputJson(content),
+      lastKnownUpdatedAt
+    );
+
+    if (!updated) {
+      const meta = await DocumentRepo.currentMeta(projectId, docId);
+      return { mutated: false, currentUpdatedAt: meta.updatedAt };
+    }
+
+    const meta = await DocumentRepo.currentMeta(projectId, docId);
+    return { mutated: true, updatedAt: meta.updatedAt };
+  },
 };
+/* -------------------------------------------------------------------------- */
+/*                               Permissions                                  */
+/* -------------------------------------------------------------------------- */
+
+async function canRead(projectId: string, docId: string, userId: string) {
+  if (isAuthDisabled()) return true;
+
+  if (await accessRepo.isProjectMember(projectId, userId)) return true;
+
+  const role = await accessRepo.getDocCollaboratorRole(docId, userId);
+  return role !== null; // VIEWER | COMMENTER | EDITOR
+}
+async function canEdit(projectId: string, docId: string, userId: string) {
+  if (isAuthDisabled()) return true;
+
+  if (await accessRepo.isProjectMember(projectId, userId)) return true;
+
+  const role = await accessRepo.getDocCollaboratorRole(docId, userId);
+  return role === "COMMENTER" || role === "EDITOR";
+}

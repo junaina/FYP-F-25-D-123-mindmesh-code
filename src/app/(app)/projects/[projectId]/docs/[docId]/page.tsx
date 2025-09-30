@@ -12,7 +12,7 @@ export default async function Page({ params }: { params: Promise<Params> }) {
       {/*sidebar goes here*/}
       <HeaderWrapper projectId={projectId} docId={docId} />
       {/*wiki editor goes here*/}
-      <EditorWrapper></EditorWrapper>
+      <EditorWrapper projectId={projectId} docId={docId}></EditorWrapper>
     </main>
   );
 }
