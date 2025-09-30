@@ -7,7 +7,6 @@ import {
   PropertyOptionDto,
   CreatePropertyBodyDto,
   PropertyValueDto,
-  createPropertyBodyDto,
   DocHeaderDto,
 } from "@/modules/documents/dto/doc.dto";
 
@@ -195,4 +194,61 @@ export async function readDocProperties(
   );
   if (!res.ok) throw new Error("Failed to fetch properties with values");
   return res.json();
+}
+
+////////////////////////Editor API////////////////////////
+export async function fetchDocContent(projectId: string, docId: string) {
+  if (!projectId || !docId) {
+    throw new Error(
+      `fetchDocContent called without IDs: {projectId:${projectId}, docId:${docId}}`
+    );
+  }
+  const url = `/api/projects/${encodeURIComponent(
+    projectId
+  )}/docs/${encodeURIComponent(docId)}/content`;
+
+  const r = await fetch(url, {
+    cache: "no-store",
+    method: "GET",
+    credentials: "include",
+  });
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    const err: any = new Error(
+      `GET ${url} failed ${r.status} ${r.statusText} — ${text}`
+    );
+    err.status = r.status;
+    throw err;
+  }
+  return r.json() as Promise<{ id: string; content: any; updatedAt: string }>;
+}
+export async function patchDocContent(
+  projectId: string,
+  docId: string,
+  body: { content: any; lastKnownUpdatedAt?: string }
+) {
+  if (!projectId || !docId) {
+    throw new Error(
+      `patchDocContent called without IDs: {projectId:${projectId}, docId:${docId}}`
+    );
+  }
+  const url = `/api/projects/${encodeURIComponent(
+    projectId
+  )}/docs/${encodeURIComponent(docId)}/content`;
+
+  const r = await fetch(url, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    const err: any = new Error(
+      `PATCH ${url} failed ${r.status} ${r.statusText} — ${text}`
+    );
+    err.status = r.status;
+    throw err;
+  }
+  return r.json() as Promise<{ updatedAt: string }>;
 }
