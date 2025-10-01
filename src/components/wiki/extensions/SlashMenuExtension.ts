@@ -2,6 +2,7 @@
 import { Extension, type Editor } from "@tiptap/core";
 import Suggestion, { type SuggestionProps } from "@tiptap/suggestion";
 import type { Plugin } from "prosemirror-state";
+import styles from "./SlashTasks.module.css";
 import {
   autoUpdate,
   computePosition,
@@ -14,31 +15,85 @@ import {
 export type SlashItem = {
   title: string;
   description: string;
+  icon: LucideIcon;
   command: (ctx: { editor: Editor }) => void;
 };
+import React from "react";
+import { createRoot, type Root } from "react-dom/client";
+
+import { SlashIcons } from "./slashIcons";
+import { LucideIcon } from "lucide-react";
 
 const SLASH_ITEMS: SlashItem[] = [
   {
     title: "Heading 1",
     description: "Big section heading",
+    icon: SlashIcons.heading1,
     command: ({ editor }) =>
       editor.chain().focus().toggleHeading({ level: 1 }).run(),
   },
   {
     title: "Heading 2",
     description: "Medium section heading",
+    icon: SlashIcons.heading2,
     command: ({ editor }) =>
       editor.chain().focus().toggleHeading({ level: 2 }).run(),
   },
   {
-    title: "Bullet List",
+    title: "Heading 3",
+    description: "Small section heading",
+    icon: SlashIcons.heading3,
+    command: ({ editor }) =>
+      editor.chain().focus().toggleHeading({ level: 3 }).run(),
+  },
+  {
+    title: "Bulleted list",
     description: "Create a bulleted list",
+    icon: SlashIcons.bulletedList,
     command: ({ editor }) => editor.chain().focus().toggleBulletList().run(),
   },
   {
-    title: "Numbered List",
+    title: "Numbered list",
     description: "Create a numbered list",
+    icon: SlashIcons.numberedList,
     command: ({ editor }) => editor.chain().focus().toggleOrderedList().run(),
+  },
+  {
+    title: "To-do list",
+    description: "Track tasks",
+    icon: SlashIcons.todoList,
+    command: ({ editor }) => editor.chain().focus().toggleTaskList().run(),
+  },
+  {
+    title: "Toggle list",
+    description: "Collapsible section",
+    icon: SlashIcons.toggleList,
+    command: ({ editor }) =>
+      editor.chain().focus().toggleList("toggleList", "toggleItem").run(),
+  },
+  {
+    title: "Google Drive",
+    description: "Embed a doc from Google Drive",
+    icon: SlashIcons.googleDrive,
+    command: ({ editor }) => {
+      // TODO: your integration
+    },
+  },
+  {
+    title: "GitHub",
+    description: "Embed PR or issue",
+    icon: SlashIcons.github,
+    command: ({ editor }) => {
+      // TODO: integration
+    },
+  },
+  {
+    title: "Slack",
+    description: "Embed Slack message",
+    icon: SlashIcons.slack,
+    command: ({ editor }) => {
+      // TODO: integration
+    },
   },
 ];
 
@@ -52,6 +107,7 @@ export const SlashMenuExtension = Extension.create({
       startOfLine: true, // Notion-like: only at start of a block
       allowSpaces: true,
 
+      //search
       items: ({ query }) => {
         console.log("[slash] items() query =", JSON.stringify(query));
         if (!query) return SLASH_ITEMS;
@@ -75,24 +131,14 @@ export const SlashMenuExtension = Extension.create({
       render: () => {
         let el: HTMLDivElement | null = null;
         let cleanup: (() => void) | null = null;
-
+        let root: Root | null = null;
         const ensureEl = () => {
           if (el) return el;
           el = document.createElement("div");
-          Object.assign(el.style, {
-            // Floating UI will return `strategy`; we’ll set style.position accordingly.
-            zIndex: "9999",
-            background: "var(--editor-popover-bg, #fff)",
-            color: "var(--editor-text, #111827)",
-            border: "1px solid var(--editor-border, rgba(0,0,0,0.12))",
-            borderRadius: "10px",
-            boxShadow: "0 12px 28px rgba(0,0,0,0.18)",
-            padding: "6px",
-            minWidth: "260px",
-            maxWidth: "360px",
-            overflow: "hidden",
-          } as CSSStyleDeclaration);
+          el.className = styles.shell;
+
           document.body.appendChild(el);
+          root = createRoot(el);
           return el;
         };
 
@@ -105,56 +151,45 @@ export const SlashMenuExtension = Extension.create({
           if (!list) {
             list = document.createElement("div");
             list.setAttribute("data-list", "true");
-            Object.assign(list.style, {
-              // height will be clamped by `size()` middleware; this just provides a hard cap
-              maxHeight: "320px",
-              overflowY: "auto",
-            } as CSSStyleDeclaration);
+            list.className = styles.list;
             el.appendChild(list);
           }
           list.innerHTML = "";
 
           items.forEach((item) => {
             const row = document.createElement("div");
-            Object.assign(row.style, {
-              padding: "8px 10px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              display: "grid",
-              gridTemplateRows: "auto auto",
-              gap: "2px",
-            } as CSSStyleDeclaration);
-            row.onmouseenter = () =>
-              (row.style.background = "rgba(0,0,0,0.06)");
-            row.onmouseleave = () => (row.style.background = "transparent");
+            row.className = styles.item; //  row class
+            row.onmouseenter = () => {}; // hover is CSS-only now
+            row.onmouseleave = () => {};
             row.onmousedown = (e) => {
               e.preventDefault();
               pick(item);
             };
-
+            const textWrap = document.createElement("div");
             const title = document.createElement("div");
             title.textContent = item.title;
-            title.style.fontWeight = "600";
+            title.className = styles.title;
 
             const desc = document.createElement("div");
             desc.textContent = item.description;
-            desc.style.opacity = "0.65";
-            desc.style.fontSize = "12px";
+            desc.className = styles.desc;
 
-            row.appendChild(title);
-            row.appendChild(desc);
+            textWrap.appendChild(title);
+            textWrap.appendChild(desc);
+            row.appendChild(textWrap);
+
             list.appendChild(row);
           });
 
           if (items.length === 0) {
             const empty = document.createElement("div");
             empty.textContent = "No results";
-            Object.assign(empty.style, { padding: "8px 10px", opacity: "0.6" });
-            list.appendChild(empty);
+            empty.className = styles.desc;
+            (list as HTMLDivElement).appendChild(empty);
           }
         };
 
-        // Recompute position using Floating UI
+        // recompute position using Floating UI
         const position = async (props: SuggestionProps<SlashItem>) => {
           if (!el || !props.clientRect) return;
 

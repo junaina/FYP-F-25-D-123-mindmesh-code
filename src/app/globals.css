@@ -367,3 +367,155 @@
 .mm-row:hover .mm-row-action {
   opacity: 1;
 }
+
+/* ================= Slash Menu (muted, Notion-style) ================ */
+/* Tokens derive from your existing theme vars, not --accent */
+:root {
+  --sm-bg: var(--popover);
+  --sm-fg: var(--popover-foreground);
+  --sm-subfg: color-mix(in oklab, var(--popover-foreground) 65%, transparent);
+  --sm-border: var(--border);
+  --sm-elev: color-mix(in oklab, var(--foreground) 12%, transparent);
+
+  --sm-hover: color-mix(in oklab, var(--muted) 80%, transparent);
+  --sm-active: color-mix(in oklab, var(--muted) 100%, transparent);
+
+  --sm-radius: 12px;
+  --sm-row-h: 36px;
+  --sm-pad: 8px;
+}
+
+.dark {
+  /* keep it subtle in dark as well */
+  --sm-bg: var(--popover);
+  --sm-fg: var(--popover-foreground);
+  --sm-subfg: color-mix(in oklab, var(--popover-foreground) 60%, transparent);
+  --sm-border: var(--border);
+  --sm-elev: color-mix(in oklab, var(--foreground) 18%, transparent);
+
+  --sm-hover: color-mix(in oklab, var(--muted) 80%, transparent);
+  --sm-active: color-mix(in oklab, var(--muted) 100%, transparent);
+}
+
+/* Scope to your editor root */
+.mm-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* Remove bullets at every nesting level */
+.mm-editor ul[data-type="taskList"] ul,
+.mm-editor ul[data-type="taskList"] li {
+  list-style: none;
+}
+.mm-editor ul[data-type="taskList"] li::marker {
+  content: none;
+}
+
+/* Put checkbox and text on the SAME LINE */
+.mm-editor ul[data-type="taskList"] > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  transition: background-color 0.12s ease;
+}
+.mm-editor ul[data-type="taskList"] > li:hover {
+  background: color-mix(in oklab, var(--muted) 85%, transparent);
+}
+
+/* Checkbox column */
+.mm-editor ul[data-type="taskList"] > li > label {
+  margin: 0;
+  line-height: 0;
+  cursor: pointer;
+}
+
+/* Bigger, clean checkbox */
+.mm-editor ul[data-type="taskList"] > li > label > input[type="checkbox"] {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px; /* 9999px for fully round */
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  display: grid;
+  place-items: center;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]:hover {
+  border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 40%);
+}
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* Checked style + check glyph */
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]:checked::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')
+    no-repeat center/contain;
+  mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')
+    no-repeat center/contain;
+  background: var(--primary-foreground);
+}
+
+/* Text column (the div after the label). Works whether it has class "content" or not. */
+.mm-editor ul[data-type="taskList"] > li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+/* Kill default prose margins so text doesn’t drop below the checkbox */
+.mm-editor ul[data-type="taskList"] > li > div > p {
+  margin: 0;
+}
+
+/* Completed item (Tiptap sets data-checked on li) */
+.mm-editor ul[data-type="taskList"] > li[data-checked="true"] > div {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  text-decoration-thickness: 0.06em;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--muted-foreground) 70%,
+    transparent
+  );
+}
+
+/* Nested todos: gentle indent + guide */
+.mm-editor ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-top: 4px;
+  margin-left: 1.25rem;
+  padding-left: 1rem;
+  border-left: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
+} /* =========================
+   Toggle list (drop-in)
+   Keeps your selectors intact
+   ========================= */
