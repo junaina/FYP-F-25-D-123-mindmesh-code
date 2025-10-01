@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, type UseEditorOptions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
-import TaskItem from "@tiptap/extension-task-item";
+import { CustomTaskItem } from "@/components/wiki/extensions/CustomTaskItem";
+
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -47,7 +48,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     extensions: [
       StarterKit,
       TaskList,
-      TaskItem,
+      CustomTaskItem,
       Link.configure({ openOnClick: false }),
       Image,
       Placeholder.configure({ placeholder: "Type / for commands…" }),
@@ -57,7 +58,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     editorProps: {
       attributes: {
         class:
-          "prose dark:prose-invert max-w-none focus:outline-none min-h-[40vh]",
+          "prose dark:prose-invert max-w-none focus:outline-none min-h-[40vh] mm-editor",
       },
     },
     immediatelyRender: false, // <-- fixes SSR hydration mismatch

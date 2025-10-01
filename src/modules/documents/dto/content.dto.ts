@@ -52,7 +52,20 @@ const container = (t: string) =>
     content: NodeArray(),
     marks: z.array(MarkSchema).optional(),
   }) as z.ZodType<JC>;
+const ToggleItemNode: z.ZodType<JC> = z.object({
+  type: z.literal("toggleItem"),
+  attrs: z
+    .object({
+      collapsed: z.boolean().optional(), // default false
+    })
+    .optional(),
+  content: NodeArray(), // paragraph + block children
+});
 
+const ToggleListNode: z.ZodType<JC> = z.object({
+  type: z.literal("toggleList"),
+  content: z.array(ToggleItemNode), // only toggleItems inside
+});
 NodeSchema = z.union([
   TextNode,
   HeadingNode,
@@ -65,6 +78,8 @@ NodeSchema = z.union([
   container("taskItem"),
   container("blockquote"),
   container("codeBlock"),
+  ToggleListNode,
+  ToggleItemNode,
   z.object({ type: z.literal("horizontalRule") }) as z.ZodType<JC>,
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
 ]);
