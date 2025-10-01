@@ -14,7 +14,7 @@ import {
   fetchDocContent,
   patchDocContent,
 } from "@/modules/documents/client/docs.api";
-
+import { SlashMenuExtension } from "@/components/wiki/extensions/SlashMenuExtension";
 type Props = { projectId: string; docId: string };
 
 const EMPTY_DOC: JSONContent = {
@@ -51,6 +51,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       Link.configure({ openOnClick: false }),
       Image,
       Placeholder.configure({ placeholder: "Type / for commands…" }),
+      SlashMenuExtension,
     ],
     content: EMPTY_DOC,
     editorProps: {
@@ -70,6 +71,10 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     suppressSave.current = true;
     editor.commands.setContent(initial); // no boolean second arg
     suppressSave.current = false;
+    console.log(
+      "mounted extensions:",
+      editor.extensionManager.extensions.map((e) => e.name)
+    );
   }, [editor, initial]);
 
   // Autosave (debounced) + OCC
