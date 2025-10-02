@@ -516,6 +516,19 @@
   padding-left: 1rem;
   border-left: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
 } /* =========================
-   Toggle list (drop-in)
-   Keeps your selectors intact
+   Toggle list
    ========================= */
+:global(.mm-editor [data-type="toggle"][data-open="false"] [data-toggle-body]) {
+  display: none;
+}
+:global(.mm-editor [data-action="toggle-open"] svg) {
+  transition: transform 150ms ease;
+}
+:global(
+    .mm-editor
+      [data-type="toggle"][data-open="true"]
+      [data-action="toggle-open"]
+      svg
+  ) {
+  transform: rotate(90deg);
+}
