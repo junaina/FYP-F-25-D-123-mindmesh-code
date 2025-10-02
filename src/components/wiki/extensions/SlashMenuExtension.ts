@@ -68,8 +68,7 @@ const SLASH_ITEMS: SlashItem[] = [
     title: "Toggle list",
     description: "Collapsible section",
     icon: SlashIcons.toggleList,
-    command: ({ editor }) =>
-      editor.chain().focus().toggleList("toggleList", "toggleItem").run(),
+    command: ({ editor }) => editor.chain().focus().insertToggle().run(),
   },
   {
     title: "Google Drive",
