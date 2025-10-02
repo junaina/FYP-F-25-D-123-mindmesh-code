@@ -17,6 +17,7 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import { ChevronRight } from "lucide-react";
+import React from "react";
 //extending commands to include our custom commands
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -34,6 +35,31 @@ declare module "@tiptap/core" {
    React NodeView for toggleSummary
    ================================ */
 const ToggleSummaryView = (_props: NodeViewProps) => {
+  //wiring the chevron button here
+  const onToggleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault(); // prevent focus change
+    e.stopPropagation();
+    const views = _props.editor.view;
+    const getPos = _props.getPos as (() => number) | undefined;
+    if (!views || !getPos) return;
+    const pos = getPos();
+    const { state } = views;
+    const $pos = state.doc.resolve(pos);
+    for (let depth = $pos.depth; depth >= 0; depth--) {
+      const n = $pos.node(depth);
+      if (n.type.name === "toggle") {
+        const p = depth === 0 ? 0 : $pos.before(depth);
+        const tr = state.tr.setNodeMarkup(p, undefined, {
+          ...n.attrs,
+          open: !n.attrs.open,
+        });
+        views.dispatch(tr);
+        views.focus();
+        console.log("toggle clicked");
+        return;
+      }
+    }
+  };
   return (
     <NodeViewWrapper
       data-toggle-summary=""
@@ -44,6 +70,7 @@ const ToggleSummaryView = (_props: NodeViewProps) => {
         data-action="toggle-open"
         className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs border-transparent hover:bg-muted focus:outline-none"
         contentEditable={false}
+        onMouseDown={onToggleMouseDown}
       >
         {/* Rotation handled via CSS based on parent [data-open] */}
         <ChevronRight className="h-4 w-4 transition-transform" />

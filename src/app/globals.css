@@ -532,3 +532,19 @@
   ) {
   transform: rotate(90deg);
 }
+
+/* Collapse body when the parent toggle is closed */
+.mm-editor [data-type="toggle"][data-open="false"] [data-toggle-body] {
+  display: none;
+}
+
+/* Rotate chevron when open */
+.mm-editor [data-action="toggle-open"] svg {
+  transition: transform 150ms ease;
+}
+.mm-editor
+  [data-type="toggle"][data-open="true"]
+  [data-action="toggle-open"]
+  svg {
+  transform: rotate(90deg);
+}
