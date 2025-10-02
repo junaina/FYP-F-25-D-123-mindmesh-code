@@ -1,6 +1,7 @@
 "use client";
 
 import type { Column } from "./types";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function PropertiesPanel({
   open,
@@ -32,7 +33,7 @@ export default function PropertiesPanel({
                 <span className="text-sm text-gray-300">{c.name}</span>
               </div>
               <button className="text-gray-400 hover:text-gray-200" onClick={() => onToggle(c.id)} title={c.visible ? "Hide" : "Show"}>
-                {c.visible ? "👁" : "🚫"}
+                  {c.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
               </button>
             </div>
           ))}

@@ -4,6 +4,7 @@ import * as React from "react";
 import SelectMenu from "../menus/SelectMenu";
 import Popover from "../ui/Popover";
 
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 export default function SelectCell({
   value,
   onChange,
@@ -41,17 +42,18 @@ export default function SelectCell({
       </button>
 
       <Popover anchorRef={btnRef} open={open} onClose={() => setOpen(false)} preferred="bottom-start">
-        <div className="max-h-[70vh] overflow-auto">
+         <ScrollArea className="max-h-[70vh]">
           <SelectMenu
             options={localOptions}
             value={value}
-            onChange={v => {
+            onChange={(v) => {
               onChange(v);
               setOpen(false);
             }}
-            onCreate={v => add(v)}
+            onCreate={(v) => add(v)}
           />
-        </div>
+          <ScrollBar />
+        </ScrollArea>
       </Popover>
     </div>
   );

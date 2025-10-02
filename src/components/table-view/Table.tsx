@@ -9,6 +9,8 @@ import AddPropertyHeader from "./headers/AddPropertyHeader";
 import AddPropertyMenu from "./menus/AddPropertyMenu";
 import PropertiesPanel from "./PropertiesPanel";
 import CellInput from "./cells/CellInput";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { FileText, Table as TableIcon } from "lucide-react";
 
 export default function Table() {
   const initial: TableState = {
@@ -36,7 +38,7 @@ export default function Table() {
 
   /** ---- SCROLLABLE GRID SIZES ----
    * We use fixed px widths so the grid’s total width grows with columns.
-   * The outer wrapper has overflow-x-auto, so it scrolls horizontally.
+   * The outer wrapper scrolls horizontally.
    */
   const NAME_W = 320;       // px
   const COL_W  = 240;       // px for every property column
@@ -49,12 +51,12 @@ export default function Table() {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center gap-3 mb-3">
           <div className="rounded-full border border-gray-700 px-3 py-1 text-sm bg-[#151515] select-none flex items-center gap-2">
-            <span className="text-sm">📊</span> Table
+            <TableIcon className="h-4 w-4" /> Table
           </div>
         </div>
 
-        {/* SCROLL CONTAINER */}
-        <div className="rounded-xl border border-gray-800 overflow-x-auto">
+        {/* SCROLL CONTAINER (shadcn) */}
+        <ScrollArea className="rounded-xl border border-gray-800">
           {/* Width shim so horizontal scroll appears when many columns */}
           <div style={{ minWidth: totalWidth }}>
             {/* HEADERS */}
@@ -69,27 +71,33 @@ export default function Table() {
                   onOpenAddMenu={openAddMenu}
                 />
               ))}
-             <AddPropertyHeader
-  onOpenAddMenu={openAddMenu}
-  onOpenPanel={() => setPanelOpen(true)}
-  showPlus={visibleCols.length === 0}      // show + only when there are no columns
-  showEllipsis={visibleCols.length > 0}    // show … only once columns exist
-/>
+              <AddPropertyHeader
+                onOpenAddMenu={openAddMenu}
+                onOpenPanel={() => setPanelOpen(true)}
+                showPlus={visibleCols.length === 0}      // show + only when there are no columns
+                showEllipsis={visibleCols.length > 0}    // show … only once columns exist
+              />
             </div>
 
             {/* ROWS */}
             {state.rows.map(row => (
-              <div key={row.id} className="grid border-b border-gray-900 hover:bg-[#141414] transition-colors"
-                   style={{ gridTemplateColumns: template }}>
+              <div
+                key={row.id}
+                className="grid border-b border-gray-900 hover:bg-[#141414] transition-colors"
+                style={{ gridTemplateColumns: template }}
+              >
                 {/* Name cell */}
                 <div className="px-2 py-1 flex items-center">
-                  <div className="mx-2 text-gray-500">📄</div>
+                  <FileText className="mx-2 h-4 w-4 text-gray-500" />
                   <input
                     className="w-full bg-transparent px-3 py-2 outline-none text-gray-200 placeholder-gray-500"
                     placeholder="New page"
                     value={row.title}
                     onChange={e =>
-                      dispatch({ type: "UPDATE_CELL", payload: { rowId: row.id, columnId: "title", value: e.target.value } })
+                      dispatch({
+                        type: "UPDATE_CELL",
+                        payload: { rowId: row.id, columnId: "title", value: e.target.value },
+                      })
                     }
                   />
                 </div>
@@ -100,7 +108,12 @@ export default function Table() {
                     <CellInput
                       type={col.type}
                       value={row.cells[col.id]}
-                      onChange={v => dispatch({ type: "UPDATE_CELL", payload: { rowId: row.id, columnId: col.id, value: v } })}
+                      onChange={v =>
+                        dispatch({
+                          type: "UPDATE_CELL",
+                          payload: { rowId: row.id, columnId: col.id, value: v },
+                        })
+                      }
                     />
                   </div>
                 ))}
@@ -117,12 +130,16 @@ export default function Table() {
               </button>
             </div>
           </div>
-        </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
 
         {/* Add Property floating menu */}
         {addMenuOpen && addMenuAnchor && (
-          <div className="fixed z-40" style={{ left: addMenuAnchor.x, top: addMenuAnchor.y }}
-               onMouseLeave={() => setAddMenuOpen(false)}>
+          <div
+            className="fixed z-40"
+            style={{ left: addMenuAnchor.x, top: addMenuAnchor.y }}
+            onMouseLeave={() => setAddMenuOpen(false)}
+          >
             <AddPropertyMenu
               onPick={type => {
                 dispatch({ type: "ADD_COLUMN", payload: { type } });

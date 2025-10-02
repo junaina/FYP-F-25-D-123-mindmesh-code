@@ -2,6 +2,12 @@ import type { Column, ColumnType, Row, TableState } from "./types";
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
+import React from "react";
+import {
+  Hash, List, Tags, ListChecks, Calendar, User, Paperclip,
+  Check, Link, AtSign, Phone, Type as TypeIcon
+} from "lucide-react";
+
 export const PROPERTY_CATALOG: { label: string; type: ColumnType }[] = [
   { label: "Text", type: "text" },
   { label: "Number", type: "number" },
@@ -81,18 +87,23 @@ export function reducer(state: TableState, action: Action): TableState {
   }
 }
 
-export const iconForType = (t: ColumnType) =>
-  ({
-    text: "≡",
-    number: "#",
-    select: "⋮",
-    multi_select: "⋯",
-    status: "●",
-    date: "⌚",
-    person: "👤",
-    file: "📎",
-    checkbox: "✓",
-    url: "🔗",
-    email: "@",
-    phone: "☎",
-  } as const)[t];
+
+export const iconForType = (t: ColumnType): React.ReactNode => {
+  const cls = "h-4 w-4";
+  const map: Record<ColumnType, React.ComponentType<{ className?: string }>> = {
+    text: TypeIcon,
+    number: Hash,
+    select: List,
+    multi_select: Tags,
+    status: ListChecks,
+    date: Calendar,
+    person: User,
+    file: Paperclip,
+    checkbox: Check,
+    url: Link,
+    email: AtSign,
+    phone: Phone,
+  };
+  const Icon = map[t];
+  return React.createElement(Icon, { className: cls });
+};

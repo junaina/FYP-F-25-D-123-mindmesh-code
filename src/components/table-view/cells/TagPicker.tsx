@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 export default function TagPicker({
   multi,
   value,
@@ -42,19 +42,22 @@ export default function TagPicker({
           }}
         />
       </div>
-      <div className="flex gap-2 overflow-x-auto whitespace-nowrap text-sm">
-        {items.map(i => (
-          <button
-            key={i}
-            onClick={() => toggle(i)}
-            className={`rounded-md px-2 py-1 border ${
-              selected.includes(i) ? "border-gray-400" : "border-gray-700 hover:border-gray-500"
-            }`}
-          >
-            {i}
-          </button>
-        ))}
-      </div>
+       <ScrollArea className="w-full">
+        <div className="flex gap-2 whitespace-nowrap text-sm p-1">
+          {items.map(i => (
+            <button
+              key={i}
+              onClick={() => toggle(i)}
+              className={`rounded-md px-2 py-1 border ${
+                selected.includes(i) ? "border-gray-400" : "border-gray-700 hover:border-gray-500"
+              }`}
+            >
+              {i}
+            </button>
+          ))}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
     </div>
   );
 }

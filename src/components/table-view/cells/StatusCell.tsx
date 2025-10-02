@@ -3,7 +3,7 @@
 import * as React from "react";
 import StatusMenu, { STATUS_META, StatusValue } from "../menus/StatusMenu";
 import Popover from "../ui/Popover";
-
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 const isStatus = (v: any): v is StatusValue =>
   v === "not_started" || v === "in_progress" || v === "done";
 
@@ -31,7 +31,7 @@ export default function StatusCell({
 
       <Popover anchorRef={btnRef} open={open} onClose={() => setOpen(false)} preferred="bottom-start">
         {/* ensure menu can scroll if clamped to viewport */}
-        <div className="max-h-[70vh] overflow-auto">
+        <ScrollArea className="max-h-[70vh]">
           <StatusMenu
             value={current}
             onChange={v => {
@@ -40,7 +40,8 @@ export default function StatusCell({
             }}
             onEdit={() => setOpen(false)}
           />
-        </div>
+          <ScrollBar />
+        </ScrollArea>
       </Popover>
     </div>
   );
