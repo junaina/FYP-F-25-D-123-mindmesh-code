@@ -6,7 +6,7 @@ import type { DocHeaderDto } from "@/modules/documents/dto/doc.dto";
 import PropertiesPanel from "@/components/wiki/header/PropertiesPanel";
 import { useRouter } from "next/navigation";
 import HeaderTitle from "@/components/wiki/header/HeaderTitle";
-
+import { Separator } from "@/components/ui/separator";
 type Props = {
   projectId: string;
   docId: string;
@@ -51,7 +51,7 @@ export default function HeaderWrapper({
   if (!header) return <div className="text-sm">Not found.</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <HeaderTitle projectId={projectId} docId={docId} title={header.title} />
 
       {/*properties panel*/}
