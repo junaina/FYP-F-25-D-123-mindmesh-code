@@ -461,9 +461,6 @@ export default function EditPropertyPopover({
 
             {/* Destructive */}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Delete property
-              </span>
               <Button
                 variant="destructive"
                 size="sm"

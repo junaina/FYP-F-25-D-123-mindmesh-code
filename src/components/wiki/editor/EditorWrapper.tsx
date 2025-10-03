@@ -146,5 +146,9 @@ export default function EditorWrapper({ projectId, docId }: Props) {
   }, [editor, projectId, docId, serverUpdatedAt]);
 
   if (!editor) return null;
-  return <EditorContent editor={editor} />;
+  return (
+    <div>
+      <EditorContent editor={editor} />
+    </div>
+  );
 }
