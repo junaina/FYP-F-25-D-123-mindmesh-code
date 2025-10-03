@@ -8,7 +8,7 @@ import type {
 import PropertyRow from "./PropertyRow";
 import AddPropertyButton from "./AddPropertyButton";
 import { fetchDocHeader } from "@/modules/documents/client/docs.api";
-
+import { Separator } from "@/components/ui/separator";
 type Props = {
   projectId: string;
   docId: string;
@@ -54,7 +54,7 @@ export default function PropertiesPanel({
   );
 
   return (
-    <section className="space-y-1">
+    <section className="space-y-0.4">
       {list.map((def) => (
         <PropertyRow
           key={def.id}
@@ -72,13 +72,14 @@ export default function PropertiesPanel({
         />
       ))}
 
-      <div className="pt-2">
+      <div className="pt-2 mb-4">
         <AddPropertyButton
           projectId={projectId}
           docId={docId}
           onCreated={handleCreated}
         />
       </div>
+      <Separator />
     </section>
   );
 }

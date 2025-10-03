@@ -4,7 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor, EditorContent, type UseEditorOptions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
-import TaskItem from "@tiptap/extension-task-item";
+import { CustomTaskItem } from "@/components/wiki/extensions/CustomTaskItem";
+import type { Content } from "@tiptap/core";
+import {
+  Toggle,
+  ToggleSummary,
+  ToggleBody,
+} from "@/components/wiki/extensions/ToggleExtension";
+
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -14,7 +21,7 @@ import {
   fetchDocContent,
   patchDocContent,
 } from "@/modules/documents/client/docs.api";
-
+import { SlashMenuExtension } from "@/components/wiki/extensions/SlashMenuExtension";
 type Props = { projectId: string; docId: string };
 
 const EMPTY_DOC: JSONContent = {
@@ -47,16 +54,21 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     extensions: [
       StarterKit,
       TaskList,
-      TaskItem,
+      CustomTaskItem,
+
       Link.configure({ openOnClick: false }),
       Image,
       Placeholder.configure({ placeholder: "Type / for commands…" }),
+      Toggle,
+      ToggleSummary,
+      ToggleBody,
+      SlashMenuExtension,
     ],
     content: EMPTY_DOC,
     editorProps: {
       attributes: {
         class:
-          "prose dark:prose-invert max-w-none focus:outline-none min-h-[40vh]",
+          "prose dark:prose-invert max-w-none focus:outline-none min-h-[40vh] mm-editor",
       },
     },
     immediatelyRender: false, // <-- fixes SSR hydration mismatch
@@ -67,9 +79,25 @@ export default function EditorWrapper({ projectId, docId }: Props) {
   const suppressSave = useRef(false);
   useEffect(() => {
     if (!editor || !initial) return;
+
+    // Capture a narrowed copy so TS knows it's defined inside the callback.
+    const contentToLoad: Content = initial; // JSONContent is a valid Content
+
     suppressSave.current = true;
-    editor.commands.setContent(initial); // no boolean second arg
-    suppressSave.current = false;
+
+    // microtask (could use requestAnimationFrame as well)
+    queueMicrotask(() => {
+      if (!editor) return;
+
+      // Use the Editor method if available to avoid emitting an update
+      // (second arg = emitUpdate). Fallback to command if not exposed.
+      (editor as any).setContent?.(contentToLoad, false) ??
+        editor.commands.setContent(contentToLoad);
+
+      // keep autosave dedupe happy
+      lastSent.current = JSON.stringify(contentToLoad);
+      suppressSave.current = false;
+    });
   }, [editor, initial]);
 
   // Autosave (debounced) + OCC
@@ -78,7 +106,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
 
   useEffect(() => {
     if (!editor) return;
-
+    console.log("has insertToggle:", typeof editor.commands.insertToggle);
     const onUpdate: (e: EditorEvents["update"]) => void = ({ transaction }) => {
       if (suppressSave.current) return;
       if (!transaction.docChanged) return;
@@ -118,5 +146,9 @@ export default function EditorWrapper({ projectId, docId }: Props) {
   }, [editor, projectId, docId, serverUpdatedAt]);
 
   if (!editor) return null;
-  return <EditorContent editor={editor} />;
+  return (
+    <div>
+      <EditorContent editor={editor} />
+    </div>
+  );
 }
