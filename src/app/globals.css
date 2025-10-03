@@ -362,6 +362,16 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+/* */
+/* highlight the active row */
+.active {
+  background: color-mix(in oklab, var(--muted) 85%, transparent);
+}
+
+.item[aria-selected="true"] {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
 
 /* Icon tone */
 .mm-ghost-cta .mm-ghost-cta__icon {
@@ -493,9 +503,7 @@
   border-radius: 10px;
   transition: background-color 0.12s ease;
 }
-.mm-editor ul[data-type="taskList"] > li:hover {
-  background: color-mix(in oklab, var(--muted) 85%, transparent);
-}
+.mm-editor ul[data-type="taskList"] >
 
 /* Checkbox column */
 .mm-editor ul[data-type="taskList"] > li > label {
@@ -520,17 +528,13 @@
   ul[data-type="taskList"]
   > li
   > label
-  > input[type="checkbox"]:hover {
-  border-color: color-mix(in oklab, var(--border) 60%, var(--foreground) 40%);
-}
-.mm-editor
+  > input[type="checkbox"]
+  .mm-editor
   ul[data-type="taskList"]
   > li
   > label
-  > input[type="checkbox"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
-}
+  > input[type="checkbox"]
+
 
 /* Checked style + check glyph */
 .mm-editor
