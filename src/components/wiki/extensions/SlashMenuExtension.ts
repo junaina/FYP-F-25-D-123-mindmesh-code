@@ -131,6 +131,12 @@ export const SlashMenuExtension = Extension.create({
         let el: HTMLDivElement | null = null;
         let cleanup: (() => void) | null = null;
         let root: Root | null = null;
+        let lastEditor: any | null = null;
+        let lastRange: { from: number; to: number } | null = null;
+
+        // NEW: keyboard state
+        let selectedIndex = 0;
+        let currentItems: SlashItem[] = [];
         const ensureEl = () => {
           if (el) return el;
           el = document.createElement("div");
@@ -141,6 +147,33 @@ export const SlashMenuExtension = Extension.create({
           return el;
         };
 
+        // Keep a reference to the list element
+        const ensureList = () => {
+          if (!el) return null;
+          let list = el.querySelector<HTMLDivElement>("[data-list]");
+          if (!list) {
+            list = document.createElement("div");
+            list.setAttribute("data-list", "true");
+            list.className = styles.list;
+            el.appendChild(list);
+          }
+          return list;
+        };
+        const scrollIntoViewIfNeeded = (
+          container: HTMLElement,
+          item: HTMLElement
+        ) => {
+          const cTop = container.scrollTop;
+          const cBottom = cTop + container.clientHeight;
+          const iTop = item.offsetTop;
+          const iBottom = iTop + item.offsetHeight;
+          if (iTop < cTop) container.scrollTop = iTop;
+          else if (iBottom > cBottom)
+            container.scrollTop = iBottom - container.clientHeight;
+        };
+
+        const clamp = (n: number, min: number, max: number) =>
+          Math.max(min, Math.min(max, n));
         const renderItems = (
           items: SlashItem[],
           pick: (i: SlashItem) => void
@@ -154,11 +187,36 @@ export const SlashMenuExtension = Extension.create({
             el.appendChild(list);
           }
           list.innerHTML = "";
+          currentItems = items;
 
-          items.forEach((item) => {
+          // Keep selectedIndex in range
+          selectedIndex = clamp(
+            selectedIndex,
+            0,
+            Math.max(0, items.length - 1)
+          );
+
+          items.forEach((item, idx) => {
             const row = document.createElement("div");
-            row.className = styles.item; //  row class
-            row.onmouseenter = () => {}; // hover is CSS-only now
+            row.className =
+              styles.item + (idx === selectedIndex ? " " + styles.active : "");
+            row.setAttribute("role", "option");
+            row.setAttribute(
+              "aria-selected",
+              idx === selectedIndex ? "true" : "false"
+            );
+            row.dataset.index = String(idx);
+            // Mouse interactions (don’t steal focus)
+            row.onmouseenter = () => {
+              selectedIndex = idx;
+              // only re-style this row quickly:
+              [...list.children].forEach(
+                (child, i) =>
+                  ((child as HTMLElement).className =
+                    styles.item +
+                    (i === selectedIndex ? " " + styles.active : ""))
+              );
+            };
             row.onmouseleave = () => {};
             row.onmousedown = (e) => {
               e.preventDefault();
@@ -185,6 +243,12 @@ export const SlashMenuExtension = Extension.create({
             empty.textContent = "No results";
             empty.className = styles.desc;
             (list as HTMLDivElement).appendChild(empty);
+          } else {
+            // ensure the active row is visible if the list is scrollable
+            const active = list.querySelector<HTMLElement>(
+              `[data-index="${selectedIndex}"]`
+            );
+            if (active) scrollIntoViewIfNeeded(list, active);
           }
         };
 
@@ -236,6 +300,9 @@ export const SlashMenuExtension = Extension.create({
         return {
           onStart: (props) => {
             ensureEl();
+            selectedIndex = 0;
+            lastEditor = props.editor; // <-- cache
+            lastRange = props.range;
             renderItems(props.items, (item) => {
               props.editor.chain().focus().deleteRange(props.range).run();
               item.command({ editor: props.editor as any });
@@ -244,6 +311,8 @@ export const SlashMenuExtension = Extension.create({
             startAutoUpdate(props);
           },
           onUpdate: (props) => {
+            lastEditor = props.editor; // <-- refresh cache
+            lastRange = props.range; // <-- refresh cache
             renderItems(props.items, (item) => {
               props.editor.chain().focus().deleteRange(props.range).run();
               item.command({ editor: props.editor as any });
@@ -251,7 +320,61 @@ export const SlashMenuExtension = Extension.create({
             position(props);
             // autoUpdate continues running
           },
-          onKeyDown: () => false,
+          // NEW: keyboard nav
+          onKeyDown: ({ event, range }) => {
+            if (!currentItems.length) return false;
+            if (!lastEditor || !lastRange) return false; // safety guard
+
+            const runSelected = () => {
+              const item = currentItems[selectedIndex];
+              if (!item) return false;
+              lastEditor.chain().focus().deleteRange(lastRange).run();
+              item.command({ editor: lastEditor });
+              return true;
+            };
+
+            const list = el?.querySelector<HTMLDivElement>("[data-list]");
+            if (!list) return false;
+
+            switch (event.key) {
+              case "ArrowDown":
+                event.preventDefault();
+                selectedIndex = clamp(
+                  selectedIndex + 1,
+                  0,
+                  currentItems.length - 1
+                );
+                renderItems(currentItems, () => {});
+                return true;
+              case "ArrowUp":
+                event.preventDefault();
+                selectedIndex = clamp(
+                  selectedIndex - 1,
+                  0,
+                  currentItems.length - 1
+                );
+                renderItems(currentItems, () => {});
+                return true;
+              case "Home":
+                event.preventDefault();
+                selectedIndex = 0;
+                renderItems(currentItems, () => {});
+                return true;
+              case "End":
+                event.preventDefault();
+                selectedIndex = currentItems.length - 1;
+                renderItems(currentItems, () => {});
+                return true;
+              case "Enter":
+                event.preventDefault();
+                return runSelected();
+              case "Escape":
+                // let Suggestion close it
+                return false;
+              default:
+                return false; // allow other keys (typing) to update the query
+            }
+          },
           onExit: () => {
             if (cleanup) {
               cleanup();
