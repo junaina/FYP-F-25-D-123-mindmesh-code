@@ -63,7 +63,8 @@ const ToggleSummaryView = (_props: NodeViewProps) => {
   return (
     <NodeViewWrapper
       data-toggle-summary=""
-      className="group/summary flex items-start gap-2"
+      className="group/summary -ml-1 px-1.5 py-1 rounded-md flex items-start gap-2
+            hover:bg-muted/60 focus-within:bg-muted/60 transition-colors"
     >
       <button
         type="button"
@@ -73,7 +74,10 @@ const ToggleSummaryView = (_props: NodeViewProps) => {
         onMouseDown={onToggleMouseDown}
       >
         {/* Rotation handled via CSS based on parent [data-open] */}
-        <ChevronRight className="h-4 w-4 transition-transform" />
+        <ChevronRight
+          className="h-4 w-4 transition-transform mm-toggle-icon
+                         group-data-[open=true]/toggle:rotate-90"
+        />
       </button>
 
       {/* Inline editable summary text */}
@@ -179,7 +183,7 @@ export const Toggle = Node.create({
         {
           "data-type": "toggle",
           class:
-            "my-1 rounded-xl border border-transparent data-[open=false]:opacity-90",
+            "group/toggle my-1 rounded-md border border-transparent data-[open=false]:opacity-90",
         },
         HTMLAttributes
       ),
