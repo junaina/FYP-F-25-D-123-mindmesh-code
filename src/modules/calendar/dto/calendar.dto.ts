@@ -1,0 +1,87 @@
+import { z } from "zod";
+// Reuse the same property kinds and value shapes from your docs module:
+import {
+  PropertyTypeDto, // "text" | "number" | "email" | ... | "date_time"
+  PropertyValueDto, // discriminated union with { type, value } – includes date_time as ISO
+} from "@/modules/documents/dto/doc.dto";
+
+/** Accept YYYY-MM-DD or full ISO; normalize to ISO string */
+export const DateLike = z
+  .string()
+  .trim()
+  .refine(
+    (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) || !Number.isNaN(Date.parse(s)),
+    "from/to must be YYYY-MM-DD or ISO"
+  )
+  .transform((s) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      // normalize as UTC midnight – if you need viewer TZ, do it at the API adapter
+      return new Date(`${s}T00:00:00.000Z`).toISOString();
+    }
+    return new Date(s).toISOString();
+  });
+
+export const ListInstancesQueryDto = z
+  .object({
+    from: DateLike,
+    to: DateLike,
+  })
+  .refine((q) => new Date(q.from).getTime() <= new Date(q.to).getTime(), {
+    message: "`from` must be ≤ `to`",
+  })
+  // soft guard: keep queries bounded (prevents accidental 50-year fetches)
+  .refine(
+    (q) =>
+      (new Date(q.to).getTime() - new Date(q.from).getTime()) /
+        (1000 * 60 * 60 * 24) <=
+      120,
+    { message: "range too large; please query ≤ 120 days" }
+  );
+export type ListInstancesQuery = z.infer<typeof ListInstancesQueryDto>;
+
+/** One calendar instance (flattened event for rendering) */
+export const CalendarInstanceDto = z.object({
+  instanceId: z.string(), // `${documentId}:${startISO}`
+  documentId: z.string().uuid(),
+  title: z.string(),
+  start: z.string().datetime(), // ISO
+  end: z.string().datetime(), // ISO
+  isRange: z.boolean(),
+
+  // IMPORTANT: keep in sync with docs — values are PropertyValueDto, keyed by propertyId UUID
+  properties: z.record(z.string().uuid(), PropertyValueDto),
+
+  createdAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional(),
+});
+export type CalendarInstance = z.infer<typeof CalendarInstanceDto>;
+
+export const InstancesResponseDto = z.object({
+  instances: z.array(CalendarInstanceDto),
+});
+export type InstancesResponse = z.infer<typeof InstancesResponseDto>;
+
+/** Unique properties available in this calendar (use same kind enum as docs) */
+export const CalendarPropertyDto = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  kind: PropertyTypeDto, // includes "date_time" like your docs DTO
+});
+export type CalendarProperty = z.infer<typeof CalendarPropertyDto>;
+
+export const PropertiesResponseDto = z.object({
+  properties: z.array(CalendarPropertyDto),
+});
+export type PropertiesResponse = z.infer<typeof PropertiesResponseDto>;
+
+/** Per-calendar visibility settings (ids, not names, to avoid collisions) */
+export const SettingsResponseDto = z.object({
+  visiblePropertyIds: z.array(z.string().uuid()),
+});
+export type SettingsResponse = z.infer<typeof SettingsResponseDto>;
+
+/** For a future PUT /settings */
+export const PutSettingsBodyDto = z.object({
+  visiblePropertyIds: z.array(z.string().uuid()).max(200).default([]),
+});
+export type PutSettingsBody = z.infer<typeof PutSettingsBodyDto>;
