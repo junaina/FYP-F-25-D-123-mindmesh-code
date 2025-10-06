@@ -11,6 +11,28 @@ import { useCalendarData } from "./useCalendarData";
 import type { CalendarInstance } from "@/modules/calendar/dto/calendar.dto";
 import type { PropertyValueDto } from "@/modules/documents/dto/doc.dto";
 
+// lane height (px) for each stacked range chip
+const LANE_H = 26; // tweak to taste (24–28 looks good)
+
+function useMeasuredHeight<T extends HTMLElement>() {
+  const ref = React.useRef<T | null>(null);
+  const [h, setH] = React.useState(0);
+
+  React.useLayoutEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+    const obs = new ResizeObserver(() =>
+      setH(el.getBoundingClientRect().height)
+    );
+    obs.observe(el);
+    // initialize
+    setH(el.getBoundingClientRect().height);
+    return () => obs.disconnect();
+  }, []);
+
+  return { ref, height: h };
+}
+
 /* ================== UTC helpers ================== */
 const ymdUTC = (d: Date) => d.toISOString().slice(0, 10);
 const fmtMonthYear = new Intl.DateTimeFormat("en-US", {
@@ -177,6 +199,11 @@ export function Calendar(props: Props) {
     [gridStartTime]
   );
   const todayYMD = ymdUTC(new Date());
+  const weeks = React.useMemo(() => {
+    const out: Date[][] = [];
+    for (let i = 0; i < days.length; i += 7) out.push(days.slice(i, i + 7));
+    return out;
+  }, [days]);
 
   /* -------- Read path: fetch server data for the month -------- */
   const { instances, properties, settings, showSkeleton, isFetchingAny } =
@@ -221,30 +248,6 @@ export function Calendar(props: Props) {
       );
   }, [visibleProps]);
 
-  // Group remote instances by day (UTC), expanding ranges
-  const remoteByDay: Record<string, CalendarInstance[]> = React.useMemo(() => {
-    const out: Record<string, CalendarInstance[]> = {};
-    const rows = instances.data?.instances ?? [];
-    for (const it of rows) {
-      const s = new Date(it.start);
-      const e = new Date(it.end);
-      const start = new Date(
-        Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate())
-      );
-      const end = new Date(
-        Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate())
-      );
-      for (
-        let d = new Date(start);
-        d <= end;
-        d.setUTCDate(d.getUTCDate() + 1)
-      ) {
-        const key = ymdUTC(d);
-        (out[key] ||= []).push(it);
-      }
-    }
-    return out;
-  }, [instances.data]);
   // Build flat rows for range layout
   const rangeRows = React.useMemo(() => {
     const rows: Array<{
@@ -423,55 +426,114 @@ export function Calendar(props: Props) {
           </div>
         ))}
       </div>
+      {/* 42-DAY GRID — weekly wrappers so we can span chips across days */}
+      <div className="rounded-lg border overflow-hidden bg-background">
+        {weeks.map((week, wIdx) => {
+          const weekStart = week[0];
+          const segs = !showSkeleton
+            ? layoutWeekSegments(rangeRows, weekStart)
+            : [];
 
-      {/* 42-DAY GRID */}
-      <div className="grid grid-cols-7 gap-px bg-border border rounded-lg overflow-hidden">
-        {days.map((date) => {
-          const key = ymdUTC(date);
-          const isOtherMonth = date.getUTCMonth() !== viewAnchor.getUTCMonth();
-          const isToday = key === todayYMD;
-
-          // Remote events for this day
-          const remoteEvents = remoteByDay[key] ?? [];
+          // measure the natural height of the chips band
+          const { ref: lanesRef, height: laneSpace } =
+            useMeasuredHeight<HTMLDivElement>();
 
           return (
-            <DayCell
-              key={key}
-              id={key}
-              date={date}
-              isOtherMonth={isOtherMonth}
-              isToday={isToday}
-              loading={showSkeleton}
-              onClickAdd={() => {
-                setSelectedDate(date);
-                setDialogOpen(true);
-              }}
+            <div
+              key={wIdx}
+              className="relative border-t border-border first:border-t-0"
+              // expose a CSS var so children stay in sync
+              style={{ ["--lane-space" as any]: `${laneSpace}px` }}
             >
-              {/* Render only remote events (from backend) */}
-              {remoteEvents.map((ev) => (
-                <RemoteChip
-                  key={ev.instanceId}
-                  title={ev.title}
-                  href={`/docs/${ev.documentId}`}
+              {/* === CHIP LANES (auto-height) — rendered INSIDE the week === */}
+              {!showSkeleton && (
+                <div
+                  ref={lanesRef}
+                  className={cn(
+                    "pointer-events-none absolute inset-x-0 top-0 z-10", // sit inside the week
+                    "grid grid-cols-7 gap-px bg-transparent px-1 py-1"
+                  )}
+                  aria-hidden
                 >
-                  <div className="flex flex-wrap gap-1">
-                    {(
-                      Object.entries(
-                        ev.properties as Record<string, PropertyValueDto>
-                      ) as [string, PropertyValueDto][]
-                    ).map(([pid, v]) => {
-                      const name = propIdToName.get(pid);
-                      if (!name || !visibleProps.has(name)) return null;
-                      return (
-                        <span key={pid} className="mm-chip mm-chip--gray">
-                          {displayPropValue(v)}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </RemoteChip>
-              ))}
-            </DayCell>
+                  {segs.map((s) => {
+                    const spanCols = s.colEnd - s.colStart + 1;
+                    return (
+                      <a
+                        key={s.key}
+                        href={`/docs/${s.docId}`}
+                        className={cn(
+                          "pointer-events-auto self-start mx-0.5 my-0.5 rounded-md px-2 py-1.5",
+                          "bg-border text-foreground/90 border border-white/10 shadow-sm",
+                          "overflow-hidden"
+                        )}
+                        style={{
+                          gridColumn: `${s.colStart + 1} / span ${spanCols}`,
+                          gridRow: s.lane + 1,
+                        }}
+                        title={s.title}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium leading-5">
+                            {s.title}
+                          </div>
+                          {/* pills wrap; lane grows naturally */}
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {Object.entries(s.properties).map(
+                              ([propId, val]) => {
+                                const name = propIdToName.get(propId);
+                                if (!name || !visibleProps.has(name))
+                                  return null;
+                                const txt = displayPropValue(
+                                  val as PropertyValueDto
+                                ).trim();
+                                if (!txt) return null;
+                                return (
+                                  <span
+                                    key={propId}
+                                    title={name}
+                                    className="rounded-full px-2 py-[2px] text-[10px] leading-[12px] whitespace-nowrap bg-muted/60 border border-white/10"
+                                  >
+                                    {txt}
+                                  </span>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* === DAY GRID — padded top by the measured lane height === */}
+              <div
+                className="grid grid-cols-7 gap-px bg-border"
+                style={{ paddingTop: "var(--lane-space)" }} // room for chips inside the cells
+              >
+                {week.map((date) => {
+                  const key = ymdUTC(date);
+                  const isOtherMonth =
+                    date.getUTCMonth() !== viewAnchor.getUTCMonth();
+                  const isToday = key === todayYMD;
+
+                  return (
+                    <DayCell
+                      key={key}
+                      id={key}
+                      date={date}
+                      isOtherMonth={isOtherMonth}
+                      isToday={isToday}
+                      loading={showSkeleton}
+                      onClickAdd={() => {
+                        setSelectedDate(date);
+                        setDialogOpen(true);
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </div>
@@ -516,28 +578,31 @@ function DayCell({
   onClickAdd,
   children,
   loading,
+  extraTop = 0,
 }: {
   id: string;
   date: Date;
   isOtherMonth: boolean;
   isToday: boolean;
   onClickAdd: () => void;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   loading?: boolean;
+  extraTop?: number; // px to add to top padding for lane space
 }) {
   return (
     <div
       className={cn(
-        "relative group min-h-[80px] sm:min-h-[120px] p-0.5 sm:p-1 flex flex-col transition-colors select-none",
-        "bg-background",
-        isOtherMonth && "bg-muted/50",
-        "hover:bg-muted/40 cursor-default"
+        "relative group min-h-[80px] sm:min-h-[120px] p-0.5 sm:p-1 flex flex-col transition-colors select-none cursor-default",
+        isOtherMonth
+          ? "bg-muted/40 text-muted-foreground/70 hover:bg-muted/50"
+          : "bg-background hover:bg-muted/40"
       )}
+      style={{ paddingTop: `calc(0.25rem + ${extraTop}px)` }} // ← reserve room for lanes
       onClick={(e) => {
         if (e.currentTarget === e.target) onClickAdd();
       }}
     >
-      <div className="flex items-center justify-between">
+      <div className="relative z-20 flex items-center justify-between">
         <span
           className={cn(
             "text-xs",
@@ -564,7 +629,7 @@ function DayCell({
         }}
         onPointerDown={(e) => e.stopPropagation()}
         className={cn(
-          "absolute top-1 right-1 rounded p-1 text-muted-foreground",
+          "absolute top-1 right-1 z-20 rounded p-1 text-muted-foreground",
           "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity"
         )}
@@ -573,7 +638,7 @@ function DayCell({
       </button>
 
       <div className="flex flex-col gap-1 mt-1">
-        {loading ? <SkeletonDay dayKey={id} /> : children}
+        {loading ? <SkeletonDay dayKey={id} /> : children ?? null}
       </div>
     </div>
   );
