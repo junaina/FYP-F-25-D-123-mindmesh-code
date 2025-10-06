@@ -85,3 +85,59 @@ export const PutSettingsBodyDto = z.object({
   visiblePropertyIds: z.array(z.string().uuid()).max(200).default([]),
 });
 export type PutSettingsBody = z.infer<typeof PutSettingsBodyDto>;
+// --- Write-path DTOs ---
+
+export const CreateEventBodyDto = z
+  .object({
+    title: z.string().trim().min(1).max(255).default("New event"),
+    mode: z.enum(["single", "range"]).default("single"),
+    date: DateLike.optional(),
+    start: DateLike.optional(),
+    end: DateLike.optional(),
+    inheritAllCalendarProps: z.boolean().default(true),
+  })
+  .superRefine((v, ctx) => {
+    if (v.mode === "single") {
+      if (!v.date)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "date required",
+          path: ["date"],
+        });
+    } else {
+      if (!v.start)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "start required",
+          path: ["start"],
+        });
+      if (!v.end)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "end required",
+          path: ["end"],
+        });
+      if (v.start && v.end && new Date(v.start) > new Date(v.end)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "start must be ≤ end",
+          path: ["start"],
+        });
+      }
+    }
+  });
+export type CreateEventBody = z.infer<typeof CreateEventBodyDto>;
+
+export const PatchEventBodyDto = z.discriminatedUnion("op", [
+  z.object({
+    op: z.literal("rename"),
+    title: z.string().trim().min(1).max(255),
+  }),
+  z.object({ op: z.literal("move"), deltaDays: z.number().int() }),
+  z.object({
+    op: z.literal("resize"),
+    edge: z.enum(["start", "end"]),
+    to: DateLike,
+  }),
+]);
+export type PatchEventBody = z.infer<typeof PatchEventBodyDto>;

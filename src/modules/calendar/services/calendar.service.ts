@@ -11,7 +11,26 @@ import {
   repoGetUsedPropertyDefsForCollection,
   repoGetPropertyTypes,
 } from "../repo/calendar.repo";
-
+import {
+  repoCreateDocument,
+  repoLinkToCollection,
+  repoEnsureDatePropDef,
+  repoEnsureDocProperty,
+  repoGetDocumentProjectId,
+  repoUpsertDateValue,
+  repoGetCollectionPropDefs,
+  repoReadDocDateValues,
+  repoUpdateDocumentTitle,
+  repoUnlinkFromCollection,
+  repoDeleteDocument,
+} from "../repo/calendar.repo";
+import {
+  CAL_BINDINGS,
+  parseYmdToUTC,
+  addDaysUTC,
+} from "../lib/calendarBindings";
+import { DocumentService } from "@/modules/documents/services/document.service";
+import { repoReplaceVisiblePropertyIds } from "../repo/calendar.repo";
 /** Convert a raw value row into your doc DTO-like { type, value } based on property kind. */
 function toPropertyValueDto(
   row: {
@@ -52,7 +71,17 @@ function toPropertyValueDto(
       return { type: kind, value: row.valueJson ?? row.valueString ?? null };
   }
 }
-
+export type CreateEventInput = {
+  projectId: string;
+  collectionId: string;
+  userId: string;
+  title?: string;
+  mode?: "single" | "range";
+  date?: string; // YYYY-MM-DD
+  start?: string; // YYYY-MM-DD
+  end?: string; // YYYY-MM-DD
+  inheritAllCalendarProps?: boolean;
+};
 /** GET /calendar?from&to */
 export async function listInstances(
   projectId: string,
@@ -172,6 +201,252 @@ export async function listProperties(
   };
 }
 
+export async function createEventSvc(input: CreateEventInput) {
+  const {
+    projectId,
+    collectionId,
+    userId,
+    title = "New event",
+    mode = "single",
+    date,
+    start,
+    end,
+    inheritAllCalendarProps = true,
+  } = input;
+
+  if (mode === "single" && !date) throw new Error("date required");
+  if (mode === "range") {
+    if (!start || !end) throw new Error("start/end required");
+    if (parseYmdToUTC(start) > parseYmdToUTC(end))
+      throw new Error("start must be <= end");
+  }
+
+  // 1) Create doc + link to collection (calendar-specific → repo)
+  const doc = await repoCreateDocument(
+    projectId,
+    title.trim().slice(0, 255),
+    userId
+  );
+  await repoLinkToCollection(collectionId, doc.id, userId);
+
+  // 2) (NEW) Normalize header write via DocumentService (keeps rules in one place)
+  await DocumentService.patchHeader(projectId, doc.id, {
+    title: title.trim().slice(0, 255),
+  });
+
+  // 3) Ensure/link the property DEFINITIONS via calendar.repo (project-scoped)
+  if (mode === "single") {
+    const dateDef = await repoEnsureDatePropDef(projectId, CAL_BINDINGS.single);
+    await repoEnsureDocProperty(doc.id, dateDef.id);
+
+    // 4) (NEW) Set VALUE via DocumentService (DTO→DB mapping centralized)
+    await DocumentService.setPropertyValue(projectId, doc.id, dateDef.id, {
+      type: "date_time",
+      value: parseYmdToUTC(date!).toISOString(),
+    });
+  } else {
+    const startDef = await repoEnsureDatePropDef(
+      projectId,
+      CAL_BINDINGS.range.start
+    );
+    const endDef = await repoEnsureDatePropDef(
+      projectId,
+      CAL_BINDINGS.range.end
+    );
+    await repoEnsureDocProperty(doc.id, startDef.id);
+    await repoEnsureDocProperty(doc.id, endDef.id);
+
+    // 4) (NEW) Values via DocumentService
+    await DocumentService.setPropertyValue(projectId, doc.id, startDef.id, {
+      type: "date_time",
+      value: parseYmdToUTC(start!).toISOString(),
+    });
+    await DocumentService.setPropertyValue(projectId, doc.id, endDef.id, {
+      type: "date_time",
+      value: parseYmdToUTC(end!).toISOString(),
+    });
+  }
+
+  // 5) Inherit property DEFINITIONS (links only) — still calendar.repo
+  if (inheritAllCalendarProps) {
+    const defs = await repoGetCollectionPropDefs(collectionId);
+    const skip: Set<string> =
+      mode === "single"
+        ? new Set([CAL_BINDINGS.single])
+        : new Set([CAL_BINDINGS.range.start, CAL_BINDINGS.range.end]);
+
+    await Promise.all(
+      defs
+        .filter((d) => !skip.has(d.name))
+        .map((d) => repoEnsureDocProperty(doc.id, d.id))
+    );
+  }
+
+  return { documentId: doc.id };
+}
+// Resolve projectId for a document; if a projectId is provided, verify it matches.
+async function resolveAndAssertProjectId(
+  documentId: string,
+  providedProjectId?: string
+): Promise<string> {
+  const actual = await repoGetDocumentProjectId(documentId);
+  if (!actual) throw new Error("document not found");
+  if (providedProjectId && providedProjectId !== actual) {
+    throw new Error("project mismatch for document");
+  }
+  return actual;
+}
+export async function moveEventSvc(params: {
+  documentId: string;
+  deltaDays: number;
+  projectId?: string;
+}) {
+  const { documentId, deltaDays, projectId } = params;
+  const resolvedProjectId = await resolveAndAssertProjectId(
+    documentId,
+    projectId
+  );
+
+  const { defs, values } = await repoReadDocDateValues(
+    resolvedProjectId,
+    documentId
+  );
+
+  // single-day
+  if (defs.date?.id && values[defs.date.id]) {
+    const next = addDaysUTC(values[defs.date.id]!, deltaDays);
+    await DocumentService.setPropertyValue(
+      resolvedProjectId,
+      documentId,
+      defs.date.id,
+      {
+        type: "date_time",
+        value: next.toISOString(),
+      }
+    );
+    return;
+  }
+
+  // range
+  if (
+    defs.start?.id &&
+    defs.end?.id &&
+    values[defs.start.id] &&
+    values[defs.end.id]
+  ) {
+    const nextStart = addDaysUTC(values[defs.start.id]!, deltaDays);
+    const nextEnd = addDaysUTC(values[defs.end.id]!, deltaDays);
+    await Promise.all([
+      DocumentService.setPropertyValue(
+        resolvedProjectId,
+        documentId,
+        defs.start.id,
+        { type: "date_time", value: nextStart.toISOString() }
+      ),
+      DocumentService.setPropertyValue(
+        resolvedProjectId,
+        documentId,
+        defs.end.id,
+        { type: "date_time", value: nextEnd.toISOString() }
+      ),
+    ]);
+  }
+}
+
+export async function resizeEventSvc(params: {
+  documentId: string;
+  edge: "start" | "end";
+  to: string;
+  projectId?: string;
+}) {
+  const { documentId, edge, to, projectId } = params;
+  const resolvedProjectId = await resolveAndAssertProjectId(
+    documentId,
+    projectId
+  );
+
+  const { defs, values } = await repoReadDocDateValues(
+    resolvedProjectId,
+    documentId
+  );
+  const toDate = parseYmdToUTC(to);
+
+  // single-day
+  if (defs.date?.id && values[defs.date.id]) {
+    await DocumentService.setPropertyValue(
+      resolvedProjectId,
+      documentId,
+      defs.date.id,
+      {
+        type: "date_time",
+        value: toDate.toISOString(),
+      }
+    );
+    return;
+  }
+
+  if (!defs.start?.id || !defs.end?.id) return;
+
+  if (edge === "start") {
+    const curEnd = values[defs.end.id];
+    if (curEnd && toDate > curEnd) throw new Error("start cannot be after end");
+    await DocumentService.setPropertyValue(
+      resolvedProjectId,
+      documentId,
+      defs.start.id,
+      {
+        type: "date_time",
+        value: toDate.toISOString(),
+      }
+    );
+  } else {
+    const curStart = values[defs.start.id];
+    if (curStart && toDate < curStart)
+      throw new Error("end cannot be before start");
+    await DocumentService.setPropertyValue(
+      resolvedProjectId,
+      documentId,
+      defs.end.id,
+      {
+        type: "date_time",
+        value: toDate.toISOString(),
+      }
+    );
+  }
+}
+
+export async function renameEventSvc(params: {
+  documentId: string;
+  title: string;
+  projectId?: string;
+}) {
+  const { documentId, title, projectId } = params;
+  const resolvedProjectId = await resolveAndAssertProjectId(
+    documentId,
+    projectId
+  );
+
+  // Use the Document module so all header rules are centralized
+  await DocumentService.patchHeader(resolvedProjectId, documentId, {
+    title: title.trim().slice(0, 255),
+  });
+}
+
+export async function deleteEventSvc(
+  documentId: string,
+  projectIdFromUrl?: string
+) {
+  // Optional safety: verify the URL projectId matches the document’s real projectId
+  if (projectIdFromUrl) {
+    const actual = await repoGetDocumentProjectId(documentId);
+    if (!actual) throw new Error("document not found");
+    if (actual !== projectIdFromUrl)
+      throw new Error("project mismatch for document");
+  }
+
+  await repoDeleteDocument(documentId);
+}
+
 /** GET /calendar/settings */
 export async function getSettings(
   projectId: string,
@@ -180,4 +455,16 @@ export async function getSettings(
 ) {
   const ids = await repoGetVisiblePropertyIds(projectId, docId, collectionId);
   return { visiblePropertyIds: ids };
+}
+
+/** PUT /calendar/settings */
+export async function setSettings(
+  _projectId: string,
+  _docId: string,
+  collectionId: string,
+  visiblePropertyIds: string[]
+) {
+  // You can add guards here (e.g., verify propertyIds belong to project) if desired.
+  await repoReplaceVisiblePropertyIds(collectionId, visiblePropertyIds);
+  return { visiblePropertyIds };
 }

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-
+const DATE_PROP_TYPE = "date_time";
 /** Resolve the propertyDefinition ids for date bindings in a project. */
 export async function repoGetDatePropIds(
   projectId: string,
@@ -124,4 +124,170 @@ export async function repoGetPropertyTypes(propertyIds: string[]) {
     select: { id: true, type: true },
   });
   return new Map(defs.map((d) => [d.id, d.type]));
+}
+
+// ---------- PropertyDefinitions / Values ----------
+export async function repoEnsureDatePropDef(projectId: string, name: string) {
+  const existing = await prisma.propertyDefinition.findFirst({
+    where: { projectId, name },
+  });
+  if (existing) return existing;
+  return prisma.propertyDefinition.create({
+    data: { projectId, name, type: DATE_PROP_TYPE },
+  });
+}
+
+export async function repoEnsureDocProperty(
+  documentId: string,
+  propertyId: string
+) {
+  return prisma.documentProperty.upsert({
+    where: { documentId_propertyId: { documentId, propertyId } },
+    update: {},
+    create: { documentId, propertyId },
+  });
+}
+
+export async function repoUpsertDateValue(
+  documentId: string,
+  propertyId: string,
+  value: Date
+) {
+  return prisma.documentPropertyValue.upsert({
+    where: { documentId_propertyId: { documentId, propertyId } },
+    update: {
+      valueDate: value,
+      valueString: null,
+      valueNumber: null,
+      valueBool: null,
+      valueJson: undefined,
+      optionId: null,
+    },
+    create: { documentId, propertyId, valueDate: value },
+  });
+}
+
+export async function repoGetDatePropDefs(projectId: string) {
+  const defs = await prisma.propertyDefinition.findMany({
+    where: {
+      projectId,
+      name: { in: ["date", "start", "end"] },
+      type: DATE_PROP_TYPE,
+    },
+  });
+  const map = Object.fromEntries(defs.map((d) => [d.name, d]));
+  return {
+    date: map["date"] ?? null,
+    start: map["start"] ?? null,
+    end: map["end"] ?? null,
+  };
+}
+
+export async function repoGetCollectionPropDefs(collectionId: string) {
+  const items = await prisma.collectionItem.findMany({
+    where: { collectionId },
+    select: { documentId: true },
+  });
+  const docIds = items.map((i) => i.documentId);
+  if (!docIds.length) return [];
+  const docProps = await prisma.documentProperty.findMany({
+    where: { documentId: { in: docIds } },
+    distinct: ["propertyId"],
+    select: { propertyId: true },
+  });
+  if (!docProps.length) return [];
+  return prisma.propertyDefinition.findMany({
+    where: { id: { in: docProps.map((p) => p.propertyId) } },
+  });
+}
+
+// ---------- Documents / Collection Items ----------
+export async function repoCreateDocument(
+  projectId: string,
+  title: string,
+  createdById: string
+) {
+  return prisma.document.create({
+    data: { projectId, title, content: {}, createdById },
+  });
+}
+
+export async function repoLinkToCollection(
+  collectionId: string,
+  documentId: string,
+  addedById: string
+) {
+  return prisma.collectionItem.create({
+    data: { collectionId, documentId, addedById },
+  });
+}
+
+export async function repoUpdateDocumentTitle(
+  documentId: string,
+  title: string
+) {
+  await prisma.document.update({ where: { id: documentId }, data: { title } });
+}
+
+export async function repoDeleteDocument(documentId: string) {
+  await prisma.document.delete({ where: { id: documentId } });
+}
+
+export async function repoUnlinkFromCollection(
+  collectionId: string,
+  documentId: string
+) {
+  await prisma.collectionItem.delete({
+    where: { collectionId_documentId: { collectionId, documentId } },
+  });
+}
+
+// ---------- Read current date values for a doc ----------
+export async function repoReadDocDateValues(
+  projectId: string,
+  documentId: string
+) {
+  const defs = await repoGetDatePropDefs(projectId);
+  const ids = [defs.date?.id, defs.start?.id, defs.end?.id].filter(
+    Boolean
+  ) as string[];
+  if (!ids.length) return { defs, values: {} as Record<string, Date | null> };
+
+  const vals = await prisma.documentPropertyValue.findMany({
+    where: { documentId, propertyId: { in: ids } },
+    select: { propertyId: true, valueDate: true },
+  });
+  const values = Object.fromEntries(
+    vals.map((v) => [v.propertyId, v.valueDate])
+  );
+  return { defs, values };
+}
+// Replace all visible property rows for a collection with the provided ids
+export async function repoReplaceVisiblePropertyIds(
+  collectionId: string,
+  propertyIds: string[]
+) {
+  await prisma.$transaction(async (tx) => {
+    await tx.viewPropertyVisibility.deleteMany({ where: { collectionId } });
+    if (propertyIds.length) {
+      await tx.viewPropertyVisibility.createMany({
+        data: propertyIds.map((propertyId) => ({
+          collectionId,
+          propertyId,
+          visible: true,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  });
+}
+// Get the owning project for a document (null if not found)
+export async function repoGetDocumentProjectId(
+  documentId: string
+): Promise<string | null> {
+  const doc = await prisma.document.findUnique({
+    where: { id: documentId },
+    select: { projectId: true },
+  });
+  return doc?.projectId ?? null;
 }
