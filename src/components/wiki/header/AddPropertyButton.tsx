@@ -16,10 +16,17 @@ export default function AddPropertyButton({
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)}>
-        <Plus className="mr-2 h-4 w-4" />
-        Add Property
-      </Button>
+      <button
+        type="button"
+        className="mm-ghost-cta"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        data-state={open ? "open" : "closed"}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Plus className="mm-ghost-cta__icon" />
+        <span>Add a property</span>
+      </button>
       <AddPropertyPopover
         open={open}
         onOpenChange={setOpen}

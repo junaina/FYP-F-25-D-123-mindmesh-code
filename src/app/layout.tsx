@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { cookies } from "next/headers";
-
+import QueryProvider from "@/components/providers/QueryProvider";
 const THEME_KEY = "mm-theme";
 
 export const metadata: Metadata = {
@@ -53,7 +53,9 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <ThemeProvider>
-          <div className="mx-auto px-4 py-6">{children}</div>
+          <QueryProvider>
+            <div className="mx-auto px-4 py-6">{children}</div>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

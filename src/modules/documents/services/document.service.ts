@@ -187,8 +187,9 @@ function dbValueToDto(
 
 /** narrow string -> PropertyType */
 function toPropertyType(s: string): PropertyType {
-  return (PROPERTY_TYPES as readonly string[]).includes(s)
-    ? (s as PropertyType)
+  const normalized = s === "date" ? "date_time" : s;
+  return (PROPERTY_TYPES as readonly string[]).includes(normalized)
+    ? (normalized as PropertyType)
     : "text";
 }
 
