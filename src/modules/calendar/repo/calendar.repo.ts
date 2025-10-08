@@ -11,10 +11,17 @@ export async function repoGetDatePropIds(
   if (!wanted.length)
     return { singleId: undefined, startId: undefined, endId: undefined };
 
-  const defs = await prisma.propertyDefinition.findMany({
-    where: { projectId, name: { in: wanted }, type: "date" },
+  let defs = await prisma.propertyDefinition.findMany({
+    where: { projectId, name: { in: wanted }, type: DATE_PROP_TYPE },
     select: { id: true, name: true },
   });
+  // fallback to legacy "date"
+  if (defs.length === 0) {
+    defs = await prisma.propertyDefinition.findMany({
+      where: { projectId, name: { in: wanted }, type: "date" },
+      select: { id: true, name: true, type: true },
+    });
+  }
   const map = Object.fromEntries(defs.map((d) => [d.name, d.id]));
   return {
     singleId: map[names.single!],
@@ -202,13 +209,14 @@ export async function repoGetCollectionPropDefs(collectionId: string) {
 }
 
 // ---------- Documents / Collection Items ----------
+const EMPTY_TIPTAP_DOC = { type: "doc", content: [] as any[] };
 export async function repoCreateDocument(
   projectId: string,
   title: string,
   createdById: string
 ) {
   return prisma.document.create({
-    data: { projectId, title, content: {}, createdById },
+    data: { projectId, title, content: EMPTY_TIPTAP_DOC, createdById },
   });
 }
 

@@ -6,14 +6,16 @@ import { cn } from "@/lib/utils";
 import { PropertyVisibilityMenu } from "./PropertyVisibilityMenu";
 import { Plus } from "lucide-react";
 import { EditableText } from "@/components/kanban/EditableText";
-
+import { AddItemDialog } from "./AddItemDialog";
 import { useCalendarData } from "./useCalendarData";
-import type { CalendarInstance } from "@/modules/calendar/dto/calendar.dto";
 import type { PropertyValueDto } from "@/modules/documents/dto/doc.dto";
-
-// lane height (px) for each stacked range chip
-const LANE_H = 26; // tweak to taste (24–28 looks good)
-
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { monthRangeUTC } from "@/components/calendar/useCalendarData";
+import {
+  createEvent as apiCreateEvent,
+  moveEvent as apiMoveEvent,
+  resizeEvent as apiResizeEvent,
+} from "@/modules/calendar/client/calendar.api";
 function useMeasuredHeight<T extends HTMLElement>() {
   const ref = React.useRef<T | null>(null);
   const [h, setH] = React.useState(0);
@@ -145,6 +147,17 @@ type Props = {
   docId?: string; // host doc (calendar page)
   collectionId?: string; // the calendar collection id
 };
+type PropsMap = Record<string, PropertyValueDto>;
+// A segment is a slice of an event across a single week row
+type WeekSegment = {
+  key: string;
+  title: string;
+  docId: string;
+  colStart: number; // 0..6 inside the week
+  colEnd: number; // 0..6 inside the week (inclusive)
+  lane: number; // 0..N, vertical stacking row in that week
+  properties: Record<string, any>;
+};
 
 export function Calendar(props: Props) {
   const { projectId, docId, collectionId } = props;
@@ -180,10 +193,70 @@ export function Calendar(props: Props) {
     );
   };
 
+  /*----------------------- */
+  const qc = useQueryClient();
+  const { from, to } = monthRangeUTC(viewAnchor);
+  const instancesKey = ["cal", collectionId, from, to];
+  // Mutation to create a single-day event
+  const { mutateAsync: createEvent, isPending: isCreating } = useMutation({
+    mutationFn: async ({ title, date }: { title: string; date: Date }) => {
+      return apiCreateEvent(projectId!, docId!, collectionId!, {
+        mode: "single",
+        date: ymdUTC(date),
+        title: title.trim(),
+      }); // returns { documentId }
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: instancesKey });
+    },
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: async (p: { documentId: string; deltaDays: number }) => {
+      await apiMoveEvent(
+        projectId!,
+        docId!,
+        collectionId!,
+        p.documentId,
+        Math.trunc(p.deltaDays)
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: instancesKey });
+    },
+  });
+  const resizeMutation = useMutation({
+    mutationFn: async (p: {
+      documentId: string;
+      edge: "start" | "end";
+      toYmd: string;
+    }) => {
+      await apiResizeEvent(
+        projectId!,
+        docId!,
+        collectionId!,
+        p.documentId,
+        p.edge,
+        p.toYmd
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: instancesKey });
+    },
+  });
+
   /* -------- Add dialog placeholder (no local create) -------- */
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
 
+  async function handleAddSubmit({ title }: { title: string }) {
+    if (!selectedDate) return;
+    setDialogOpen(true);
+    await createEvent({ title, date: selectedDate });
+    // Dialog auto-closes in AddItemDialog, but we keep state clean anyway
+    setDialogOpen(false);
+    setSelectedDate(null);
+  }
   /* -------- 42-day grid (UTC) -------- */
   const firstOfMonth = viewAnchor;
   const firstWeekday = firstOfMonth.getUTCDay(); // Sunday=0
@@ -261,11 +334,17 @@ export function Calendar(props: Props) {
 
     const list = instances.data?.instances ?? [];
     for (const it of list) {
+      const start = new Date(it.start);
+      const end = new Date(it.end);
+      //skipping inverted ranges
+      if (end < start) {
+        continue;
+      }
       rows.push({
         id: it.instanceId,
         title: it.title,
-        start: new Date(it.start),
-        end: new Date(it.end),
+        start,
+        end,
         docId: it.documentId,
         properties: it.properties as Record<string, any>,
       });
@@ -283,17 +362,6 @@ export function Calendar(props: Props) {
     );
   const clamp = (n: number, lo: number, hi: number) =>
     Math.max(lo, Math.min(hi, n));
-
-  // A segment is a slice of an event across a single week row
-  type WeekSegment = {
-    key: string;
-    title: string;
-    docId: string;
-    colStart: number; // 0..6 inside the week
-    colEnd: number; // 0..6 inside the week (inclusive)
-    lane: number; // 0..N, vertical stacking row in that week
-    properties: Record<string, any>;
-  };
 
   // Assign lanes so overlapping segments in a week don’t collide
   function layoutWeekSegments(
@@ -460,7 +528,7 @@ export function Calendar(props: Props) {
                     return (
                       <a
                         key={s.key}
-                        href={`/docs/${s.docId}`}
+                        href={`/projects/${projectId}/docs/${s.docId}`}
                         className={cn(
                           "pointer-events-auto self-start mx-0.5 my-0.5 rounded-md px-2 py-1.5",
                           "bg-border text-foreground/90 border border-white/10 shadow-sm",
@@ -471,6 +539,23 @@ export function Calendar(props: Props) {
                           gridRow: s.lane + 1,
                         }}
                         title={s.title}
+                        draggable
+                        onDragStart={(e) => {
+                          const startISO = new Date(
+                            Date.UTC(
+                              weekStart.getUTCFullYear(),
+                              weekStart.getUTCMonth(),
+                              weekStart.getUTCDate() + s.colStart
+                            )
+                          ).toISOString();
+                          e.dataTransfer.setData(
+                            "text/plain",
+                            JSON.stringify({
+                              documentId: s.docId,
+                              start: startISO,
+                            })
+                          );
+                        }}
                       >
                         <div className="min-w-0">
                           <div className="truncate font-medium leading-5">
@@ -529,6 +614,32 @@ export function Calendar(props: Props) {
                         setSelectedDate(date);
                         setDialogOpen(true);
                       }}
+                      onMoveDrop={(payload) => {
+                        const target = date; // this cell’s date
+                        const start = new Date(payload.start); // chip’s original start
+
+                        const atUTCMidnight = (d: Date) =>
+                          new Date(
+                            Date.UTC(
+                              d.getUTCFullYear(),
+                              d.getUTCMonth(),
+                              d.getUTCDate()
+                            )
+                          );
+                        const MS_DAY = 86400000;
+                        const deltaDays = Math.floor(
+                          (atUTCMidnight(target).getTime() -
+                            atUTCMidnight(start).getTime()) /
+                            MS_DAY
+                        );
+
+                        if (deltaDays !== 0) {
+                          moveMutation.mutate({
+                            documentId: payload.documentId,
+                            deltaDays,
+                          });
+                        }
+                      }}
                     />
                   );
                 })}
@@ -540,35 +651,17 @@ export function Calendar(props: Props) {
 
       {/* Add dialog – currently no local create; wire to POST later */}
       {/* Keep UI, but do not insert local items anymore */}
-      {/* <AddItemDialog ... onAdd={() => { call backend then invalidate queries }} /> */}
+      <AddItemDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        date={selectedDate ?? null}
+        onAdd={handleAddSubmit}
+      />
     </div>
   );
 }
 
 /* ================== subcomponents ================== */
-
-function RemoteChip({
-  title,
-  href,
-  children,
-}: {
-  title: string;
-  href: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <a
-      href={href}
-      className={cn(
-        "block w-full truncate rounded-md bg-muted/60 px-2 py-1 text-left text-xs sm:text-sm hover:bg-muted/70"
-      )}
-      title={title}
-    >
-      <div className="font-medium truncate">{title}</div>
-      {children}
-    </a>
-  );
-}
 
 function DayCell({
   id,
@@ -576,6 +669,7 @@ function DayCell({
   isOtherMonth,
   isToday,
   onClickAdd,
+  onMoveDrop,
   children,
   loading,
   extraTop = 0,
@@ -585,6 +679,7 @@ function DayCell({
   isOtherMonth: boolean;
   isToday: boolean;
   onClickAdd: () => void;
+  onMoveDrop?: (p: { documentId: string; start: string }) => void;
   children?: React.ReactNode;
   loading?: boolean;
   extraTop?: number; // px to add to top padding for lane space
@@ -600,6 +695,18 @@ function DayCell({
       style={{ paddingTop: `calc(0.25rem + ${extraTop}px)` }} // ← reserve room for lanes
       onClick={(e) => {
         if (e.currentTarget === e.target) onClickAdd();
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        try {
+          const raw = e.dataTransfer.getData("text/plain");
+          if (!raw) return;
+          const payload = JSON.parse(raw) as {
+            documentId: string;
+            start: string;
+          };
+          onMoveDrop?.(payload);
+        } catch {}
       }}
     >
       <div className="relative z-20 flex items-center justify-between">
