@@ -1,4 +1,3 @@
-//generator & datasource
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -10,7 +9,504 @@ datasource db {
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
-// ---------- enums ----------
+model User {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  firstName             String
+  lastName              String
+  email                 String                 @unique
+  passwordHash          String
+  avatarUrl             String?
+  emailVerifiedAt       DateTime?
+  status                UserStatus             @default(ACTIVE)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  collections           Collection[]           @relation("CollectionCreator")
+  addedToCollections    CollectionItem[]       @relation("CollectionItemAdder")
+  createdDocuments      Document[]             @relation("DocumentCreator")
+  docCollaboratorsAdded DocumentCollaborator[] @relation("DocCollaboratorsAdder")
+  docCollaborator       DocumentCollaborator[] @relation("DocCollaboratorsUser")
+  uploads               File[]                 @relation("FileUploader")
+  globalPrefs           GlobalUserPrefs?
+  sentMessages          Message[]              @relation("MessageSender")
+  messageMentions       MessageMention[]
+  messageReactions      MessageReaction[]
+  oauthIdentities       OauthIdentity[]
+  createdProjects       Project[]              @relation("ProjectCreator")
+  projectMembers        ProjectMember[]
+  projectSettings       ProjectSettings[]
+  sessions              Session[]
+  createdTaskBoards     TaskBoard[]            @relation("TaskBoardCreator")
+  addedTaskBoardItems   TaskBoardItem[]        @relation("TaskBoardItemAdder")
+  createdThreads        Thread[]               @relation("ThreadCreator")
+  threadMembers         ThreadMember[]
+  threadPrefs           ThreadUserPrefs[]
+}
+
+model OauthIdentity {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  provider       String
+  providerUserId String
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Project {
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String
+  slug                String?              @unique
+  createdById         String               @db.Uuid
+  visibility          ProjectVisibility    @default(PRIVATE)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  discussion          Discussion?
+  documents           Document[]
+  embeds              Embed[]
+  files               File[]
+  invites             Invite[]
+  createdBy           User                 @relation("ProjectCreator", fields: [createdById], references: [id])
+  members             ProjectMember[]
+  settings            ProjectSettings[]
+  propertyDefinitions PropertyDefinition[]
+  taskBoards          TaskBoard[]
+
+  @@index([createdById])
+}
+
+model ProjectMember {
+  projectId String      @db.Uuid
+  userId    String      @db.Uuid
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now())
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id         String      @id @default(uuid()) @db.Uuid
+  projectId  String      @db.Uuid
+  email      String
+  role       ProjectRole
+  token      String      @unique
+  expiresAt  DateTime?
+  acceptedAt DateTime?
+  createdAt  DateTime    @default(now())
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, email])
+  @@index([projectId])
+  @@index([email])
+}
+
+model ProjectSettings {
+  projectId            String     @db.Uuid
+  userId               String     @db.Uuid
+  notificationsEnabled Boolean    @default(true)
+  defaultThreadMode    ThreadMode @default(ALL)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  project              Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user                 User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+}
+
+model GlobalUserPrefs {
+  userId               String     @id @db.Uuid
+  theme                String     @default("system")
+  locale               String?    @default("en-US")
+  timezone             String?    @default("UTC")
+  notificationsEnabled Boolean    @default(true)
+  defaultThreadMode    ThreadMode @default(ALL)
+  emailOptIn           Boolean    @default(true)
+  dndStart             String?
+  dndEnd               String?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  user                 User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id              String                  @id @default(uuid()) @db.Uuid
+  projectId       String                  @db.Uuid
+  title           String
+  content         Json
+  parentId        String?                 @db.Uuid
+  isArchived      Boolean                 @default(false)
+  createdById     String                  @db.Uuid
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  description     String?
+  collections     Collection[]
+  collectionItems CollectionItem[]
+  createdBy       User                    @relation("DocumentCreator", fields: [createdById], references: [id])
+  parent          Document?               @relation("DocChildren", fields: [parentId], references: [id])
+  children        Document[]              @relation("DocChildren")
+  project         Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  collaborators   DocumentCollaborator[]
+  documentFiles   DocumentFile[]
+  properties      DocumentProperty[]
+  propertyValues  DocumentPropertyValue[]
+  embeds          Embed[]
+  boardHostOf     TaskBoard[]             @relation("BoardHost")
+  taskBoardItems  TaskBoardItem[]
+
+  @@index([projectId])
+  @@index([parentId])
+  @@index([createdById])
+  @@index([projectId, createdAt])
+}
+
+model DocumentCollaborator {
+  documentId String              @db.Uuid
+  userId     String              @db.Uuid
+  role       DocCollaboratorRole @default(VIEWER)
+  addedById  String              @db.Uuid
+  addedAt    DateTime            @default(now())
+  addedBy    User                @relation("DocCollaboratorsAdder", fields: [addedById], references: [id])
+  document   Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User                @relation("DocCollaboratorsUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, userId])
+  @@index([userId])
+  @@index([addedById])
+}
+
+model File {
+  id                 String              @id @default(uuid()) @db.Uuid
+  projectId          String              @db.Uuid
+  uploaderId         String              @db.Uuid
+  filename           String
+  mime               String
+  size               Int
+  storageKey         String
+  createdAt          DateTime            @default(now())
+  documentFiles      DocumentFile[]
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader           User                @relation("FileUploader", fields: [uploaderId], references: [id])
+  messageAttachments MessageAttachment[]
+
+  @@index([projectId])
+  @@index([uploaderId])
+}
+
+model DocumentFile {
+  documentId String   @db.Uuid
+  fileId     String   @db.Uuid
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  file       File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, fileId])
+}
+
+model Embed {
+  id         String    @id @default(uuid()) @db.Uuid
+  projectId  String    @db.Uuid
+  documentId String?   @db.Uuid
+  kind       String
+  url        String
+  meta       Json?
+  createdAt  DateTime  @default(now())
+  document   Document? @relation(fields: [documentId], references: [id])
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([documentId])
+}
+
+model PropertyDefinition {
+  id               String                   @id @default(uuid()) @db.Uuid
+  projectId        String                   @db.Uuid
+  name             String
+  type             String
+  createdAt        DateTime                 @default(now())
+  usedByDocs       DocumentProperty[]
+  propertyValues   DocumentPropertyValue[]
+  project          Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  options          PropertyOption[]
+  assigneeBindings TaskBoardBindings[]      @relation("TB_AssigneeProp")
+  dueBindings      TaskBoardBindings[]      @relation("TB_DueProp")
+  statusBindings   TaskBoardBindings[]      @relation("TB_StatusProp")
+  viewVisibility   ViewPropertyVisibility[]
+
+  @@index([projectId])
+}
+
+model PropertyOption {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  propertyId             String                  @db.Uuid
+  value                  String
+  color                  String?
+  position               Int?
+  documentPropertyValues DocumentPropertyValue[] @relation("DocumentPropertyValue_option")
+  property               PropertyDefinition      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  columns                TaskBoardColumn[]
+
+  @@unique([propertyId, value])
+  @@index([propertyId])
+}
+
+model DocumentProperty {
+  documentId String             @db.Uuid
+  propertyId String             @db.Uuid
+  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  property   PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, propertyId])
+}
+
+model DocumentPropertyValue {
+  id          String             @id @default(uuid()) @db.Uuid
+  documentId  String             @db.Uuid
+  propertyId  String             @db.Uuid
+  valueString String?
+  valueNumber Float?
+  valueBool   Boolean?
+  valueDate   DateTime?
+  valueJson   Json?
+  optionId    String?            @db.Uuid
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  document    Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  option      PropertyOption?    @relation("DocumentPropertyValue_option", fields: [optionId], references: [id])
+  property    PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, propertyId])
+  @@index([documentId])
+  @@index([propertyId])
+  @@index([optionId])
+}
+
+model Collection {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  documentId         String                   @db.Uuid
+  name               String
+  type               String
+  createdById        String                   @db.Uuid
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  createdBy          User                     @relation("CollectionCreator", fields: [createdById], references: [id])
+  document           Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  items              CollectionItem[]
+  propertyVisibility ViewPropertyVisibility[]
+
+  @@index([documentId])
+  @@index([createdById])
+}
+
+model CollectionItem {
+  collectionId String     @db.Uuid
+  documentId   String     @db.Uuid
+  position     Int?
+  addedById    String     @db.Uuid
+  createdAt    DateTime   @default(now())
+  addedBy      User       @relation("CollectionItemAdder", fields: [addedById], references: [id])
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  document     Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, documentId])
+  @@index([documentId])
+  @@index([addedById])
+}
+
+model ViewPropertyVisibility {
+  id           String             @id @default(uuid()) @db.Uuid
+  collectionId String             @db.Uuid
+  propertyId   String             @db.Uuid
+  visible      Boolean            @default(true)
+  collection   Collection         @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  property     PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([propertyId])
+}
+
+model TaskBoard {
+  id             String             @id @default(uuid()) @db.Uuid
+  projectId      String             @db.Uuid
+  name           String
+  hostDocumentId String?            @db.Uuid
+  createdById    String             @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  createdBy      User               @relation("TaskBoardCreator", fields: [createdById], references: [id])
+  hostDocument   Document?          @relation("BoardHost", fields: [hostDocumentId], references: [id])
+  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bindings       TaskBoardBindings?
+  columns        TaskBoardColumn[]
+  items          TaskBoardItem[]
+
+  @@index([projectId])
+  @@index([hostDocumentId])
+  @@index([createdById])
+}
+
+model TaskBoardBindings {
+  taskBoardId        String             @id @db.Uuid
+  statusPropertyId   String             @db.Uuid
+  assigneePropertyId String             @db.Uuid
+  duePropertyId      String             @db.Uuid
+  assigneeProperty   PropertyDefinition @relation("TB_AssigneeProp", fields: [assigneePropertyId], references: [id])
+  dueProperty        PropertyDefinition @relation("TB_DueProp", fields: [duePropertyId], references: [id])
+  statusProperty     PropertyDefinition @relation("TB_StatusProp", fields: [statusPropertyId], references: [id])
+  board              TaskBoard          @relation(fields: [taskBoardId], references: [id], onDelete: Cascade)
+
+  @@index([statusPropertyId])
+  @@index([assigneePropertyId])
+  @@index([duePropertyId])
+}
+
+model TaskBoardColumn {
+  id          String          @id @default(uuid()) @db.Uuid
+  taskBoardId String          @db.Uuid
+  optionId    String          @db.Uuid
+  label       String
+  position    Int?
+  option      PropertyOption  @relation(fields: [optionId], references: [id])
+  board       TaskBoard       @relation(fields: [taskBoardId], references: [id], onDelete: Cascade)
+  items       TaskBoardItem[]
+
+  @@index([taskBoardId])
+  @@index([optionId])
+}
+
+model TaskBoardItem {
+  taskBoardId String          @db.Uuid
+  documentId  String          @db.Uuid
+  columnId    String          @db.Uuid
+  position    Int?
+  addedById   String          @db.Uuid
+  addedAt     DateTime        @default(now())
+  addedBy     User            @relation("TaskBoardItemAdder", fields: [addedById], references: [id])
+  column      TaskBoardColumn @relation(fields: [columnId], references: [id])
+  document    Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  board       TaskBoard       @relation(fields: [taskBoardId], references: [id], onDelete: Cascade)
+
+  @@id([taskBoardId, documentId])
+  @@index([columnId])
+  @@index([addedById])
+}
+
+model Discussion {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @unique @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  threads   Thread[]
+}
+
+model Thread {
+  id           String            @id @default(uuid()) @db.Uuid
+  discussionId String            @db.Uuid
+  topic        String
+  description  String?
+  createdById  String            @db.Uuid
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  messages     Message[]
+  createdBy    User              @relation("ThreadCreator", fields: [createdById], references: [id])
+  discussion   Discussion        @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  members      ThreadMember[]
+  prefs        ThreadUserPrefs[]
+
+  @@index([discussionId])
+  @@index([createdById])
+}
+
+model ThreadMember {
+  threadId String   @db.Uuid
+  userId   String   @db.Uuid
+  role     String?
+  joinedAt DateTime @default(now())
+  thread   Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, userId])
+  @@index([userId])
+}
+
+model ThreadUserPrefs {
+  threadId   String     @db.Uuid
+  userId     String     @db.Uuid
+  mode       ThreadMode @default(ALL)
+  isMuted    Boolean    @default(false)
+  lastReadAt DateTime?
+  updatedAt  DateTime   @updatedAt
+  thread     Thread     @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, userId])
+}
+
+model Message {
+  id          String              @id @default(uuid()) @db.Uuid
+  threadId    String              @db.Uuid
+  senderId    String              @db.Uuid
+  body        String
+  bodyJson    Json?
+  createdAt   DateTime            @default(now())
+  editedAt    DateTime?
+  deletedAt   DateTime?
+  sender      User                @relation("MessageSender", fields: [senderId], references: [id])
+  thread      Thread              @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  attachments MessageAttachment[]
+  mentions    MessageMention[]
+  reactions   MessageReaction[]
+
+  @@index([threadId])
+  @@index([senderId])
+  @@index([threadId, createdAt])
+}
+
+model MessageMention {
+  messageId String  @db.Uuid
+  userId    String  @db.Uuid
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+}
+
+model MessageReaction {
+  messageId String   @db.Uuid
+  userId    String   @db.Uuid
+  emoji     String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId, emoji])
+}
+
+model MessageAttachment {
+  messageId String  @db.Uuid
+  fileId    String  @db.Uuid
+  file      File    @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, fileId])
+}
+
 enum UserStatus {
   ACTIVE
   DISABLED
@@ -38,550 +534,4 @@ enum ThreadMode {
   ALL
   MENTIONS
   NONE
-}
-
-// ---------- auth / users ----------
-model User {
-  id              String     @id @default(uuid()) @db.Uuid
-  firstName       String
-  lastName        String
-  email           String     @unique
-  passwordHash    String
-  avatarUrl       String?
-  emailVerifiedAt DateTime?
-  status          UserStatus @default(ACTIVE)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-
-  // relations
-  oauthIdentities       OauthIdentity[]
-  sessions              Session[]
-  createdProjects       Project[]              @relation("ProjectCreator")
-  projectMembers        ProjectMember[]
-  projectSettings       ProjectSettings[]
-  globalPrefs           GlobalUserPrefs?
-  createdDocuments      Document[]             @relation("DocumentCreator")
-  docCollaborator       DocumentCollaborator[] @relation("DocCollaboratorsUser")
-  docCollaboratorsAdded DocumentCollaborator[] @relation("DocCollaboratorsAdder")
-  uploads               File[]                 @relation("FileUploader")
-  collections           Collection[]           @relation("CollectionCreator")
-  addedToCollections    CollectionItem[]       @relation("CollectionItemAdder")
-  createdTaskBoards     TaskBoard[]            @relation("TaskBoardCreator")
-  addedTaskBoardItems   TaskBoardItem[]        @relation("TaskBoardItemAdder")
-  createdThreads        Thread[]               @relation("ThreadCreator")
-  threadMembers         ThreadMember[]
-  threadPrefs           ThreadUserPrefs[]
-  sentMessages          Message[]              @relation("MessageSender")
-  messageMentions       MessageMention[]
-  messageReactions      MessageReaction[]
-
-  // removed: @@index([email])  (unique already creates an index)
-}
-
-model OauthIdentity {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @db.Uuid
-  provider       String
-  providerUserId String
-  createdAt      DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerUserId])
-  @@index([userId])
-}
-
-model Session {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @db.Uuid
-  createdAt DateTime  @default(now())
-  expiresAt DateTime
-  ip        String?
-  userAgent String?
-  revokedAt DateTime?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-// ---------- projects & membership ----------
-model Project {
-  id          String            @id @default(uuid()) @db.Uuid
-  name        String
-  slug        String?           @unique
-  createdById String            @db.Uuid
-  visibility  ProjectVisibility @default(PRIVATE)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-
-  createdBy           User                 @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  members             ProjectMember[]
-  invites             Invite[]
-  settings            ProjectSettings[]
-  documents           Document[]
-  files               File[]
-  embeds              Embed[]
-  taskBoards          TaskBoard[]
-  discussion          Discussion?
-  propertyDefinitions PropertyDefinition[] // <-- Added relation field
-
-  @@index([createdById])
-}
-
-model ProjectMember {
-  projectId String      @db.Uuid
-  userId    String      @db.Uuid
-  role      ProjectRole @default(MEMBER)
-  joinedAt  DateTime    @default(now())
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([projectId, userId])
-  @@index([userId])
-}
-
-model Invite {
-  id         String      @id @default(uuid()) @db.Uuid
-  projectId  String      @db.Uuid
-  email      String
-  role       ProjectRole
-  token      String      @unique
-  expiresAt  DateTime?
-  acceptedAt DateTime?
-  createdAt  DateTime    @default(now())
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@unique([projectId, email]) // added
-  @@index([projectId])
-  @@index([email])
-}
-
-model ProjectSettings {
-  projectId            String     @db.Uuid
-  userId               String     @db.Uuid
-  notificationsEnabled Boolean    @default(true)
-  defaultThreadMode    ThreadMode @default(ALL)
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([projectId, userId])
-}
-
-model GlobalUserPrefs {
-  userId               String     @id @db.Uuid
-  theme                String     @default("system")
-  locale               String?    @default("en-US")
-  timezone             String?    @default("UTC")
-  notificationsEnabled Boolean    @default(true)
-  defaultThreadMode    ThreadMode @default(ALL)
-  emailOptIn           Boolean    @default(true)
-  dndStart             String? // 'HH:mm'
-  dndEnd               String?
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-// ---------- documents / files / embeds / properties ----------
-model Document {
-  id          String   @id @default(uuid()) @db.Uuid
-  projectId   String   @db.Uuid
-  title       String
-  content     Json
-  parentId    String?  @db.Uuid
-  description String?  @db.Text
-  isArchived  Boolean  @default(false)
-  createdById String   @db.Uuid
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parent    Document?  @relation("DocChildren", fields: [parentId], references: [id], onDelete: SetNull)
-  children  Document[] @relation("DocChildren")
-  createdBy User       @relation("DocumentCreator", fields: [createdById], references: [id], onDelete: Restrict)
-
-  collaborators   DocumentCollaborator[]
-  documentFiles   DocumentFile[]
-  embeds          Embed[]
-  collections     Collection[]
-  boardHostOf     TaskBoard[]             @relation("BoardHost")
-  properties      DocumentProperty[]
-  propertyValues  DocumentPropertyValue[]
-  collectionItems CollectionItem[]
-  taskBoardItems  TaskBoardItem[]
-
-  @@index([projectId])
-  @@index([parentId])
-  @@index([createdById])
-  @@index([projectId, createdAt]) // added
-}
-
-model DocumentCollaborator {
-  documentId String              @db.Uuid
-  userId     String              @db.Uuid
-  role       DocCollaboratorRole @default(VIEWER)
-  addedById  String              @db.Uuid
-  addedAt    DateTime            @default(now())
-
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  user     User     @relation("DocCollaboratorsUser", fields: [userId], references: [id], onDelete: Cascade)
-  addedBy  User     @relation("DocCollaboratorsAdder", fields: [addedById], references: [id], onDelete: Restrict)
-
-  @@id([documentId, userId])
-  @@index([userId])
-  @@index([addedById])
-}
-
-model File {
-  id         String   @id @default(uuid()) @db.Uuid
-  projectId  String   @db.Uuid
-  uploaderId String   @db.Uuid
-  filename   String
-  mime       String
-  size       Int
-  storageKey String
-  createdAt  DateTime @default(now())
-
-  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploader           User                @relation("FileUploader", fields: [uploaderId], references: [id], onDelete: Restrict)
-  messageAttachments MessageAttachment[]
-  documentFiles      DocumentFile[]
-
-  @@index([projectId])
-  @@index([uploaderId])
-}
-
-model DocumentFile {
-  documentId String @db.Uuid
-  fileId     String @db.Uuid
-
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  file     File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
-
-  @@id([documentId, fileId])
-}
-
-model Embed {
-  id         String   @id @default(uuid()) @db.Uuid
-  projectId  String   @db.Uuid
-  documentId String?  @db.Uuid
-  kind       String // 'gdrive' | 'slack' | 'github' | 'url'
-  url        String
-  meta       Json?
-  createdAt  DateTime @default(now())
-
-  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
-
-  @@index([projectId])
-  @@index([documentId])
-}
-
-// flexible properties
-model PropertyDefinition {
-  id        String   @id @default(uuid()) @db.Uuid
-  projectId String   @db.Uuid
-  name      String
-  type      String // 'select','multi_select','text','number','date','person','file','checkbox','email','status'
-  createdAt DateTime @default(now())
-
-  project        Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  options        PropertyOption[]
-  usedByDocs     DocumentProperty[]
-  viewVisibility ViewPropertyVisibility[]
-  propertyValues DocumentPropertyValue[] // <-- Added opposite relation
-
-  // Opposite relations for TaskBoardBindings
-  statusBindings   TaskBoardBindings[] @relation("TB_StatusProp")
-  assigneeBindings TaskBoardBindings[] @relation("TB_AssigneeProp")
-  dueBindings      TaskBoardBindings[] @relation("TB_DueProp")
-
-  @@index([projectId])
-}
-
-model PropertyOption {
-  id         String  @id @default(uuid()) @db.Uuid
-  propertyId String  @db.Uuid
-  value      String
-  color      String?
-  position   Int?
-
-  property               PropertyDefinition      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  columns                TaskBoardColumn[]
-  documentPropertyValues DocumentPropertyValue[] @relation("DocumentPropertyValue_option")
-
-  @@unique([propertyId, value]) // added
-  @@index([propertyId])
-}
-
-model DocumentProperty {
-  documentId String @db.Uuid
-  propertyId String @db.Uuid
-
-  document Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  property PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@id([documentId, propertyId])
-}
-
-model DocumentPropertyValue {
-  id         String @id @default(uuid()) @db.Uuid
-  documentId String @db.Uuid
-  propertyId String @db.Uuid
-
-  // One of these will be used depending on PropertyDefinition.type
-  valueString String? // text, email
-  valueNumber Float? // number
-  valueBool   Boolean? // checkbox
-  valueDate   DateTime? // date (stored as timestamp)
-  valueJson   Json? // multi_select/person/file (array of strings or ids)
-  optionId    String?   @db.Uuid // select/status -> PropertyOption.id (FK)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  document Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  option   PropertyOption?    @relation("DocumentPropertyValue_option", fields: [optionId], references: [id], onDelete: SetNull)
-  property PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@unique([documentId, propertyId]) // one value per property per doc
-  @@index([documentId])
-  @@index([propertyId])
-  @@index([optionId])
-}
-
-model Collection {
-  id          String   @id @default(uuid()) @db.Uuid
-  documentId  String   @db.Uuid
-  name        String
-  type        String // 'table' | 'board' | 'calendar' | 'timeline'
-  createdById String   @db.Uuid
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  document           Document                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  createdBy          User                     @relation("CollectionCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  items              CollectionItem[]
-  propertyVisibility ViewPropertyVisibility[]
-
-  @@index([documentId])
-  @@index([createdById])
-}
-
-model CollectionItem {
-  collectionId String   @db.Uuid
-  documentId   String   @db.Uuid
-  position     Int?
-  addedById    String   @db.Uuid
-  createdAt    DateTime @default(now())
-
-  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  document   Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  addedBy    User       @relation("CollectionItemAdder", fields: [addedById], references: [id], onDelete: Restrict)
-
-  @@id([collectionId, documentId])
-  @@index([documentId])
-  @@index([addedById])
-}
-
-model ViewPropertyVisibility {
-  id           String  @id @default(uuid()) @db.Uuid
-  collectionId String  @db.Uuid
-  propertyId   String  @db.Uuid
-  visible      Boolean @default(true)
-
-  collection Collection         @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  property   PropertyDefinition @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-
-  @@index([collectionId])
-  @@index([propertyId])
-}
-
-// ---------- task boards ----------
-model TaskBoard {
-  id             String   @id @default(uuid()) @db.Uuid
-  projectId      String   @db.Uuid
-  name           String
-  hostDocumentId String?  @db.Uuid
-  createdById    String   @db.Uuid
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  hostDocument Document? @relation("BoardHost", fields: [hostDocumentId], references: [id], onDelete: SetNull)
-  createdBy    User      @relation("TaskBoardCreator", fields: [createdById], references: [id], onDelete: Restrict)
-
-  bindings TaskBoardBindings?
-  columns  TaskBoardColumn[]
-  items    TaskBoardItem[]
-
-  @@index([projectId])
-  @@index([hostDocumentId])
-  @@index([createdById])
-}
-
-model TaskBoardBindings {
-  taskBoardId        String @id @db.Uuid
-  statusPropertyId   String @db.Uuid
-  assigneePropertyId String @db.Uuid
-  duePropertyId      String @db.Uuid
-
-  board            TaskBoard          @relation(fields: [taskBoardId], references: [id], onDelete: Cascade)
-  statusProperty   PropertyDefinition @relation("TB_StatusProp", fields: [statusPropertyId], references: [id], onDelete: Restrict)
-  assigneeProperty PropertyDefinition @relation("TB_AssigneeProp", fields: [assigneePropertyId], references: [id], onDelete: Restrict)
-  dueProperty      PropertyDefinition @relation("TB_DueProp", fields: [duePropertyId], references: [id], onDelete: Restrict)
-
-  @@index([statusPropertyId])
-  @@index([assigneePropertyId])
-  @@index([duePropertyId])
-}
-
-model TaskBoardColumn {
-  id          String @id @default(uuid()) @db.Uuid
-  taskBoardId String @db.Uuid
-  optionId    String @db.Uuid
-  label       String
-  position    Int?
-
-  board  TaskBoard       @relation(fields: [taskBoardId], references: [id], onDelete: Cascade)
-  option PropertyOption  @relation(fields: [optionId], references: [id], onDelete: Restrict)
-  items  TaskBoardItem[]
-
-  @@index([taskBoardId])
-  @@index([optionId])
-}
-
-model TaskBoardItem {
-  taskBoardId String   @db.Uuid
-  documentId  String   @db.Uuid
-  columnId    String   @db.Uuid
-  position    Int?
-  addedById   String   @db.Uuid
-  addedAt     DateTime @default(now())
-
-  board    TaskBoard       @relation(fields: [taskBoardId], references: [id], onDelete: Cascade)
-  document Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  column   TaskBoardColumn @relation(fields: [columnId], references: [id], onDelete: Restrict)
-  addedBy  User            @relation("TaskBoardItemAdder", fields: [addedById], references: [id], onDelete: Restrict)
-
-  @@id([taskBoardId, documentId])
-  @@index([columnId])
-  @@index([addedById])
-}
-
-// ---------- discussions / threads / messages ----------
-model Discussion {
-  id        String   @id @default(uuid()) @db.Uuid
-  projectId String   @unique @db.Uuid
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  threads Thread[]
-}
-
-model Thread {
-  id           String   @id @default(uuid()) @db.Uuid
-  discussionId String   @db.Uuid
-  topic        String
-  description  String?
-  createdById  String   @db.Uuid
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  discussion Discussion        @relation(fields: [discussionId], references: [id], onDelete: Cascade)
-  createdBy  User              @relation("ThreadCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  members    ThreadMember[]
-  prefs      ThreadUserPrefs[]
-  messages   Message[]
-
-  @@index([discussionId])
-  @@index([createdById])
-}
-
-model ThreadMember {
-  threadId String   @db.Uuid
-  userId   String   @db.Uuid
-  role     String?
-  joinedAt DateTime @default(now())
-
-  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([threadId, userId])
-  @@index([userId])
-}
-
-model ThreadUserPrefs {
-  threadId   String     @db.Uuid
-  userId     String     @db.Uuid
-  mode       ThreadMode @default(ALL)
-  isMuted    Boolean    @default(false)
-  lastReadAt DateTime?
-  updatedAt  DateTime   @updatedAt
-
-  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([threadId, userId])
-}
-
-model Message {
-  id        String    @id @default(uuid()) @db.Uuid
-  threadId  String    @db.Uuid
-  senderId  String    @db.Uuid
-  body      String
-  bodyJson  Json?
-  createdAt DateTime  @default(now())
-  editedAt  DateTime?
-  deletedAt DateTime?
-
-  thread      Thread              @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  sender      User                @relation("MessageSender", fields: [senderId], references: [id], onDelete: Restrict)
-  mentions    MessageMention[]
-  reactions   MessageReaction[]
-  attachments MessageAttachment[]
-
-  @@index([threadId])
-  @@index([senderId])
-  @@index([threadId, createdAt]) // added
-}
-
-model MessageMention {
-  messageId String @db.Uuid
-  userId    String @db.Uuid
-
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([messageId, userId])
-}
-
-model MessageReaction {
-  messageId String   @db.Uuid
-  userId    String   @db.Uuid
-  emoji     String
-  createdAt DateTime @default(now())
-
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([messageId, userId, emoji])
-}
-
-model MessageAttachment {
-  messageId String @db.Uuid
-  fileId    String @db.Uuid
-
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  file    File    @relation(fields: [fileId], references: [id], onDelete: Cascade)
-
-  @@id([messageId, fileId])
 }
