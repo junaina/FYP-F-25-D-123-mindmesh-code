@@ -317,6 +317,87 @@
   color: var(--foreground);
   opacity: 1;
 }
+/* ----  "ghost" CTA (Add property) ---- */
+:root {
+  --ap-fg: color-mix(in oklab, var(--foreground) 60%, transparent);
+  --ap-icon: color-mix(in oklab, var(--foreground) 55%, transparent);
+  --ap-hover-bg: color-mix(in oklab, var(--muted) 85%, transparent);
+  --ap-hover-fg: var(--foreground);
+}
+
+.dark {
+  /* keep it subtle in dark too */
+  --ap-fg: color-mix(in oklab, var(--foreground) 65%, transparent);
+  --ap-icon: color-mix(in oklab, var(--foreground) 55%, transparent);
+  --ap-hover-bg: color-mix(in oklab, var(--muted) 80%, transparent);
+  --ap-hover-fg: var(--foreground);
+}
+
+/* Base style */
+.mm-ghost-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem; /* icon spacing */
+  padding: 0.375rem 0.5rem; /* comfy but small */
+  border: 0; /* no border */
+  background: transparent;
+  color: var(--ap-fg);
+  border-radius: 0.5rem; /* slight rounding like Notion */
+  font-size: 0.9375rem; /* ~15px; feels like body text */
+  line-height: 1.5rem; /* match row height */
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+/* Hover/active/focus */
+.mm-ghost-cta:hover {
+  background: var(--ap-hover-bg);
+  color: var(--ap-hover-fg);
+}
+.mm-ghost-cta:active {
+  transform: translateY(0.5px);
+}
+.mm-ghost-cta:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* */
+/* highlight the active row */
+.active {
+  background: color-mix(in oklab, var(--muted) 85%, transparent);
+}
+
+.item[aria-selected="true"] {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
+/* Icon tone */
+.mm-ghost-cta .mm-ghost-cta__icon {
+  width: 16px;
+  height: 16px;
+  color: var(--ap-icon);
+}
+
+/* If the popover is open, keep it “active” */
+.mm-ghost-cta[data-state="open"] {
+  background: var(--ap-hover-bg);
+  color: var(--ap-hover-fg);
+}
+/* Force wrapping even for very long tokens (no spaces) */
+.mm-anywhere {
+  overflow-wrap: anywhere; /* modern */
+  word-break: normal; /* prefer normal breaking first */
+}
+
+/* Optional: nicer wrapping balance where supported */
+@supports (text-wrap: balance) {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
 /* ---------- Outline button (theme-aware, subtle) ---------- */
 .mm-btn-outline {
   /* size */
@@ -366,4 +447,237 @@
 }
 .mm-row:hover .mm-row-action {
   opacity: 1;
+}
+
+/* ================= Slash Menu (muted, Notion-style) ================ */
+/* Tokens derive from your existing theme vars, not --accent */
+:root {
+  --sm-bg: var(--popover);
+  --sm-fg: var(--popover-foreground);
+  --sm-subfg: color-mix(in oklab, var(--popover-foreground) 65%, transparent);
+  --sm-border: var(--border);
+  --sm-elev: color-mix(in oklab, var(--foreground) 12%, transparent);
+
+  --sm-hover: color-mix(in oklab, var(--muted) 80%, transparent);
+  --sm-active: color-mix(in oklab, var(--muted) 100%, transparent);
+
+  --sm-radius: 12px;
+  --sm-row-h: 36px;
+  --sm-pad: 8px;
+}
+
+.dark {
+  /* keep it subtle in dark as well */
+  --sm-bg: var(--popover);
+  --sm-fg: var(--popover-foreground);
+  --sm-subfg: color-mix(in oklab, var(--popover-foreground) 60%, transparent);
+  --sm-border: var(--border);
+  --sm-elev: color-mix(in oklab, var(--foreground) 18%, transparent);
+
+  --sm-hover: color-mix(in oklab, var(--muted) 80%, transparent);
+  --sm-active: color-mix(in oklab, var(--muted) 100%, transparent);
+}
+
+/* Scope to your editor root */
+.mm-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* Remove bullets at every nesting level */
+.mm-editor ul[data-type="taskList"] ul,
+.mm-editor ul[data-type="taskList"] li {
+  list-style: none;
+}
+.mm-editor ul[data-type="taskList"] li::marker {
+  content: none;
+}
+
+/* Put checkbox and text on the SAME LINE */
+.mm-editor ul[data-type="taskList"] > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  transition: background-color 0.12s ease;
+}
+.mm-editor ul[data-type="taskList"] >
+
+/* Checkbox column */
+.mm-editor ul[data-type="taskList"] > li > label {
+  margin: 0;
+  line-height: 0;
+  cursor: pointer;
+}
+
+/* Bigger, clean checkbox */
+.mm-editor ul[data-type="taskList"] > li > label > input[type="checkbox"] {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px; /* 9999px for fully round */
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  display: grid;
+  place-items: center;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]
+  .mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]
+
+
+/* Checked style + check glyph */
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]:checked::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')
+    no-repeat center/contain;
+  mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')
+    no-repeat center/contain;
+  background: var(--primary-foreground);
+}
+
+/* Text column (the div after the label). Works whether it has class "content" or not. */
+.mm-editor ul[data-type="taskList"] > li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+/* Kill default prose margins so text doesn’t drop below the checkbox */
+.mm-editor ul[data-type="taskList"] > li > div > p {
+  margin: 0;
+}
+
+/* Completed item (Tiptap sets data-checked on li) */
+.mm-editor ul[data-type="taskList"] > li[data-checked="true"] > div {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  text-decoration-thickness: 0.06em;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--muted-foreground) 70%,
+    transparent
+  );
+}
+
+/* Nested todos: gentle indent + guide */
+.mm-editor ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-top: 4px;
+  margin-left: 1.25rem;
+  padding-left: 1rem;
+  border-left: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
+} /* =========================
+   Toggle list
+   ========================= */
+:global(.mm-editor [data-type="toggle"][data-open="false"] [data-toggle-body]) {
+  display: none;
+}
+:global(.mm-editor [data-action="toggle-open"] svg) {
+  transition: transform 150ms ease;
+}
+:global(
+    .mm-editor
+      [data-type="toggle"][data-open="true"]
+      [data-action="toggle-open"]
+      svg
+  ) {
+  transform: rotate(90deg);
+}
+
+/* Collapse body when the parent toggle is closed */
+.mm-editor [data-type="toggle"][data-open="false"] [data-toggle-body] {
+  display: none;
+}
+
+/* Rotate chevron when open */
+.mm-editor [data-action="toggle-open"] svg {
+  transition: transform 150ms ease;
+}
+.mm-editor
+  [data-type="toggle"][data-open="true"]
+  [data-action="toggle-open"]
+  svg {
+  transform: rotate(90deg);
+}
+/* ---------- Shimmer animation ---------- */
+@keyframes mm-shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Base tokens for dark/light */
+:root {
+  --mm-skel-base: rgba(255, 255, 255, 0.06); /* track */
+  --mm-skel-sheen: rgba(255, 255, 255, 0.14); /* moving highlight */
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --mm-skel-base: rgba(0, 0, 0, 0.06);
+    --mm-skel-sheen: rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Subtle calendar skeletons (dark-friendly) */
+.mm-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  /* Base fill: very low-contrast */
+  background: rgba(255, 255, 255, 0.035); /* was ~0.06–0.08 */
+}
+
+/* Softer sheen that’s narrower and lighter */
+.mm-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 35%,
+    /* peak brightness lowered */ rgba(255, 255, 255, 0.08) 48%,
+    /* narrower/softer core */ rgba(255, 255, 255, 0.05) 61%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  /* Keep the motion if you used it, or leave it omitted if you like it static */
+  /* animation: mm-shimmer-slide 1.6s ease-in-out infinite; */
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* If you kept reduced-motion handling, keep it subtle too */
+@media (prefers-reduced-motion: reduce) {
+  .mm-skeleton::after {
+    animation: none;
+    transform: none;
+  }
 }

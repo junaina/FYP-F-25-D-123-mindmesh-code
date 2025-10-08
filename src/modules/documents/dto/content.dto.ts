@@ -52,6 +52,29 @@ const container = (t: string) =>
     content: NodeArray(),
     marks: z.array(MarkSchema).optional(),
   }) as z.ZodType<JC>;
+// Summary is inline*; for validation we allow any content (text/inline nodes)
+const ToggleSummaryNode: z.ZodType<JC> = z.object({
+  type: z.literal("toggleSummary"),
+  content: NodeArray(),
+  marks: z.array(MarkSchema).optional(),
+});
+
+// Body is block+; we require at least one child
+const ToggleBodyNode: z.ZodType<JC> = z.object({
+  type: z.literal("toggleBody"),
+  content: z.array(z.lazy(() => NodeSchema)).min(1),
+});
+
+// Parent toggle has an `open` attr and exactly two children: summary + body.
+// (We accept an array of those two nodes; TipTap enforces order/structure.)
+const ToggleNode: z.ZodType<JC> = z.object({
+  type: z.literal("toggle"),
+  attrs: z.object({ open: z.boolean().optional() }).optional(),
+  content: z
+    .array(z.union([ToggleSummaryNode, ToggleBodyNode]))
+    .min(2)
+    .max(2),
+});
 
 NodeSchema = z.union([
   TextNode,
@@ -65,6 +88,9 @@ NodeSchema = z.union([
   container("taskItem"),
   container("blockquote"),
   container("codeBlock"),
+  ToggleNode,
+  ToggleSummaryNode,
+  ToggleBodyNode,
   z.object({ type: z.literal("horizontalRule") }) as z.ZodType<JC>,
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
 ]);
