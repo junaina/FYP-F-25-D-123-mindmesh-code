@@ -363,22 +363,33 @@ export const DocumentService = {
       const incomingNames = incoming.map(([n]) => n);
 
       // ensure defs (create if missing with incoming type)
-      const existingDefs = await DocumentRepo.defsByNames(
-        projectId,
-        incomingNames
-      );
-      const byName = new Map(existingDefs.map((d) => [d.name, d]));
+      const existingDefs = await DocumentRepo.defsByNames(projectId, incomingNames);
+const byName = new Map(existingDefs.map((d) => [d.name, d]));
 
-      for (const [name, pv] of incoming) {
-        if (!byName.has(name)) {
-          const created = await DocumentRepo.createDef(
-            projectId,
-            name,
-            pv.type // persist the first-seen type for this name
-          );
-          byName.set(name, created);
-        }
-      }
+// ✅ FIX: also handle type mismatches
+for (const [name, pv] of incoming) {
+  const existing = byName.get(name);
+
+  // 1️⃣ Create if missing
+  if (!existing) {
+    const created = await DocumentRepo.createDef(projectId, name, pv.type);
+    byName.set(name, created);
+    continue;
+  }
+
+  // 2️⃣ If type differs, update it globally (Notion-like)
+  if (existing.type !== pv.type) {
+    const updated = await DocumentRepo.txUpdatePropertyDefinition({
+      projectId,
+      propertyId: existing.id,
+      updateBasics: { name, type: pv.type },
+      fromType: existing.type as PropertyType,
+      toType: pv.type as PropertyType,
+      keepField: TARGET_FIELD[pv.type],
+    });
+    byName.set(name, updated);
+  }
+}
 
       // ensure links
       for (const [name] of incoming) {
