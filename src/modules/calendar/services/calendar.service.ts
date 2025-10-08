@@ -31,46 +31,6 @@ import {
 } from "../lib/calendarBindings";
 import { DocumentService } from "@/modules/documents/services/document.service";
 import { repoReplaceVisiblePropertyIds } from "../repo/calendar.repo";
-/** Convert a raw value row into your doc DTO-like { type, value } based on property kind. */
-function toPropertyValueDto(
-  row: {
-    valueString: string | null;
-    valueNumber: number | null;
-    valueBool: boolean | null;
-    valueDate: Date | null;
-    valueJson: unknown | null;
-    optionId: string | null;
-  },
-  kind: string
-) {
-  switch (kind) {
-    case "text":
-    case "email":
-    case "url":
-    case "phone":
-      return { type: kind, value: row.valueString ?? "" };
-    case "number":
-      return { type: kind, value: row.valueNumber };
-    case "checkbox":
-      return { type: kind, value: Boolean(row.valueBool) };
-    case "date":
-      return {
-        type: "date_time",
-        value: row.valueDate ? row.valueDate.toISOString() : null,
-      };
-    case "file":
-      return { type: kind, value: row.valueJson ?? [] };
-    case "person":
-      return { type: kind, value: row.valueJson ?? null };
-    case "multi_select":
-      return { type: kind, value: (row.valueJson as string[] | null) ?? [] };
-    case "select":
-    case "status":
-      return { type: kind, value: row.optionId };
-    default:
-      return { type: kind, value: row.valueJson ?? row.valueString ?? null };
-  }
-}
 export type CreateEventInput = {
   projectId: string;
   collectionId: string;
@@ -82,6 +42,124 @@ export type CreateEventInput = {
   end?: string; // YYYY-MM-DD
   inheritAllCalendarProps?: boolean;
 };
+
+export async function createEventSvc(input: CreateEventInput) {
+  const {
+    projectId,
+    collectionId,
+    userId,
+    title = "New event",
+    mode = "single",
+    date,
+    start,
+    end,
+    inheritAllCalendarProps = true,
+  } = input;
+
+  if (mode === "single" && !date) throw new Error("date required");
+  if (mode === "range") {
+    if (!start || !end) throw new Error("start/end required");
+    if (parseYmdToUTC(start) > parseYmdToUTC(end)) {
+      throw new Error("start must be <= end");
+    }
+  }
+
+  // 1) Create the document with valid TipTap content (repo should seed {type:"doc",content:[]})
+  const doc = await repoCreateDocument(
+    projectId,
+    title.trim().slice(0, 255),
+    userId
+  );
+
+  try {
+    // 2) Link into the calendar collection
+    await repoLinkToCollection(collectionId, doc.id, userId);
+
+    // 3) (Optional) If your DocumentService.patchHeader enforces invariants beyond just setting title,
+    //    keep this; otherwise you can remove it as we already created the doc with the title.
+    // await DocumentService.patchHeader(projectId, doc.id, { title: title.trim().slice(0, 255) });
+
+    // 4) Ensure/link date property DEFINITIONS, then set VALUES via DocumentService
+    if (mode === "single") {
+      const dateDef = await repoEnsureDatePropDef(
+        projectId,
+        CAL_BINDINGS.single
+      );
+      await repoEnsureDocProperty(doc.id, dateDef.id);
+      await DocumentService.setPropertyValue(projectId, doc.id, dateDef.id, {
+        type: "date_time",
+        value: parseYmdToUTC(date!).toISOString(),
+      });
+    } else {
+      const startDef = await repoEnsureDatePropDef(
+        projectId,
+        CAL_BINDINGS.range.start
+      );
+      const endDef = await repoEnsureDatePropDef(
+        projectId,
+        CAL_BINDINGS.range.end
+      );
+      await repoEnsureDocProperty(doc.id, startDef.id);
+      await repoEnsureDocProperty(doc.id, endDef.id);
+      await DocumentService.setPropertyValue(projectId, doc.id, startDef.id, {
+        type: "date_time",
+        value: parseYmdToUTC(start!).toISOString(),
+      });
+      await DocumentService.setPropertyValue(projectId, doc.id, endDef.id, {
+        type: "date_time",
+        value: parseYmdToUTC(end!).toISOString(),
+      });
+    }
+
+    // 5) Inherit all other property DEFINITIONS used in this calendar (no values)
+    if (inheritAllCalendarProps) {
+      const defs = await repoGetCollectionPropDefs(collectionId);
+      const skip =
+        mode === "single"
+          ? new Set([CAL_BINDINGS.single])
+          : new Set([CAL_BINDINGS.range.start, CAL_BINDINGS.range.end]);
+
+      await Promise.all(
+        defs
+          .filter((d) => !skip.has(d.name))
+          .map((d) => repoEnsureDocProperty(doc.id, d.id))
+      );
+    }
+
+    // 6) Return the full header (matches your doc module’s “non-collection doc GET” shape)
+    const header = await DocumentService.getHeader(projectId, doc.id);
+    return { document: header };
+  } catch (err) {
+    // If any step after creation fails, delete the doc to avoid orphaned rows
+    // (You can remove this if you prefer to keep partially created docs for debugging.)
+    try {
+      await repoDeleteDocument(doc.id);
+    } catch {}
+    throw err;
+  }
+}
+
+/** GET /calendar/properties */
+export async function listProperties(
+  projectId: string,
+  docId: string,
+  collectionId: string
+) {
+  const defs = await repoGetUsedPropertyDefsForCollection(
+    projectId,
+    docId,
+    collectionId
+  );
+  const mapKind = (t: string) => (t === "date" ? "date_time" : t);
+  return {
+    properties: defs.map((d) => ({
+      id: d.id,
+      name: d.name,
+      kind: mapKind(d.type),
+    })),
+  };
+}
+
 /** GET /calendar?from&to */
 export async function listInstances(
   projectId: string,
@@ -180,122 +258,6 @@ export async function listInstances(
   return { instances: out };
 }
 
-/** GET /calendar/properties */
-export async function listProperties(
-  projectId: string,
-  docId: string,
-  collectionId: string
-) {
-  const defs = await repoGetUsedPropertyDefsForCollection(
-    projectId,
-    docId,
-    collectionId
-  );
-  const mapKind = (t: string) => (t === "date" ? "date_time" : t);
-  return {
-    properties: defs.map((d) => ({
-      id: d.id,
-      name: d.name,
-      kind: mapKind(d.type),
-    })),
-  };
-}
-
-export async function createEventSvc(input: CreateEventInput) {
-  const {
-    projectId,
-    collectionId,
-    userId,
-    title = "New event",
-    mode = "single",
-    date,
-    start,
-    end,
-    inheritAllCalendarProps = true,
-  } = input;
-
-  if (mode === "single" && !date) throw new Error("date required");
-  if (mode === "range") {
-    if (!start || !end) throw new Error("start/end required");
-    if (parseYmdToUTC(start) > parseYmdToUTC(end))
-      throw new Error("start must be <= end");
-  }
-
-  // 1) Create doc + link to collection (calendar-specific → repo)
-  const doc = await repoCreateDocument(
-    projectId,
-    title.trim().slice(0, 255),
-    userId
-  );
-  await repoLinkToCollection(collectionId, doc.id, userId);
-
-  // 2) (NEW) Normalize header write via DocumentService (keeps rules in one place)
-  await DocumentService.patchHeader(projectId, doc.id, {
-    title: title.trim().slice(0, 255),
-  });
-
-  // 3) Ensure/link the property DEFINITIONS via calendar.repo (project-scoped)
-  if (mode === "single") {
-    const dateDef = await repoEnsureDatePropDef(projectId, CAL_BINDINGS.single);
-    await repoEnsureDocProperty(doc.id, dateDef.id);
-
-    // 4) (NEW) Set VALUE via DocumentService (DTO→DB mapping centralized)
-    await DocumentService.setPropertyValue(projectId, doc.id, dateDef.id, {
-      type: "date_time",
-      value: parseYmdToUTC(date!).toISOString(),
-    });
-  } else {
-    const startDef = await repoEnsureDatePropDef(
-      projectId,
-      CAL_BINDINGS.range.start
-    );
-    const endDef = await repoEnsureDatePropDef(
-      projectId,
-      CAL_BINDINGS.range.end
-    );
-    await repoEnsureDocProperty(doc.id, startDef.id);
-    await repoEnsureDocProperty(doc.id, endDef.id);
-
-    // 4) (NEW) Values via DocumentService
-    await DocumentService.setPropertyValue(projectId, doc.id, startDef.id, {
-      type: "date_time",
-      value: parseYmdToUTC(start!).toISOString(),
-    });
-    await DocumentService.setPropertyValue(projectId, doc.id, endDef.id, {
-      type: "date_time",
-      value: parseYmdToUTC(end!).toISOString(),
-    });
-  }
-
-  // 5) Inherit property DEFINITIONS (links only) — still calendar.repo
-  if (inheritAllCalendarProps) {
-    const defs = await repoGetCollectionPropDefs(collectionId);
-    const skip: Set<string> =
-      mode === "single"
-        ? new Set([CAL_BINDINGS.single])
-        : new Set([CAL_BINDINGS.range.start, CAL_BINDINGS.range.end]);
-
-    await Promise.all(
-      defs
-        .filter((d) => !skip.has(d.name))
-        .map((d) => repoEnsureDocProperty(doc.id, d.id))
-    );
-  }
-
-  return { documentId: doc.id };
-}
-// Resolve projectId for a document; if a projectId is provided, verify it matches.
-async function resolveAndAssertProjectId(
-  documentId: string,
-  providedProjectId?: string
-): Promise<string> {
-  const actual = await repoGetDocumentProjectId(documentId);
-  if (!actual) throw new Error("document not found");
-  if (providedProjectId && providedProjectId !== actual) {
-    throw new Error("project mismatch for document");
-  }
-  return actual;
-}
 export async function moveEventSvc(params: {
   documentId: string;
   deltaDays: number;
@@ -373,6 +335,15 @@ export async function resizeEventSvc(params: {
 
   // single-day
   if (defs.date?.id && values[defs.date.id]) {
+    // If user resizes the "end" edge, interpret as "convert to range".
+    if (edge === "end") {
+      await convertSingleToRange({
+        projectId: resolvedProjectId,
+        documentId,
+        endYmd: to, // YYYY-MM-DD
+      });
+      return;
+    }
     await DocumentService.setPropertyValue(
       resolvedProjectId,
       documentId,
@@ -467,4 +438,103 @@ export async function setSettings(
   // You can add guards here (e.g., verify propertyIds belong to project) if desired.
   await repoReplaceVisiblePropertyIds(collectionId, visiblePropertyIds);
   return { visiblePropertyIds };
+}
+
+/** Convert a raw value row into your doc DTO-like { type, value } based on property kind. */
+function toPropertyValueDto(
+  row: {
+    valueString: string | null;
+    valueNumber: number | null;
+    valueBool: boolean | null;
+    valueDate: Date | null;
+    valueJson: unknown | null;
+    optionId: string | null;
+  },
+  kind: string
+) {
+  switch (kind) {
+    case "text":
+    case "email":
+    case "url":
+    case "phone":
+      return { type: kind, value: row.valueString ?? "" };
+    case "number":
+      return { type: kind, value: row.valueNumber };
+    case "checkbox":
+      return { type: kind, value: Boolean(row.valueBool) };
+    case "date":
+      return {
+        type: "date_time",
+        value: row.valueDate ? row.valueDate.toISOString() : null,
+      };
+    case "file":
+      return { type: kind, value: row.valueJson ?? [] };
+    case "person":
+      return { type: kind, value: row.valueJson ?? null };
+    case "multi_select":
+      return { type: kind, value: (row.valueJson as string[] | null) ?? [] };
+    case "select":
+    case "status":
+      return { type: kind, value: row.optionId };
+    default:
+      return { type: kind, value: row.valueJson ?? row.valueString ?? null };
+  }
+}
+
+/** Convert a single-date document to a start/end range in a safe way. */
+async function convertSingleToRange(params: {
+  projectId: string;
+  documentId: string;
+  endYmd: string; // YYYY-MM-DD
+}) {
+  const { projectId, documentId, endYmd } = params;
+
+  const { defs, values } = await repoReadDocDateValues(projectId, documentId);
+
+  // Require an existing single date value.
+  if (!defs.date?.id || !values[defs.date.id]) {
+    throw new Error("cannot convert: no single date on document");
+  }
+
+  // Normalize: the single date becomes the start.
+  const startDate = values[defs.date.id]!;
+  const endDate = parseYmdToUTC(endYmd);
+
+  // Ensure range definitions exist (create/link if needed).
+  const startDef = await repoEnsureDatePropDef(
+    projectId,
+    CAL_BINDINGS.range.start
+  );
+  const endDef = await repoEnsureDatePropDef(projectId, CAL_BINDINGS.range.end);
+  await repoEnsureDocProperty(documentId, startDef.id);
+  await repoEnsureDocProperty(documentId, endDef.id);
+
+  // If end < start, clamp to start (or, if you prefer, swap them).
+  const safeEnd = endDate < startDate ? startDate : endDate;
+
+  // Write values through the DocumentService (keeps rules centralized).
+  await Promise.all([
+    DocumentService.setPropertyValue(projectId, documentId, startDef.id, {
+      type: "date_time",
+      value: startDate.toISOString(),
+    }),
+    DocumentService.setPropertyValue(projectId, documentId, endDef.id, {
+      type: "date_time",
+      value: safeEnd.toISOString(),
+    }),
+  ]);
+  // Optionally: remove the single date property from the document.
+
+  // Resolve projectId for a document; if a projectId is provided, verify it matches.
+  async function resolveAndAssertProjectId(
+    documentId: string,
+    providedProjectId?: string
+  ): Promise<string> {
+    const actual = await repoGetDocumentProjectId(documentId);
+    if (!actual) throw new Error("document not found");
+    if (providedProjectId && providedProjectId !== actual) {
+      throw new Error("project mismatch for document");
+    }
+    return actual;
+  }
 }
