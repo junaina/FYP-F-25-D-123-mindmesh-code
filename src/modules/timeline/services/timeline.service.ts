@@ -211,4 +211,138 @@ export const TimelineService = {
 
     return { success: true as const };
   },
+  /** MOVE: set a new start; preserve duration. */
+  async moveEvent(params: {
+    projectId: string;
+    docId: string;
+    collectionId: string;
+    documentId: string;
+    to: string; // ISO for new start
+  }) {
+    const { projectId, docId, collectionId, documentId, to } = params;
+
+    // Guard: ensure the event is inside the timeline
+    await TimelineRepo.assertEventBelongsToTimeline({
+      projectId,
+      docId,
+      collectionId,
+      documentId,
+    });
+
+    // Read current start/end ids+values
+    const {
+      startId: maybeStartId,
+      endId: maybeEndId,
+      values,
+    } = await TimelineRepo.readDocStartEnd(projectId, documentId);
+
+    // Ensure the prop definitions exist and linked
+    const { startId, endId } =
+      maybeStartId && maybeEndId
+        ? { startId: maybeStartId, endId: maybeEndId }
+        : await TimelineRepo.ensureStartEndPropDefs(projectId);
+    await Promise.all([
+      TimelineRepo.ensureDocProperty(documentId, startId),
+      TimelineRepo.ensureDocProperty(documentId, endId),
+    ]);
+
+    const curStart = values[startId] ?? null;
+    const curEnd = values[endId] ?? null;
+    if (!curStart || !curEnd) {
+      // If one is missing, we can't preserve duration safely
+      throw Object.assign(new Error("event has no valid start/end to move"), {
+        code: "NOT_FOUND" as const,
+      });
+    }
+
+    // Compute new end by preserving duration
+    const newStart = new Date(to);
+    const durationMs =
+      new Date(curEnd).getTime() - new Date(curStart).getTime();
+    const newEnd = new Date(newStart.getTime() + durationMs);
+
+    // Write both values via DocumentService
+    await Promise.all([
+      DocumentService.setPropertyValue(projectId, documentId, startId, {
+        type: DATE_PROP_TYPE,
+        value: newStart.toISOString(),
+      }),
+      DocumentService.setPropertyValue(projectId, documentId, endId, {
+        type: DATE_PROP_TYPE,
+        value: newEnd.toISOString(),
+      }),
+    ]);
+
+    return { success: true as const };
+  },
+
+  /** RESIZE: set one edge to a new instant with validation. */
+  async resizeEvent(params: {
+    projectId: string;
+    docId: string;
+    collectionId: string;
+    documentId: string;
+    edge: "start" | "end";
+    to: string; // ISO for new edge value
+  }) {
+    const { projectId, docId, collectionId, documentId, edge, to } = params;
+
+    await TimelineRepo.assertEventBelongsToTimeline({
+      projectId,
+      docId,
+      collectionId,
+      documentId,
+    });
+
+    const {
+      startId: maybeStartId,
+      endId: maybeEndId,
+      values,
+    } = await TimelineRepo.readDocStartEnd(projectId, documentId);
+
+    const { startId, endId } =
+      maybeStartId && maybeEndId
+        ? { startId: maybeStartId, endId: maybeEndId }
+        : await TimelineRepo.ensureStartEndPropDefs(projectId);
+    await Promise.all([
+      TimelineRepo.ensureDocProperty(documentId, startId),
+      TimelineRepo.ensureDocProperty(documentId, endId),
+    ]);
+
+    const curStart = values[startId] ?? null;
+    const curEnd = values[endId] ?? null;
+    if (!curStart || !curEnd) {
+      throw Object.assign(new Error("event has no valid start/end to resize"), {
+        code: "NOT_FOUND" as const,
+      });
+    }
+
+    const toDate = new Date(to);
+
+    if (edge === "start") {
+      // start cannot be after current end
+      if (curEnd && toDate > curEnd) {
+        throw Object.assign(new Error("start cannot be after end"), {
+          code: "BAD_REQUEST" as const,
+        });
+      }
+      await DocumentService.setPropertyValue(projectId, documentId, startId, {
+        type: DATE_PROP_TYPE,
+        value: toDate.toISOString(),
+      });
+    } else {
+      // end cannot be before current start
+      if (curStart && toDate < curStart) {
+        throw Object.assign(new Error("end cannot be before start"), {
+          code: "BAD_REQUEST" as const,
+        });
+      }
+      await DocumentService.setPropertyValue(projectId, documentId, endId, {
+        type: DATE_PROP_TYPE,
+        value: toDate.toISOString(),
+      });
+    }
+
+    return { success: true as const };
+  },
 };
