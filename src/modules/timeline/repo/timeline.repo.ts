@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 
 const DATE_PROP_TYPE = "date_time";
+const START = "start";
+const END = "end";
 
 export const TimelineRepo = {
   async createTimelineCollection(args: {
@@ -288,5 +290,58 @@ export const TimelineRepo = {
   //delete the doc/event
   async deleteDocument(documentId: string) {
     await prisma.document.delete({ where: { id: documentId } });
+  },
+  async readDocStartEnd(projectId: string, documentId: string) {
+    const defs = await prisma.propertyDefinition.findMany({
+      where: { projectId, name: { in: [START, END] } },
+      select: { id: true, name: true },
+    });
+    const map = new Map(defs.map((d) => [d.name, d.id]));
+    const ids = Array.from(map.values());
+    const vals = ids.length
+      ? await prisma.documentPropertyValue.findMany({
+          where: { documentId, propertyId: { in: ids } },
+          select: { propertyId: true, valueDate: true },
+        })
+      : [];
+    const values = Object.fromEntries(
+      vals.map((v) => [v.propertyId, v.valueDate])
+    );
+    return {
+      startId: map.get(START) ?? null,
+      endId: map.get(END) ?? null,
+      values,
+    };
+  },
+  /** Ensure the date prop definitions exist, return their ids. */
+  async ensureStartEndPropDefs(projectId: string) {
+    // Try find existing first
+    const existing = await prisma.propertyDefinition.findMany({
+      where: { projectId, name: { in: [START, END] } },
+      select: { id: true, name: true },
+    });
+    const hasStart = existing.find((d) => d.name === START)?.id;
+    const hasEnd = existing.find((d) => d.name === END)?.id;
+
+    const created: { startId?: string; endId?: string } = {};
+    if (!hasStart) {
+      const s = await prisma.propertyDefinition.create({
+        data: { projectId, name: START, type: "date_time" },
+        select: { id: true },
+      });
+      created.startId = s.id;
+    }
+    if (!hasEnd) {
+      const e = await prisma.propertyDefinition.create({
+        data: { projectId, name: END, type: "date_time" },
+        select: { id: true },
+      });
+      created.endId = e.id;
+    }
+
+    return {
+      startId: hasStart ?? created.startId!,
+      endId: hasEnd ?? created.endId!,
+    };
   },
 };
