@@ -134,4 +134,81 @@ export const TimelineService = {
       collectionId,
     };
   },
+  //PATCH A TIMELINE NAME
+  async renameTimeline(params: {
+    projectId: string;
+    docId: string;
+    collectionId: string;
+    name: string;
+  }) {
+    const { projectId, docId, collectionId, name } = params;
+    // (Auth optional here in dev since you're bypassing elsewhere.)
+    return TimelineRepo.updateTimelineName({
+      projectId,
+      docId,
+      collectionId,
+      name: name.trim().slice(0, 120),
+    });
+  },
+  //toggle visible properties ona  timeline
+  async getTimelineProperties(params: {
+    projectId: string;
+    docId: string;
+    collectionId: string;
+  }) {
+    const { projectId, docId, collectionId } = params;
+    const properties = await TimelineRepo.getUsedPropertyDefsForCollection(
+      projectId,
+      docId,
+      collectionId
+    );
+    const visiblePropertyIds = await TimelineRepo.getVisiblePropertyIds(
+      projectId,
+      docId,
+      collectionId
+    );
+    return { properties, visiblePropertyIds };
+  },
+  //put: replacing the visible set of properties
+  async setTimelineVisibleProperties(params: {
+    projectId: string;
+    docId: string;
+    collectionId: string;
+    visiblePropertyIds: string[];
+  }) {
+    const { projectId, docId, collectionId, visiblePropertyIds } = params;
+
+    // Optional guard (cheap): only allow ids that appear in the union list
+    const used = await TimelineRepo.getUsedPropertyDefsForCollection(
+      projectId,
+      docId,
+      collectionId
+    );
+    const allowed = new Set(used.map((u) => u.id));
+    const filtered = visiblePropertyIds.filter((id) => allowed.has(id));
+
+    await TimelineRepo.replaceVisiblePropertyIds(collectionId, filtered);
+    return { properties: used, visiblePropertyIds: filtered };
+  },
+  async deleteEvent(params: {
+    projectId: string;
+    docId: string;
+    collectionId: string;
+    documentId: string;
+  }) {
+    const { projectId, docId, collectionId, documentId } = params;
+
+    // Ensure the doc really belongs to this timeline
+    await TimelineRepo.assertEventBelongsToTimeline({
+      projectId,
+      docId,
+      collectionId,
+      documentId,
+    });
+
+    // Delete the document (cascades CollectionItem by FK)
+    await TimelineRepo.deleteDocument(documentId);
+
+    return { success: true as const };
+  },
 };
