@@ -1,3 +1,4 @@
+//src/app/api/projects/[projectId]/docs/[docId]/collections/[collectionId]/timeline/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { TimelineService } from "@/modules/timeline/services/timeline.service";

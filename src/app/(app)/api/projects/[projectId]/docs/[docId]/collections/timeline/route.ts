@@ -1,3 +1,4 @@
+//src/app/api/projects/[projectId]/docs/[docId]/collections/timeline/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 import { parseProjectDocParams } from "@/modules/documents/dto/doc.dto";
