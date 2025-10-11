@@ -14,6 +14,22 @@ export interface Column {
 
 const DAY = 24 * 60 * 60 * 1000;
 
+function startOfHour(d: Date) {
+  const x = new Date(d);
+  x.setMinutes(0, 0, 0);
+  return x;
+}
+function addMinutes(d: Date, m: number) {
+  const x = new Date(d);
+  x.setMinutes(x.getMinutes() + m);
+  return x;
+}
+function addHours(d: Date, h: number) {
+  const x = new Date(d);
+  x.setHours(x.getHours() + h);
+  return x;
+}
+
 function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0); // set to start of day
@@ -132,22 +148,24 @@ export function buildScale(view: View, startISO: string) {
   let cols: Column[] = [];
   let viewportStart: Date;
   let viewportEnd: Date;
+  // inside buildScale(view, startISO)
 
   if (view === "hour") {
     // show 12 columns of 5-minute intervals
     const start = new Date(startISO);
-    start.setMinutes(0, 0, 0);
-    viewportStart = start;
-    viewportEnd = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour
+    viewportStart = startOfHour(start);
+    viewportEnd = addHours(viewportStart, 1);
 
+    cols.length = 0;
     for (let i = 0; i < 12; i++) {
-      const s = new Date(viewportStart.getTime() + i * 5 * 60 * 1000);
-      const e = new Date(s.getTime() + 5 * 60 * 1000);
+      const s = addMinutes(viewportStart, i * 5);
+      const e = addMinutes(viewportStart, (i + 1) * 5);
+      const today = new Date();
       cols.push({
         start: s,
         end: e,
         day: s.getMinutes(),
-        isToday: false,
+        isToday: s.toDateString() === today.toDateString(),
         isWeekend: false,
         weekBand: Math.floor(i / 3), // band every 15 mins
       });
@@ -210,6 +228,7 @@ export function buildScale(view: View, startISO: string) {
   const startMs = viewportStart.getTime();
   const endMs = viewportEnd.getTime();
 
+  console.log("hour span min:", (endMs - startMs) / 60000);
   const timeToPct = (ms: number) => {
     const span = Math.max(1, endMs - startMs);
     return Math.max(0, Math.min(100, ((ms - startMs) / span) * 100));

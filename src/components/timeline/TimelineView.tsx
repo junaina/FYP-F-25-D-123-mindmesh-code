@@ -6,6 +6,9 @@ import GridBands from "./grid/GridBands";
 import NowMarker from "./grid/NowMarker";
 import TimelineNav from "./header/TimelineNav";
 import ViewSwitcher from "./header/ViewSwitcher";
+import { useTimelineEvents } from "@/modules/timeline/client/useTimelineEvents";
+import EventsLayer from "./events/EventsLayer";
+import { mapServerEventToDto } from "./events/adapters";
 import { useRef, useState, useEffect } from "react";
 
 export interface TimelineViewProps {
@@ -32,6 +35,22 @@ export default function TimelineView({
   //measuring container to stretch week view
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
+  const { data, isLoading, error } = useTimelineEvents(
+    projectId!,
+    docId!,
+    collectionId!,
+    view,
+    start
+  );
+  // API returns { events: [...] } per your route; adapt accordingly
+  const events = Array.isArray((data as any)?.events)
+    ? (data as any).events.map(mapServerEventToDto)
+    : [];
+
+  // open wiki doc (replace with your real navigation)
+  function openDoc(documentId: string) {
+    console.log("Open doc:", documentId);
+  }
 
   useEffect(() => {
     const el = containerRef.current;
@@ -98,7 +117,17 @@ export default function TimelineView({
 
             <GridBands columns={columns} columnWidth={columnWidth}>
               <NowMarker startMs={startMs} endMs={endMs} nowMs={nowMs} />
-              {/* Event layer comes here later */}
+              {!isLoading && !error && events.length > 0 && (
+                <EventsLayer
+                  events={events}
+                  startMs={startMs}
+                  endMs={endMs}
+                  contentWidth={contentWidth}
+                  rowHeight={36}
+                  maxVisibleRows={6}
+                  onOpenDoc={openDoc}
+                />
+              )}
             </GridBands>
           </div>
         </div>
