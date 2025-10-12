@@ -30,7 +30,7 @@ export default function NowMarker({
 
   return (
     <div
-      className="absolute top-0 bottom-0"
+      className="absolute top-0 bottom-0 z-20"
       style={{ left: `${pct}%` }}
       suppressHydrationWarning
     >

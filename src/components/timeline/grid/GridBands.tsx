@@ -20,7 +20,10 @@ export default function GridBands({
 
   return (
     <div
-      className={clsx("relative w-full overflow-hidden rounded-b-xl", height)}
+      className={clsx(
+        "relative w-full overflow-hidden rounded-b-xl z-0",
+        height
+      )}
     >
       <div
         className="relative h-full mx-auto"

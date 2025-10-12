@@ -3,7 +3,33 @@ import { prisma } from "@/lib/prisma";
 const DATE_PROP_TYPE = "date_time";
 const START = "start";
 const END = "end";
+// load property defs (no options yet)
+export async function getPropertyDefs(
+  projectId: string,
+  propertyIds: string[]
+) {
+  return prisma.propertyDefinition.findMany({
+    where: { projectId, id: { in: propertyIds } },
+    select: { id: true, name: true, type: true },
+    orderBy: { name: "asc" },
+  });
+}
 
+// load options for a set of propertyIds
+export async function getOptionsForPropertyIds(propertyIds: string[]) {
+  if (!propertyIds.length) return [];
+  return prisma.propertyOption.findMany({
+    where: { propertyId: { in: propertyIds } },
+    select: {
+      id: true,
+      value: true,
+      propertyId: true,
+      position: true,
+      color: true,
+    },
+    orderBy: [{ position: "asc" }, { value: "asc" }], // fall back to value
+  });
+}
 export const TimelineRepo = {
   async createTimelineCollection(args: {
     documentId: string;
@@ -84,6 +110,7 @@ export const TimelineRepo = {
       orderBy: { createdAt: "asc" },
     });
   },
+
   async linkToCollection(
     collectionId: string,
     documentId: string,

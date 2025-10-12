@@ -87,10 +87,20 @@ export const TimelinePropertyDefDto = z.object({
 });
 export type TimelinePropertyDef = z.infer<typeof TimelinePropertyDefDto>;
 
+export const PropertyOptionDto = z.object({
+  id: z.string().uuid(),
+  name: z.string(), // we’ll map Prisma's `value` -> `name`
+});
+export type PropertyOption = z.infer<typeof PropertyOptionDto>;
+
 /** GET response: union of props + currently visible propertyIds */
 export const GetTimelinePropertiesResponseDto = z.object({
   properties: z.array(TimelinePropertyDefDto),
   visiblePropertyIds: z.array(z.string().uuid()),
+  // NEW (optional for back-compat):
+  optionsByPropertyId: z
+    .record(z.string().uuid(), z.array(PropertyOptionDto))
+    .optional(),
 });
 export type GetTimelinePropertiesResponse = z.infer<
   typeof GetTimelinePropertiesResponseDto

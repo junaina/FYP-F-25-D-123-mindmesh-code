@@ -8,9 +8,13 @@ import TimelineNav from "./header/TimelineNav";
 import ViewSwitcher from "./header/ViewSwitcher";
 import { useTimelineEvents } from "@/modules/timeline/client/useTimelineEvents";
 import EventsLayer from "./events/EventsLayer";
+import { PropertyVisibilityMenu } from "@/components/calendar/PropertyVisibilityMenu"; // path = your uploaded file
 import { mapServerEventToDto } from "./events/adapters";
-import { useRef, useState, useEffect } from "react";
-
+import { useRef, useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { getTimelineProperties } from "@/modules/timeline/client/timeline.api";
+import { TimelinePropertyDef } from "@/modules/timeline/dto/timeline.dto";
+import type { PropertyOptionsMap } from "./events/adapters";
 export interface TimelineViewProps {
   projectId?: string;
   docId?: string;
@@ -31,7 +35,22 @@ export default function TimelineView({
   className,
 }: TimelineViewProps) {
   const { columns, startMs, endMs } = buildScale(view, start);
-
+  const [propVisible, setPropVisible] = useState<Set<string>>(new Set());
+  const router = useRouter();
+  function toggleProp(name: string, next: boolean) {
+    setPropVisible((prev) => {
+      const cp = new Set(prev);
+      if (next) cp.add(name);
+      else cp.delete(name);
+      return cp;
+    });
+  }
+  function openDoc(targetDocId: string) {
+    if (!projectId || !targetDocId) {
+      return;
+    }
+    router.push(`/projects/${projectId}/docs/${targetDocId}`);
+  }
   //measuring container to stretch week view
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -46,11 +65,42 @@ export default function TimelineView({
   const events = Array.isArray((data as any)?.events)
     ? (data as any).events.map(mapServerEventToDto)
     : [];
+  // union visible properties from fetched events (useTimelineEvents already gives you events)
+  const allPropNames = useMemo(() => {
+    const s = new Set<string>();
+    events?.forEach((ev) => ev.properties?.forEach((p) => s.add(p.name)));
+    return Array.from(s);
+  }, [events]);
+  const propRows = useMemo(
+    () => allPropNames.map((n) => ({ name: n, kind: "text" as const })), // or derive kind if you have it
+    [allPropNames]
+  );
 
-  // open wiki doc (replace with your real navigation)
-  function openDoc(documentId: string) {
-    console.log("Open doc:", documentId);
-  }
+  const [propertyDefs, setPropertyDefs] = useState<TimelinePropertyDef[]>([]);
+  const [propertyOptions, setPropertyOptions] = useState<PropertyOptionsMap>(
+    {}
+  );
+
+  useEffect(() => {
+    (async () => {
+      const resp = await getTimelineProperties({
+        projectId,
+        docId,
+        collectionId,
+      });
+
+      setPropertyDefs(resp.properties);
+      setPropertyOptions(resp.optionsByPropertyId ?? {});
+
+      // convert visible ids -> visible *names* (because your events carry property names)
+      const visibleNames = new Set(
+        resp.visiblePropertyIds
+          .map((id) => resp.properties.find((p) => p.id === id)?.name)
+          .filter(Boolean) as string[]
+      );
+      setPropVisible(visibleNames);
+    })();
+  }, [projectId, docId, collectionId]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -92,6 +142,12 @@ export default function TimelineView({
 
         <div className="flex-1 flex justify-end">
           <TimelineNav view={view} start={start} />
+          <PropertyVisibilityMenu
+            properties={propRows}
+            visible={propVisible}
+            onToggle={toggleProp}
+            className="ml-2"
+          />
         </div>
       </div>
       <div
@@ -114,21 +170,25 @@ export default function TimelineView({
               columnWidth={columnWidth}
               showTodayDot={view === "month"}
             />
-
-            <GridBands columns={columns} columnWidth={columnWidth}>
-              <NowMarker startMs={startMs} endMs={endMs} nowMs={nowMs} />
-              {!isLoading && !error && events.length > 0 && (
-                <EventsLayer
-                  events={events}
-                  startMs={startMs}
-                  endMs={endMs}
-                  contentWidth={contentWidth}
-                  rowHeight={36}
-                  maxVisibleRows={6}
-                  onOpenDoc={openDoc}
-                />
-              )}
-            </GridBands>
+            <div className="relative mt-1">
+              <GridBands columns={columns} columnWidth={columnWidth}>
+                <NowMarker startMs={startMs} endMs={endMs} nowMs={nowMs} />
+                {!isLoading && !error && events.length > 0 && (
+                  <EventsLayer
+                    events={events}
+                    startMs={startMs}
+                    endMs={endMs}
+                    contentWidth={contentWidth}
+                    rowHeight={36}
+                    maxVisibleRows={6}
+                    propertyVisible={propVisible}
+                    propertyDefs={propertyDefs}
+                    propertyOptions={propertyOptions}
+                    onOpenDoc={openDoc}
+                  />
+                )}
+              </GridBands>
+            </div>
           </div>
         </div>
       </div>
