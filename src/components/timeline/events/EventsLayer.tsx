@@ -2,8 +2,26 @@
 import EventChip from "./EventChip";
 import type { TimelinePropertyDef } from "@/modules/timeline/dto/timeline.dto";
 import { makePropertyDisplayMapper, type PropertyOptionsMap } from "./adapters";
-
-import { useMemo } from "react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { useDeleteTimelineEvent } from "@/modules/timeline/client/useDeleteTimelineEvent";
+import { useMemo, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 type TimelineEventDto = {
   id: string;
   documentId: string;
@@ -23,6 +41,9 @@ type Props = {
   propertyDefs?: TimelinePropertyDef[];
   propertyOptions?: PropertyOptionsMap;
   onOpenDoc?: (docId: string) => void;
+  projectId?: string;
+  docId?: string;
+  collectionId?: string;
 };
 
 export default function EventsLayer({
@@ -36,6 +57,9 @@ export default function EventsLayer({
   propertyDefs,
   propertyOptions,
   onOpenDoc,
+  projectId,
+  docId,
+  collectionId,
 }: Props) {
   const spanMs = Math.max(1, endMs - startMs);
 
@@ -133,6 +157,36 @@ export default function EventsLayer({
     });
     return out;
   }
+
+  //wiring delete
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    title?: string;
+  } | null>(null);
+  //toast + mutation
+  const { toast } = useToast();
+  const del = useDeleteTimelineEvent({
+    projectId: projectId ?? "",
+    docId: docId ?? "",
+    collectionId: collectionId ?? "",
+  });
+  async function handleDelete(documentId: string, title?: string) {
+    if (!projectId || !docId || !collectionId) return;
+    try {
+      await del.mutateAsync({ documentId });
+      toast({ title: "Event deleted", description: title || documentId });
+    } catch (e: any) {
+      toast({
+        title: "Failed to delete",
+        description: e?.message ?? "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setConfirmOpen(false);
+      setPendingDelete(null);
+    }
+  }
   return (
     <div className="absolute inset-0 pointer-events-auto overflow-y-auto overflow-x-hidden">
       {/* This inner container is as tall as the stacked lanes */}
@@ -147,26 +201,60 @@ export default function EventsLayer({
               width: p.widthPx,
             }}
           >
-            <EventChip
-              title={p.title}
-              compact={p.isCompact}
-              onClick={() => onOpenDoc?.(p.documentId)}
-              values={toDisplayValues(
-                p.properties as Array<{ name: string; value: unknown }>
-              )}
-              visible={propertyVisible}
-            />
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <div>
+                  <EventChip
+                    title={p.title}
+                    compact={p.isCompact}
+                    onClick={() => onOpenDoc?.(p.documentId)}
+                    values={toDisplayValues(
+                      p.properties as Array<{ name: string; value: unknown }>
+                    )}
+                    visible={propertyVisible}
+                  />
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="w-40">
+                <ContextMenuItem
+                  className="text-destructive"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setPendingDelete({ id: p.documentId, title: p.title });
+                    setConfirmOpen(true);
+                  }}
+                >
+                  Delete
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           </div>
         ))}
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this event?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. The event{" "}
+                <strong>{pendingDelete?.title || "Untitled"}</strong> will be
+                permanently removed from your timeline.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (pendingDelete)
+                    handleDelete(pendingDelete.id, pendingDelete.title);
+                }}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
-}
-
-function extractValues(
-  props?: { name: string; value: unknown }[]
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  props?.forEach((pp) => (out[pp.name] = pp.value));
-  return out;
 }

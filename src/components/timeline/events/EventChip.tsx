@@ -1,4 +1,12 @@
 "use client";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { useDeleteTimelineEvent } from "@/modules/timeline/client/useDeleteTimelineEvent";
+import { useToast } from "@/hooks/use-toast";
 
 type EventChipProps = {
   title: string;
