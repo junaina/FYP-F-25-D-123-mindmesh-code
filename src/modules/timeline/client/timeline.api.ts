@@ -94,3 +94,30 @@ export async function listEvents(params: {
     next: { revalidate: 0 },
   });
 }
+
+//delete event
+export async function deleteEvent(params: {
+  projectId: string;
+  docId: string;
+  collectionId: string;
+  documentId: string;
+}) {
+  const { projectId, docId, collectionId, documentId } = params;
+  const url = `/api/projects/${encodeURIComponent(
+    projectId
+  )}/docs/${encodeURIComponent(docId)}/collections/${encodeURIComponent(
+    collectionId
+  )}/timeline/events/${encodeURIComponent(documentId)}`;
+
+  const res = await fetch(url, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "Failed to delete event");
+  }
+  return;
+}

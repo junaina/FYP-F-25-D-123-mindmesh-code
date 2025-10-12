@@ -185,6 +185,9 @@ export default function TimelineView({
                     propertyDefs={propertyDefs}
                     propertyOptions={propertyOptions}
                     onOpenDoc={openDoc}
+                    projectId={projectId}
+                    docId={docId}
+                    collectionId={collectionId}
                   />
                 )}
               </GridBands>
