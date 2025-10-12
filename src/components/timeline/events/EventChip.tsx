@@ -1,32 +1,122 @@
 "use client";
-export default function EventChip({
-  title,
-  onClick,
-  className,
-}: {
+
+type EventChipProps = {
   title: string;
+  compact?: boolean;
+  values?: Record<string, unknown>; // name -> value
+  visible?: Set<string>; // which property names are visible
   onClick?: () => void;
   className?: string;
-}) {
+};
+
+export default function EventChip({
+  title,
+  compact = false,
+  values = {},
+  visible,
+  onClick,
+  className,
+}: EventChipProps) {
+  // Filter & prepare values that will actually be shown
+  const entries = Object.entries(values).filter(([name, v]) => {
+    if (visible && !visible.has(name)) return false;
+    const s = String(v ?? "").trim();
+    return s.length > 0;
+  });
+
   return (
-    <div
-      onClick={onClick}
-      className={[
-        // Base structure
-        "flex w-full items-center gap-2 px-6 h-8 rounded-lg cursor-pointer select-none z-10",
-        // Solid dark chip (uses theme vars)
-        "bg-muted",
-        "border border-muted-foreground/10",
-        // Text and font
-        "text-[color-mix(in_oklab,var(--foreground)_92%,white)] text-sm font-medium truncate",
-        // Hover interaction
-        "hover:bg-[color-mix(in_oklab,var(--card)_75%,black)] transition-colors duration-150",
-        //Shadow
-        "shadow-lg",
-        className ?? "",
-      ].join(" ")}
-    >
-      <span className="truncate">{title}</span>
+    <div className="relative w-full pointer-events-auto">
+      <div
+        onClick={onClick}
+        className={[
+          // Container (auto-height, never absolute children here)
+          "box-border w-full rounded-lg border shadow-lg cursor-pointer select-none",
+          "bg-muted border-muted-foreground/10",
+          "text-[color-mix(in_oklab,var(--foreground)_92%,white)]",
+          "transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--card)_75%,black)]",
+          compact ? "px-2 py-1" : "px-3 py-2",
+          className ?? "",
+        ].join(" ")}
+        // keep overflow visible so rounded corners don't clip the pills' subtle shadows
+        style={{ overflow: "visible" }}
+      >
+        {/* --- Title row (always first) --- */}
+        <div
+          className={[
+            "truncate leading-5",
+            compact ? "text-[13px] font-medium" : "text-sm font-semibold",
+          ].join(" ")}
+          title={title}
+        >
+          {title}
+        </div>
+
+        {/* --- Properties below title (only when not compact) --- */}
+        {!compact && entries.length > 0 && (
+          <div className="mt-1 flex flex-col gap-1">
+            {entries.map(([name, raw]) => {
+              const pretty = formatValue(raw, name);
+              return (
+                <div
+                  key={name}
+                  className={[
+                    "inline-flex max-w-full items-center truncate rounded-md",
+                    "bg-[color-mix(in_oklab,var(--card)_86%,black)]",
+                    "border border-[color-mix(in_oklab,var(--border)_70%,black)]",
+                    "px-2 py-[2px] text-xs leading-5",
+                    "text-[color-mix(in_oklab,var(--foreground)_92%,white)]",
+                  ].join(" ")}
+                  title={pretty}
+                >
+                  {pretty}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+/** Compact, readable formatting for property values. */
+function formatValue(v: unknown, name?: string): string {
+  if (v == null) return "";
+  // Show short, readable dates/times for ISO strings
+  if (typeof v === "string") {
+    const iso = tryParseISO(v);
+    if (iso) {
+      // If the property looks like a date/time (e.g., "start" or "end") show a terse format
+      return shortDateTime(iso);
+    }
+    return v;
+  }
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.map((x) => String(x ?? "")).join(", ");
+  // generic object → JSON-ish
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
+
+function tryParseISO(s: string): Date | null {
+  // very lenient: only attempt when it looks like an ISO datetime
+  if (!/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return null;
+  const d = new Date(s);
+  return Number.isNaN(+d) ? null : d;
+}
+
+function shortDateTime(d: Date): string {
+  // keep it short; you can swap locale if you prefer
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const date = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  // If it’s today, show only time; otherwise show date + time
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  return sameDay ? time : `${date} ${time}`;
 }

@@ -21,7 +21,7 @@ export default function TickHeader({
   const contentWidth = columns.length * columnWidth;
 
   return (
-    <div className="px-3 pt-2 select-none">
+    <div className="px-3 pt-2 select-none z-30">
       <div className="relative w-full">
         {/* Capsule rail spans the full content width */}
         <div

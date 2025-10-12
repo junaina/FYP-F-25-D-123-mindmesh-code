@@ -4,7 +4,11 @@ import { requireUser } from "@/lib/auth";
 import { DocumentService } from "@/modules/documents/services/document.service";
 import { CreateTimelineEventInput } from "../dto/timeline.dto";
 import type { CreateTimelineInput } from "../dto/timeline.dto";
-
+import type { TimelinePropertyDef } from "@/modules/timeline/dto/timeline.dto";
+import {
+  getPropertyDefs,
+  getOptionsForPropertyIds,
+} from "../repo/timeline.repo";
 const DATE_PROP_TYPE = "date_time";
 const START = "start";
 const END = "end";
@@ -31,6 +35,51 @@ function toValue(pv: {
     return pv.valueJson as string | unknown;
   //text/email/url/phone
   return pv.valueJson ?? pv.valueString ?? null;
+}
+function mapKind(dbType: string): TimelinePropertyDef["kind"] {
+  switch (dbType) {
+    case "select":
+      return "select";
+    case "multi_select":
+      return "multi_select";
+    case "text":
+      return "text";
+    case "number":
+      return "number";
+    case "date":
+      return "date";
+    case "email":
+      return "email";
+    case "url":
+      return "url";
+    case "phone":
+      return "phone";
+    default:
+      return "text";
+  }
+}
+export async function listTimelinePropertyDefs(
+  projectId: string,
+  propertyIds: string[]
+) {
+  const defs = await getPropertyDefs(projectId, propertyIds);
+  const opts = await getOptionsForPropertyIds(propertyIds);
+
+  const optionsByProp = new Map<string, { id: string; name: string }[]>();
+  for (const o of opts) {
+    const arr = optionsByProp.get(o.propertyId) ?? [];
+    arr.push({ id: o.id, name: o.value }); // <-- value -> name for DTO
+    optionsByProp.set(o.propertyId, arr);
+  }
+
+  const dto: TimelinePropertyDef[] = defs.map((d) => ({
+    id: d.id,
+    name: d.name,
+    kind: mapKind(d.type),
+    options: optionsByProp.get(d.id), // undefined if not select-ish
+  }));
+
+  return dto;
 }
 export const TimelineService = {
   //listing evevnts for the given collection scoped to project and document
