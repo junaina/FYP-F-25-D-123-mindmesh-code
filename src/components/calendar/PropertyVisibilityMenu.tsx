@@ -28,7 +28,7 @@ import {
 import type { PropKind } from "@/types/calendar";
 import { cn } from "@/lib/utils";
 
-type PropRow = { name: string; kind: PropKind };
+export type PropRow = { name: string; kind: PropKind };
 
 export function PropertyVisibilityMenu({
   properties,
