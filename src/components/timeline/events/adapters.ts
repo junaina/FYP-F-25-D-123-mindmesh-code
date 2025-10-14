@@ -4,7 +4,7 @@ export type OptionsByPropertyId = Record<
   string,
   { id: string; name: string }[]
 >;
-
+export type PropertyOptionsMap = OptionsByPropertyId;
 export function makePropertyDisplayMapper(
   defs: PropertyDef[],
   optionsByPropertyId: OptionsByPropertyId = {}

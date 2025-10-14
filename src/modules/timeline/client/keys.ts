@@ -14,4 +14,6 @@ export const timelineKeys = {
       view,
       startISO,
     ] as const,
+  root: (projectId: string, docId: string, collectionId: string) =>
+    ["timeline.events", projectId, docId, collectionId] as const,
 };

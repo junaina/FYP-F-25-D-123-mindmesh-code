@@ -42,7 +42,7 @@ export default function EventChip({
           "bg-muted border-muted-foreground/10",
           "text-[color-mix(in_oklab,var(--foreground)_92%,white)]",
           "transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--card)_75%,black)]",
-          compact ? "px-2 py-1" : "px-3 py-2",
+          compact ? "px-2 py-1 min-w-[140px]" : "px-3 py-2",
           className ?? "",
         ].join(" ")}
         // keep overflow visible so rounded corners don't clip the pills' subtle shadows

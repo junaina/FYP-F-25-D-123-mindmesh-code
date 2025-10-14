@@ -53,7 +53,7 @@ export async function setTimelineVisibleProperties(
   visiblePropertyIds: string[]
 ): Promise<GetTimelinePropertiesResponse> {
   const res = await fetch(
-    `/api/projects/${projectId}/docs/${docId}/collections/${collectionId}/properties`,
+    `/api/projects/${projectId}/docs/${docId}/collections/${collectionId}/timeline/properties`,
     {
       method: "PUT",
       credentials: "include",
@@ -120,4 +120,22 @@ export async function deleteEvent(params: {
     throw new Error(msg || "Failed to delete event");
   }
   return;
+}
+// POST /api/projects/:pid/docs/:did/collections/:cid/timeline/events
+export async function createTimelineEvent(
+  projectId: string,
+  docId: string,
+  collectionId: string,
+  body: { title?: string; start: string; end: string }
+) {
+  const res = await fetch(
+    `/api/projects/${projectId}/docs/${docId}/collections/${collectionId}/timeline/events`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+  if (!res.ok) throw new Error("Failed to create timeline event");
+  return (await res.json()) as { id: string };
 }

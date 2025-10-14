@@ -188,7 +188,10 @@ export default function EventsLayer({
     }
   }
   return (
-    <div className="absolute inset-0 pointer-events-auto overflow-y-auto overflow-x-hidden">
+    <div
+      className="absolute inset-0 pointer-events-auto overflow-y-auto"
+      style={{ overflow: "visible" }}
+    >
       {/* This inner container is as tall as the stacked lanes */}
       <div className="relative" style={{ height: contentHeight }}>
         {placed.map((p) => (
@@ -199,6 +202,7 @@ export default function EventsLayer({
               top: p.lane * laneHeight + LANE_GAP / 2, // center gap a bit
               left: p.leftPx,
               width: p.widthPx,
+              overflow: "visible",
             }}
           >
             <ContextMenu>
