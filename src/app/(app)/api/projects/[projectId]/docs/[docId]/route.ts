@@ -9,7 +9,6 @@ import {
 } from "@/modules/documents/dto/doc.dto";
 import { DocumentService } from "@/modules/documents/services/document.service";
 
-// at top of the file:
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
