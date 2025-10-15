@@ -10,59 +10,32 @@ import {
 } from "@/modules/table/dto/table.dto";
 
 import { TableService } from "@/modules/table/service/table.service";
+type Params = { projectId: string; docId: string; collectionId: string };
 
-// Next.js (newer versions) expose params as a Promise – must await.
-export async function POST(
-  req: NextRequest,
-  ctx: {
-    params: Promise<{
-      projectId: string;
-      docId: string;
-      collectionId: string;
-    }>;
-  }
-) {
+export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
   try {
-    // 1) await + validate params
-    const rawParams = await ctx.params;
-    const { projectId, docId, collectionId } =
-      DocInCollectionParamsDto.parse(rawParams);
-
-    // 2) auth (dev mode allowed via AUTH_DISABLED)
-    const user = await requireUser();
-    const userId = user.id;
-
-    // 3) validate body
-    const json = await req.json();
-    const body = AddColumnBodyDto.parse(json);
-
-    // 4) create property (column) and make it visible in this table
-    // Your TableService already wires into repo & docs layers.
-    const property = await TableService.addColumn(
-      projectId,
-      collectionId,
-      body,
+    const { projectId, collectionId } = await ctx.params;
+    await requireUser();
+    const body = AddColumnBodyDto.parse(await req.json());
+    const def = await TableService.addColumn(projectId, collectionId, body);
+    return NextResponse.json(def, { status: 201 });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "Internal Server Error" },
+      { status: 500 }
     );
-
-    // If you want to strictly ensure the URL's docId is the table host doc,
-    // add a repo guard like assertCollectionBelongsToDoc(collectionId, docId)
-    // and call it before addColumn(...). It's optional.
-
-    return NextResponse.json(property, { status: 200 });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid request", issues: err.issues },
-        { status: 400 }
-      );
-    }
-    const msg = (err as Error)?.message || "Internal error";
-    const status =
-      msg.includes("not found") ||
-      msg.includes("mismatch") ||
-      msg.includes("not in this table")
-        ? 404
-        : 500;
-    return NextResponse.json({ error: msg }, { status });
+  }
+}
+export async function GET(req: NextRequest, ctx: { params: Promise<Params> }) {
+  try {
+    const { projectId, collectionId } = await ctx.params;
+    await requireUser();
+    const columns = await TableService.getSchema(projectId, collectionId);
+    return NextResponse.json(columns, { status: 200 });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message ?? "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

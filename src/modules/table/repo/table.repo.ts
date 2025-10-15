@@ -7,6 +7,10 @@ import { DocumentRepo } from "@/modules/documents/repo/document.repo";
  * - CollectionItem requires addedById
  * - We verify project ownership by joining: collection.document.projectId
  */
+const EMPTY_TIPTAP_DOC = {
+  type: "doc",
+  content: [{ type: "paragraph", content: [] }],
+} as const;
 export const TableRepo = {
   /* ---------- guards ---------- */
   async assertCollectionInProject(collectionId: string, projectId: string) {
@@ -114,7 +118,10 @@ export const TableRepo = {
     );
   },
 
-  async unlinkPropertyAcrossCollection(collectionId: string, propertyId: string) {
+  async unlinkPropertyAcrossCollection(
+    collectionId: string,
+    propertyId: string
+  ) {
     // remove link and value for every doc in this table
     const rows = await prisma.collectionItem.findMany({
       where: { collectionId },
@@ -169,12 +176,10 @@ export const TableRepo = {
       })),
     }));
   },
-
-  /* ---------- rows ---------- */
   async listDocsWithValues(projectId: string, collectionId: string) {
     const items = await prisma.collectionItem.findMany({
       where: { collectionId },
-      select: {
+      include: {
         document: {
           select: {
             id: true,
@@ -185,20 +190,61 @@ export const TableRepo = {
             updatedAt: true,
           },
         },
-        createdAt: true,
       },
       orderBy: { createdAt: "asc" },
     });
 
     const rows = await Promise.all(
-      items.map(async (it) => ({
-        ...it.document,
-        properties: await DocumentRepo.readPropertiesWithValues(
-          projectId,
-          it.document.id
-        ),
-      }))
+      items.map(async (it) => {
+        const [props, vals] = await Promise.all([
+          prisma.documentProperty.findMany({
+            where: { documentId: it.document.id },
+            include: {
+              property: {
+                // ✅ correct relation
+                include: {
+                  options: {
+                    orderBy: [{ position: "asc" }, { value: "asc" }],
+                  },
+                },
+              },
+            },
+          }),
+          prisma.documentPropertyValue.findMany({
+            where: { documentId: it.document.id },
+            include: { option: true }, // ✅ correct join for select options
+          }),
+        ]);
+
+        const properties = props.map((p) => {
+          const value = vals.find((v) => v.propertyId === p.propertyId) ?? {
+            id: null,
+            documentId: it.document.id,
+            propertyId: p.propertyId,
+            valueString: null,
+            valueNumber: null,
+            valueBool: null,
+            valueDate: null,
+            valueJson: null,
+            optionId: null,
+            option: null,
+            createdAt: null,
+            updatedAt: null,
+          };
+
+          return {
+            id: p.propertyId,
+            type: p.property.type,
+            name: p.property.name,
+            options: p.property.options,
+            value, // ✅ always present
+          };
+        });
+
+        return { ...it.document, properties };
+      })
     );
+
     return rows;
   },
 
@@ -214,7 +260,7 @@ export const TableRepo = {
         projectId,
         title,
         description: description ?? null,
-        content: {},
+        content: EMPTY_TIPTAP_DOC, // <-- change this line
         createdById: userId,
       },
       select: {
@@ -229,10 +275,67 @@ export const TableRepo = {
   },
 
   /* ---------- options (thin wrappers for guards) ---------- */
-  async readOptions(projectId: string, collectionId: string, propertyId: string) {
+  async readOptions(
+    projectId: string,
+    collectionId: string,
+    propertyId: string
+  ) {
     await this.assertCollectionInProject(collectionId, projectId);
     const docId = await this.anyDocId(collectionId);
     if (!docId) return [];
     return DocumentRepo.readPropertyOptions(projectId, docId, propertyId);
   },
+  async unlinkDocFromCollection(collectionId: string, documentId: string) {
+    return prisma.collectionItem.delete({
+      where: { collectionId_documentId: { collectionId, documentId } },
+    });
+  },
+
+  async deleteDocument(documentId: string) {
+    // Your schema has cascading deletes on most doc relations,
+    // so a hard delete here should cascade property links/values, etc.
+    return prisma.document.delete({ where: { id: documentId } });
+  },
 };
+// Returns the union of properties that should appear as columns in this collection:
+// - properties explicitly visible for this view (ViewPropertyVisibility.visible = true)
+// - any properties already used by docs in this collection (union)
+export async function getCollectionColumnPropertyIds(collectionId: string) {
+  // visible columns for this view
+  const visible = await prisma.viewPropertyVisibility.findMany({
+    where: { collectionId, visible: true },
+    select: { propertyId: true },
+  });
+
+  // union of properties used by existing docs in this collection
+  const docIds = await prisma.collectionItem.findMany({
+    where: { collectionId },
+    select: { documentId: true },
+  });
+
+  let used: { propertyId: string }[] = [];
+  if (docIds.length) {
+    used = await prisma.documentProperty.findMany({
+      where: { documentId: { in: docIds.map((d) => d.documentId) } },
+      distinct: ["propertyId"],
+      select: { propertyId: true },
+    });
+  }
+
+  const ids = new Set<string>();
+  visible.forEach((v) => ids.add(v.propertyId));
+  used.forEach((u) => ids.add(u.propertyId));
+  return [...ids];
+}
+
+// Inserts DocumentProperty rows for a new document (skips duplicates).
+export async function attachPropertiesToDocument(
+  documentId: string,
+  propertyIds: string[]
+) {
+  if (!propertyIds.length) return;
+  await prisma.documentProperty.createMany({
+    data: propertyIds.map((pid) => ({ documentId, propertyId: pid })),
+    skipDuplicates: true,
+  });
+}
