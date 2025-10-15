@@ -13,7 +13,10 @@ import {
   CreateTableBodyDto,
 } from "../dto/table.dto";
 import { PROPERTY_TYPES } from "@/modules/documents/domain/types";
-
+import {
+  getCollectionColumnPropertyIds,
+  attachPropertiesToDocument,
+} from "../repo/table.repo";
 /** Infer TS types from Zod */
 type AddColumnBody = z.infer<typeof AddColumnBodyDto>;
 type UpdateColumnBody = z.infer<typeof UpdateColumnBodyDto>;
@@ -25,11 +28,7 @@ type CreateTableBody = z.infer<typeof CreateTableBodyDto>;
 
 export const TableService = {
   /* ---------- collections / table ---------- */
-  async createTable(
-    projectId: string,
-    body: CreateTableBody,
-    userId: string
-  ) {
+  async createTable(projectId: string, body: CreateTableBody, userId: string) {
     // ensure host document belongs to the same project
     return TableRepo.createTableCollection(
       projectId,
@@ -101,7 +100,8 @@ export const TableService = {
     );
     if (!current) throw new Error("Property not found");
 
-    const nextType = (body.type ?? (current.type as any)) as (typeof PROPERTY_TYPES)[number];
+    const nextType = (body.type ??
+      (current.type as any)) as (typeof PROPERTY_TYPES)[number];
 
     return DocumentRepo.txUpdatePropertyDefinition({
       projectId,
@@ -135,7 +135,11 @@ export const TableService = {
     });
   },
 
-  async deleteColumn(projectId: string, collectionId: string, propertyId: string) {
+  async deleteColumn(
+    projectId: string,
+    collectionId: string,
+    propertyId: string
+  ) {
     await TableRepo.assertCollectionInProject(collectionId, projectId);
     await TableRepo.unlinkPropertyAcrossCollection(collectionId, propertyId);
   },
@@ -143,7 +147,8 @@ export const TableService = {
   /* ---------- rows (documents) ---------- */
   async listRows(projectId: string, collectionId: string) {
     await TableRepo.assertCollectionInProject(collectionId, projectId);
-    return TableRepo.listDocsWithValues(projectId, collectionId);
+    const rows = await TableRepo.listDocsWithValues(projectId, collectionId);
+    return { rows, nextCursor: null }; // ← match the frontend’s RowsApi type
   },
 
   async createRow(
@@ -153,21 +158,39 @@ export const TableService = {
     userId: string
   ) {
     await TableRepo.assertCollectionInProject(collectionId, projectId);
+
+    // 1) create the document (make sure your TableRepo.createDoc sets EMPTY_TIPTAP_DOC)
     const doc = await TableRepo.createDoc(
       projectId,
       body.title,
       body.description,
       userId
     );
-    await TableRepo.addDocToCollection(collectionId, doc.id, userId); // addedById required
+
+    // 2) link it into the collection
+    await TableRepo.addDocToCollection(collectionId, doc.id, userId);
+
+    // 3) attach this table's columns to the document (so the doc shows them immediately)
+    const propertyIds = await getCollectionColumnPropertyIds(collectionId);
+    await attachPropertiesToDocument(doc.id, propertyIds);
+
+    // 4) if the caller passed initial values for some properties, apply them
     if (body.initialProperties) {
       await DocumentService.patchHeader(projectId, doc.id, {
         properties: body.initialProperties,
       });
     }
+
     return doc;
   },
 
+  async deleteRow(projectId: string, collectionId: string, docId: string) {
+    await TableRepo.assertCollectionInProject(collectionId, projectId);
+    await TableRepo.assertDocInCollection(collectionId, docId);
+    await TableRepo.unlinkDocFromCollection(collectionId, docId);
+    await TableRepo.deleteDocument(docId);
+    return { ok: true };
+  },
   async renameRow(
     projectId: string,
     collectionId: string,

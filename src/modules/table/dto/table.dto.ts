@@ -89,6 +89,8 @@ export const PatchOptionBodyDto = z
   })
   .refine(
     (b) =>
-      b.value !== undefined || b.color !== undefined || b.position !== undefined,
+      b.value !== undefined ||
+      b.color !== undefined ||
+      b.position !== undefined,
     { message: "Provide at least one of value, color, or position" }
   );
