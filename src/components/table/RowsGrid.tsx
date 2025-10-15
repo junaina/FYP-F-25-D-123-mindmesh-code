@@ -25,7 +25,7 @@ export default function RowsGrid({
   ) => void | Promise<any>;
   onDeleteRow: (rowId: string) => Promise<any>;
 }) {
-  const template = `minmax(260px,1.2fr) repeat(${columns.length}, minmax(180px,1fr))`;
+  const template = `minmax(260px,1.2fr) repeat(${columns.length}, minmax(180px,1fr)) 112px`;
   const router = useRouter();
 
   return (
@@ -59,24 +59,30 @@ export default function RowsGrid({
               />
             </div>
           ))}
-
-          {/* minimal hover actions (right edge) */}
-          <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          {/* sticky actions cell (always visible while horizontal scrolling) */}
+          <div
+            className="
+              border-b
+              sticky right-0 z-20
+              bg-card/95 backdrop-blur
+              pl-2 pr-3 py-2
+              flex items-center gap-2 justify-end
+              shadow-[inset_1px_0_0_theme(colors.border)]
+            "
+          >
             <Button
               size="sm"
               variant="secondary"
-              className="pointer-events-auto h-7"
+              className="h-7"
               onClick={() => router.push(`/projects/${projectId}/docs/${r.id}`)}
             >
               Open
             </Button>
-            <div className="pointer-events-auto">
-              <RowMenu
-                projectId={projectId}
-                rowId={r.id}
-                onDelete={onDeleteRow}
-              />
-            </div>
+            <RowMenu
+              projectId={projectId}
+              rowId={r.id}
+              onDelete={onDeleteRow}
+            />
           </div>
         </div>
       ))}
