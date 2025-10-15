@@ -83,7 +83,7 @@ export default function Cell({
         const lab = labelFor(column.options, value as string | null);
         return (
           <span className="text-foreground/80">
-            {lab ?? <span className="opacity-60">—</span>}
+            {lab ?? <span className="opacity-60"> </span>}
           </span>
         );
       }
@@ -107,7 +107,7 @@ export default function Cell({
         );
       case "date_time": {
         const iso = value as string | null | undefined;
-        if (!iso) return <span className="opacity-60">—</span>;
+        if (!iso) return <span className="opacity-60"> </span>;
 
         // if you want DATE ONLY like the doc view:
         const pretty = fmtLongDate.format(new Date(iso));
