@@ -50,7 +50,7 @@ export default function RowsGrid({
           {columns.map((c) => (
             <div
               key={`${r.id}-${c.id}`}
-              className="px-2 py-2 border-b border-r "
+              className="px-2 py-2 border-b border-r pr-10 "
             >
               <Cell
                 column={c}

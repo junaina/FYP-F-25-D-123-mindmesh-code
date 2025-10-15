@@ -30,7 +30,8 @@ function normalizeRow(apiRow: any): Row {
           cellValue = v.valueDate ?? null;
           break;
         case "select":
-          cellValue = v.option?.value ?? null; // e.g. "ahahah"
+        case "status":
+          cellValue = v.optionId ?? v.option?.id ?? null;
           break;
         case "multi_select":
           cellValue = Array.isArray(v.valueJson) ? v.valueJson : [];
