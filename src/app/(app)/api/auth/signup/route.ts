@@ -1,3 +1,4 @@
+// src/app/(app)/api/auth/signup/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; //avoiding caching
 
