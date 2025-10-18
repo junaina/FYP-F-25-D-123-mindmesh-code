@@ -9,12 +9,17 @@ datasource db {
   directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
+enum AuthTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 model User {
   id                    String                 @id @default(uuid()) @db.Uuid
   firstName             String
   lastName              String
   email                 String                 @unique
-  passwordHash          String
+  passwordHash          String?
   avatarUrl             String?
   emailVerifiedAt       DateTime?
   status                UserStatus             @default(ACTIVE)
@@ -31,6 +36,7 @@ model User {
   messageMentions       MessageMention[]
   messageReactions      MessageReaction[]
   oauthIdentities       OauthIdentity[]
+  authTokens            AuthToken[]
   createdProjects       Project[]              @relation("ProjectCreator")
   projectMembers        ProjectMember[]
   projectSettings       ProjectSettings[]
@@ -52,6 +58,21 @@ model OauthIdentity {
 
   @@unique([provider, providerUserId])
   @@index([userId])
+}
+
+model AuthToken {
+  id         String           @id @default(uuid()) @db.Uuid
+  userId     String           @db.Uuid
+  purpose    AuthTokenPurpose
+  tokenHash  String // store hash of code/token (bcrypt/argon)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
 }
 
 model Session {
