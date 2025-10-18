@@ -1,3 +1,4 @@
+// src/app/(app)/api/auth/login/route.ts
 import type { NextRequest } from "next/server";
 import { LoginZ } from "@/lib/auth/z";
 import { ok, badRequest, serverError } from "@/lib/auth/responses";
