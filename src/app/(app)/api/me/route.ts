@@ -1,4 +1,3 @@
-// src/app/(app)/api/auth/me/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -7,15 +6,18 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import * as AuthService from "@/modules/auth/service/auth.service";
 import { buildSidebarProfile } from "@/modules/user/service/user.service";
+
 export async function GET() {
+  // Reuse your existing auth flow to get current user
   const sid = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!sid)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  // This returns: { id, firstName, lastName, email, emailVerified, ... }
   const me = await AuthService.getMeFromSessionId(sid);
   if (!me) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  // augment with avatar and fallbacks
+  // Build UI-friendly fields (avatar + fallbacks)
   const profile = await buildSidebarProfile({
     id: me.id,
     firstName: me.firstName,
@@ -23,11 +25,12 @@ export async function GET() {
     email: me.email,
   });
 
+  // Return a clean payload for the sidebar (do NOT change /api/auth/me)
   return NextResponse.json(
     {
-      ...me, // id, firstName, lastName, email, emailVerified, etc.
-      avatarUrl: profile.avatarUrl,
+      id: me.id,
       displayName: profile.displayName,
+      avatarUrl: profile.avatarUrl,
       initials: profile.initials,
       fallbackEmoji: profile.fallbackEmoji,
       fallbackColor: profile.fallbackColor,
