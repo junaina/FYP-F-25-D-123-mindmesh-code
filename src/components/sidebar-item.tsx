@@ -21,10 +21,10 @@ export default function SidebarItem({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-muted transition"
+        "flex items-center justify-items-center gap-2 px-4 py-2 rounded-md text-sm hover:bg-muted transition"
       )}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-5 w-5" />
       {!collapsed && <span>{label}</span>}
     </Link>
   );
