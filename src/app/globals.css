@@ -292,6 +292,65 @@
   --mm-chip-fg: var(--mm-chip-purple-fg);
   --mm-chip-br: var(--mm-chip-purple-br);
 }
+/* === Settings accent (soft, theme-aware) === */
+:root {
+  /* A subtle highlight over the sidebar bg in light mode */
+  --settings-accent: color-mix(
+    in oklab,
+    var(--sidebar) 86%,
+    var(--sidebar-primary) 14%
+  );
+  --settings-accent-strong: color-mix(
+    in oklab,
+    var(--sidebar) 78%,
+    var(--sidebar-primary) 22%
+  );
+  --settings-accent-foreground: color-mix(
+    in oklab,
+    var(--sidebar-foreground) 92%,
+    var(--foreground) 8%
+  );
+  --settings-accent-border: color-mix(
+    in oklab,
+    var(--sidebar-border) 70%,
+    var(--sidebar-primary) 30%
+  );
+  --settings-accent-ring: color-mix(
+    in oklab,
+    var(--ring) 65%,
+    var(--sidebar-primary) 35%
+  );
+}
+
+.dark {
+  /* Slightly higher chroma in dark, still soft */
+  --settings-accent: color-mix(
+    in oklab,
+    var(--sidebar) 82%,
+    var(--sidebar-primary) 18%
+  );
+  --settings-accent-strong: color-mix(
+    in oklab,
+    var(--sidebar) 72%,
+    var(--sidebar-primary) 28%
+  );
+  --settings-accent-foreground: color-mix(
+    in oklab,
+    var(--sidebar-foreground) 95%,
+    var(--foreground) 5%
+  );
+  --settings-accent-border: color-mix(
+    in oklab,
+    var(--sidebar-border) 65%,
+    var(--sidebar-primary) 35%
+  );
+  --settings-accent-ring: color-mix(
+    in oklab,
+    var(--ring) 60%,
+    var(--sidebar-primary) 40%
+  );
+}
+
 .mm-chip-lg {
   padding: 0.25rem 0.5rem; /* px-2 py-1 */
   font-size: 14px; /* text-sm */
@@ -680,4 +739,48 @@
     animation: none;
     transform: none;
   }
+}
+/* Settings nav active state  */
+.mm-settings-navitem {
+  border-radius: var(--radius);
+  transition: background-color 0.15s ease, color 0.15s ease,
+    border-color 0.15s ease;
+}
+.mm-settings-navitem--active {
+  background: var(--settings-accent);
+  color: var(--settings-accent-foreground);
+  border: 1px solid var(--settings-accent-border);
+}
+
+/* Settings “card highlight” (optional) */
+.mm-settings-card {
+  border: 1px solid var(--settings-accent-border);
+}
+.mm-settings-card:focus-within {
+  outline: 2px solid var(--settings-accent-ring);
+  outline-offset: 2px;
+}
+
+/* Subtle ghost button for settings */
+.mm-settings-ghost {
+  background: transparent;
+  color: color-mix(in oklab, var(--foreground) 70%, transparent);
+}
+.mm-settings-ghost:hover {
+  background: var(--settings-accent);
+  color: var(--settings-accent-foreground);
+}
+
+/* Primary action in settings, but toned down vs. app primary */
+.mm-settings-cta {
+  background: var(--settings-accent-strong);
+  color: var(--settings-accent-foreground);
+  border: 1px solid var(--settings-accent-border);
+}
+.mm-settings-cta:hover {
+  background: var(--settings-accent);
+}
+.mm-settings-cta:focus-visible {
+  outline: 2px solid var(--settings-accent-ring);
+  outline-offset: 2px;
 }
