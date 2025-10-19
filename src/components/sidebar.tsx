@@ -33,6 +33,7 @@ import { userApi, type MeForSidebar } from "@/modules/user/client/user.api";
 
 import CreateProjectModal from "@/components/sidebar/CreateProjectModal";
 import SidebarItem from "./sidebar-item";
+import ProjectSearchModal from "@/components/search/ProjectSearchModal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   projectsApi,
@@ -54,6 +55,7 @@ export default function Sidebar() {
   const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(
     null
   );
+  const [searchOpen, setSearchOpen] = useState(false);
   useEffect(() => {
     userApi
       .meForSidebar()
@@ -233,12 +235,19 @@ export default function Sidebar() {
           href="/home"
           collapsed={collapsed}
         />
-        <SidebarItem
-          icon={Search}
-          label="Search"
-          href="/search"
-          collapsed={collapsed}
-        />
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="w-full"
+          aria-label="Search (⌘K)"
+          title="Search (⌘K)"
+        >
+          <SidebarItem
+            icon={Search}
+            label="Search"
+            href="#"
+            collapsed={collapsed}
+          />
+        </button>
 
         {/* Projects */}
         {!collapsed && (
@@ -421,6 +430,14 @@ export default function Sidebar() {
           setOpenProjects((prev) => ({ ...prev, [project.id]: true })); // auto-expand
         }}
       />
+      {projects && (
+        <ProjectSearchModal
+          open={searchOpen}
+          onOpenChange={setSearchOpen}
+          projects={projects}
+          // onServerSearch={projectsApi.search} // optional: when you add backend
+        />
+      )}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
