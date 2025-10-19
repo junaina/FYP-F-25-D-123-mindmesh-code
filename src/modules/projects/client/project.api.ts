@@ -27,4 +27,28 @@ export const projectsApi = {
     }
     return res.json();
   },
+  async rename(projectId: string, name: string): Promise<ProjectLite> {
+    const res = await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || "Failed to rename project");
+    }
+    return res.json();
+  },
+  async remove(projectId: string): Promise<{ id: string }> {
+    const res = await fetch(`/api/projects/${projectId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || "Failed to delete project");
+    }
+    return res.json();
+  },
 };

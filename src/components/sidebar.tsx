@@ -16,6 +16,17 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import { useState } from "react";
 import { useEffect } from "react";
 import { userApi, type MeForSidebar } from "@/modules/user/client/user.api";
@@ -35,7 +46,14 @@ export default function Sidebar() {
   const [projects, setProjects] = useState<ProjectLite[] | null>(null);
   const [pErr, setPErr] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>("");
+  const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
+  // delete confirmation state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(
+    null
+  );
   useEffect(() => {
     userApi
       .meForSidebar()
@@ -48,12 +66,76 @@ export default function Sidebar() {
       .then(setProjects)
       .catch((e) => setPErr(e?.message ?? "Failed to load projects"));
   }, []);
-  const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
 
   function toggleProject(id: string) {
     setOpenProjects((prev) => ({ ...prev, [id]: !prev[id] }));
   }
+  function startRename(p: ProjectLite) {
+    setEditingId(p.id);
+    setEditingName(p.name);
+  }
+  async function commitRename() {
+    if (!editingId) return;
+    const id = editingId;
+    const newName = editingName.trim();
+    if (!newName) return; // no empty names
 
+    // optimistic update
+    setProjects((prev) =>
+      prev ? prev.map((x) => (x.id === id ? { ...x, name: newName } : x)) : prev
+    );
+
+    setEditingId(null);
+
+    try {
+      await projectsApi.rename(id, newName);
+    } catch (e: any) {
+      // rollback on error
+      setProjects((prev) =>
+        prev
+          ? prev.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    name: projects?.find((p) => p.id === id)?.name || x.name,
+                  }
+                : x
+            )
+          : prev
+      );
+      console.error(e);
+      alert(e?.message ?? "Failed to rename project");
+    }
+  }
+
+  function cancelRename() {
+    setEditingId(null);
+    setEditingName("");
+  }
+  function askDelete(p: ProjectLite) {
+    setToDelete({ id: p.id, name: p.name });
+    setConfirmOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    const id = toDelete.id;
+    setConfirmOpen(false);
+    setToDelete(null);
+
+    // optimistic removal
+    const prev = projects;
+    setProjects((cur) => (cur ? cur.filter((x) => x.id !== id) : cur));
+
+    try {
+      await projectsApi.remove(id);
+    } catch (e: any) {
+      // rollback on error
+      setProjects(prev);
+      console.error(e);
+      alert(e?.message ?? "Failed to delete project");
+    }
+  }
   return (
     <aside
       className={`fixed left-0 top-0 h-screen bg-background border-r flex flex-col overflow-y-auto transition-all duration-300
@@ -197,21 +279,78 @@ export default function Sidebar() {
                 {projects.map((p) => {
                   const isOpen = !!openProjects[p.id];
                   return (
-                    <div key={p.id} className="mb-1">
+                    <div key={p.id} className="mb-1 group">
                       {/* project row */}
-                      <button
-                        onClick={() => toggleProject(p.id)}
-                        className="w-full flex items-center justify-between px-2 py-1 rounded-md hover:bg-muted transition"
-                        aria-expanded={isOpen}
-                        aria-controls={`proj-${p.id}-menu`}
-                      >
-                        <span className="text-sm font-medium">{p.name}</span>
-                        {isOpen ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </button>
+                      <div className="w-full flex items-center justify-between px-2 py-1 rounded-md hover:bg-muted transition">
+                        {/* LEFT: name (button toggles open unless editing) */}
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {editingId === p.id ? (
+                            <input
+                              autoFocus
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") commitRename();
+                                if (e.key === "Escape") cancelRename();
+                              }}
+                              onBlur={commitRename}
+                              className="h-6 w-full rounded-md border px-2 text-sm font-medium bg-background
+                   focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                            />
+                          ) : (
+                            <button
+                              onClick={() => toggleProject(p.id)}
+                              onDoubleClick={() => startRename(p)}
+                              className="text-left flex-1 min-w-0"
+                              aria-expanded={isOpen}
+                              aria-controls={`proj-${p.id}-menu`}
+                            >
+                              <span className="text-sm font-medium truncate">
+                                {p.name}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* RIGHT: chevron + rename + delete (rename/delete appear on hover) */}
+                        <div className="flex items-center gap-1">
+                          {editingId !== p.id && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startRename(p)}
+                                title="Rename"
+                                className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
+                   h-6 w-6 rounded hover:bg-muted/60 text-muted-foreground transition"
+                              >
+                                <Type className="h-3.5 w-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => askDelete(p)}
+                                title="Delete"
+                                className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
+                   h-6 w-6 rounded hover:bg-red-500/10 text-red-500 transition"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => toggleProject(p.id)}
+                            aria-expanded={isOpen}
+                            aria-controls={`proj-${p.id}-menu`}
+                            className="h-6 w-6 grid place-items-center rounded hover:bg-muted/60"
+                          >
+                            {isOpen ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
 
                       {/* submenu — your same 5 items, but project-scoped */}
                       {isOpen && (
@@ -278,6 +417,27 @@ export default function Sidebar() {
           setOpenProjects((prev) => ({ ...prev, [project.id]: true })); // auto-expand
         }}
       />
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toDelete
+                ? `“${toDelete.name}” and its content will be permanently removed. This action cannot be undone.`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }
