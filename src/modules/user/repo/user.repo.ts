@@ -58,4 +58,27 @@ export const userRepo = {
       },
     });
   },
+  getPasswordHash: async (userId: string) => {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+  },
+  updatePasswordHash: async (userId: string, passwordHash: string) => {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+      select: { id: true },
+    });
+  },
+  async countProjectsCreatedBy(userId: string) {
+    return prisma.project.count({ where: { createdById: userId } });
+  },
+  async deleteUserHard(userId: string) {
+    // Will throw Prisma P2003 FK error if anything still references this user
+    return prisma.user.delete({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+  },
 };

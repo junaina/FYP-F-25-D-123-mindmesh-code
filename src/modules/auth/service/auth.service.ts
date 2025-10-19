@@ -7,6 +7,8 @@ import * as UserRepo from "@/modules/auth/repo/auth.repo";
 import * as SessionRepo from "../repo/session.repo";
 import { SESSION_MAX_AGE_SECONDS } from "@/lib/auth/session";
 import * as OauthRepo from "../repo/oauth.repo";
+import { authRepo } from "../repo/auth.repo";
+
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 function toUserSafe(u: any): UserSafe {
@@ -174,4 +176,21 @@ export async function googleCallback(params: {
   });
 
   return { sessionId: session.id, user };
+}
+
+export async function getAuthCapabilities(userId: string) {
+  const [hasPassword, providers] = await Promise.all([
+    authRepo.hasLocalPassword(userId),
+    authRepo.listOauthProviders(userId),
+  ]);
+  return { hasPassword, providers };
+}
+export async function logout(sessionId: string) {
+  // revoke only this session
+  await SessionRepo.revokeSessionDB(sessionId);
+}
+
+export async function logoutAll(userId: string) {
+  // revoke all sessions for this user (other devices too)
+  await SessionRepo.revokeAllSessionsDB(userId);
 }

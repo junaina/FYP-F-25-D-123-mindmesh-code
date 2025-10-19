@@ -1,5 +1,8 @@
 import { userRepo } from "../repo/user.repo";
 import { UpdateProfileInput } from "@/modules/user/dto/profile.dto";
+import { ChangePasswordInput } from "@/modules/user/dto/password.dto";
+import { verifyPassword, hashPassword } from "@/lib/auth/password";
+import * as SessionRepo from "@/modules/auth/repo/session.repo";
 export type SidebarProfile = {
   avatarUrl: string | null;
   displayName: string;
@@ -122,3 +125,49 @@ export const userService = {
     });
   },
 };
+export async function changePassword(
+  userId: string,
+  input: ChangePasswordInput
+) {
+  const rec = await userRepo.getPasswordHash(userId);
+
+  // If the account was created via OAuth and has no local password:
+  if (!rec?.passwordHash) {
+    throw new Error("No password set for this account");
+  }
+
+  const ok = await verifyPassword(input.currentPassword, rec.passwordHash);
+  if (!ok) {
+    throw new Error("Current password is incorrect");
+  }
+
+  const newHash = await hashPassword(input.newPassword);
+  await userRepo.updatePasswordHash(userId, newHash);
+  return { success: true };
+}
+export async function deleteAccount(userId: string) {
+  // Block if user still owns/created projects
+  const owned = await userRepo.countProjectsCreatedBy(userId);
+  if (owned > 0) {
+    const err: any = new Error(
+      "You still own projects. Please delete or transfer them before deleting your account."
+    );
+    err.status = 409;
+    throw err;
+  }
+
+  // Revoke all sessions first
+  await SessionRepo.revokeAllSessionsDB(userId);
+
+  // Attempt hard delete
+  try {
+    await userRepo.deleteUserHard(userId);
+  } catch (e: any) {
+    // If any unexpected FK remains:
+    const err: any = new Error(
+      "Your account cannot be deleted because other data still references it."
+    );
+    err.status = 409;
+    throw err;
+  }
+}

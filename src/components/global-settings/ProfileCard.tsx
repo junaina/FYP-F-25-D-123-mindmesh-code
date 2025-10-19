@@ -66,7 +66,7 @@ export default function ProfileCard({ me, onUpdated }: ProfileCardProps) {
     }
   }
   return (
-    <Card className="mm-settings-card">
+    <Card>
       <CardHeader>
         <CardTitle>Profile</CardTitle>
       </CardHeader>
