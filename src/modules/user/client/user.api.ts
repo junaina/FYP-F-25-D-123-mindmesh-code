@@ -6,6 +6,11 @@ export type MeForSidebar = {
   fallbackEmoji: string;
   fallbackColor: string;
 };
+export type UpdateProfileInput = {
+  firstName: string;
+  lastName: string;
+  avatarUrl?: string | null;
+};
 
 export const userApi = {
   async meForSidebar(): Promise<MeForSidebar | null> {
@@ -16,5 +21,18 @@ export const userApi = {
     });
     if (res.status === 401) return null;
     return (await res.json()) as MeForSidebar; // no parsing, per your preference
+  },
+  async updateProfile(input: UpdateProfileInput) {
+    const res = await fetch("/api/me", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || "Failed to update profile");
+    }
+    return res.json();
   },
 };

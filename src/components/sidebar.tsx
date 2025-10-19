@@ -402,12 +402,12 @@ export default function Sidebar() {
           href="/settings"
           collapsed={collapsed}
         />
-        <SidebarItem
+        {/* <SidebarItem
           icon={Trash2}
           label="Trash"
           href="/trash"
           collapsed={collapsed}
-        />
+        /> */}
       </div>
       <CreateProjectModal
         open={createOpen}
