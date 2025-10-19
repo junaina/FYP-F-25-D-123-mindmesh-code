@@ -160,29 +160,33 @@ export default function Sidebar() {
             </div>
           ) : (
             // real content (non-collapsed)
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                {me.avatarUrl ? (
-                  <AvatarImage src={me.avatarUrl} alt={me.displayName} />
-                ) : (
-                  <AvatarFallback
-                    className="font-semibold"
-                    style={{ backgroundColor: me.fallbackColor }}
-                    title={me.displayName}
-                    aria-label={me.displayName}
-                  >
-                    {me.initials /* or me.fallbackEmoji */}
-                  </AvatarFallback>
-                )}
-              </Avatar>
+            <Link
+              href="/settings"
+              aria-label="Profile Settings"
+              title="Settings"
+              className="cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  {me.avatarUrl ? (
+                    <AvatarImage src={me.avatarUrl} alt={me.displayName} />
+                  ) : (
+                    <AvatarFallback
+                      className="font-semibold"
+                      style={{ backgroundColor: me.fallbackColor }}
+                      title={me.displayName}
+                      aria-label={me.displayName}
+                    >
+                      {me.initials /* or me.fallbackEmoji */}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
 
-              <div className="flex-1 font-semibold text-base leading-tight">
-                <div>{me.displayName}</div>
-                <div>Mindmesh</div>
+                <div className="flex-1 font-semibold text-base leading-tight">
+                  <div>{me.displayName}</div>
+                </div>
               </div>
-
-              <ChevronDown className="h-4 w-4 text-muted-foreground cursor-pointer" />
-            </div>
+            </Link>
           ))}
 
         {collapsed &&

@@ -35,4 +35,12 @@ export const userApi = {
     }
     return res.json();
   },
+  async deleteAccount() {
+    const r = await fetch("/api/account", { method: "DELETE" });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j?.error ?? "Failed to delete account");
+    }
+    return true;
+  },
 };

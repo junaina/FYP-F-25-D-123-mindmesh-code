@@ -20,3 +20,20 @@ export async function createUser(data: {
     },
   });
 }
+export const authRepo = {
+  async hasLocalPassword(userId: string): Promise<boolean> {
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+    return !!u?.passwordHash;
+  },
+
+  async listOauthProviders(userId: string): Promise<string[]> {
+    const rows = await prisma.oauthIdentity.findMany({
+      where: { userId },
+      select: { provider: true },
+    });
+    return rows.map((r) => r.provider); // e.g. ["google"]
+  },
+};
