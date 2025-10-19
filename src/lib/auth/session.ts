@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-
+import { NextResponse } from "next/server";
 export const SESSION_COOKIE = "mm_session";
 const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS ?? 30);
 export const SESSION_MAX_AGE_SECONDS =
@@ -32,6 +32,14 @@ export async function clearSessionCookie(isSecure: boolean) {
     ...sessionCookieOptions(isSecure),
     maxAge: 0,
   });
+}
+export function setSessionCookieOnResponse(
+  res: NextResponse,
+  sessionId: string,
+  isSecure: boolean
+) {
+  res.cookies.set(SESSION_COOKIE, sessionId, sessionCookieOptions(isSecure));
+  return res;
 }
 
 export function getClientInfoFromRequest(req: Request) {
