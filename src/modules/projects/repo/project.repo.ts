@@ -42,4 +42,31 @@ export const projectRepo = {
       return project;
     });
   },
+  //get member role
+  getMemberRole: async (
+    projectId: string,
+    userId: string
+  ): Promise<"OWNER" | "ADMIN" | "MEMBER" | null> => {
+    const row = await prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } },
+      select: { role: true },
+    });
+    return row?.role ?? null;
+  },
+  //updating only the project name
+  rename: async (args: { projectId: string; name: string }) => {
+    const updated = await prisma.project.update({
+      where: { id: args.projectId },
+      data: { name: args.name },
+      select: { id: true, name: true, visibility: true },
+    });
+    return updated;
+  },
+  deleteById: async (projectId: string): Promise<{ id: string }> => {
+    const deleted = await prisma.project.delete({
+      where: { id: projectId },
+      select: { id: true },
+    });
+    return deleted;
+  },
 };
