@@ -216,7 +216,17 @@ export const TimelineService = {
       docId,
       collectionId
     );
-    return { properties, visiblePropertyIds };
+    const optionRows = await getOptionsForPropertyIds(
+      properties.map((p) => p.id)
+    );
+    const optionsByPropertyId = optionRows.reduce<
+      Record<string, { id: string; name: string }[]>
+    >((acc, row) => {
+      (acc[row.propertyId] ??= []).push({ id: row.id, name: row.value });
+      return acc;
+    }, {});
+
+    return { properties, visiblePropertyIds, optionsByPropertyId };
   },
   //put: replacing the visible set of properties
   async setTimelineVisibleProperties(params: {
