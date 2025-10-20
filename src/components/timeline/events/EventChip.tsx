@@ -61,7 +61,7 @@ export default function EventChip({
 
         {/* --- Properties below title (only when not compact) --- */}
         {!compact && entries.length > 0 && (
-          <div className="mt-1 flex flex-col gap-1">
+          <div className="mt-1 space-y-1 max-h-[40vh] overflow-y-auto overscroll-contain flex flex-col gap-1">
             {entries.map(([name, raw]) => {
               const pretty = formatValue(raw, name);
               return (
