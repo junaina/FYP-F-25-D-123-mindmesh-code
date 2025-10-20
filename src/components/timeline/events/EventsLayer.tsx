@@ -190,7 +190,7 @@ export default function EventsLayer({
   return (
     <div
       className="absolute inset-0 pointer-events-auto overflow-y-auto"
-      style={{ overflow: "visible" }}
+      style={{ overflowX: "hidden" }}
     >
       {/* This inner container is as tall as the stacked lanes */}
       <div className="relative" style={{ height: contentHeight }}>
