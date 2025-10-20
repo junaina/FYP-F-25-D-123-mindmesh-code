@@ -30,7 +30,7 @@ function toValue(pv: {
   if (kind === "number") return pv.valueNumber;
   if (kind === "checkbox") return Boolean(pv.valueBool);
   if (kind === "multi_select") return pv.valueJson as string[] | unknown;
-  if (kind === "select") return pv.optionId;
+  if (kind === "select" || kind == "status") return pv.optionId;
   if (kind == "file" || kind === "person")
     return pv.valueJson as string | unknown;
   //text/email/url/phone
@@ -40,6 +40,8 @@ function mapKind(dbType: string): TimelinePropertyDef["kind"] {
   switch (dbType) {
     case "select":
       return "select";
+    case "status":
+      return "status";
     case "multi_select":
       return "multi_select";
     case "text":

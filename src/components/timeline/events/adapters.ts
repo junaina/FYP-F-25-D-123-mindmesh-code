@@ -40,7 +40,7 @@ export function makePropertyDisplayMapper(
       case "date":
       case "date_time":
         return raw == null ? [] : [String(raw)];
-
+      case "status":
       case "select": {
         const id = raw == null ? "" : String(raw);
         const local = (optionsByPropertyId[def.id] ?? []).find(
