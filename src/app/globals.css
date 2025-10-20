@@ -1,6 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* globals.css */
+:root {
+  --sb-w: 0px;
+}
+/* body padding-left is set dynamically by SidebarPortal; no extra rules needed */
+:root {
+  --sb-w: 0px;
+}
+
+@media (max-width: 1024px) {
+  body.has-app-sb {
+    padding-left: 0;
+  } /* drawer behavior on mobile */
+}
 
 :root {
   --radius: 0.625rem;

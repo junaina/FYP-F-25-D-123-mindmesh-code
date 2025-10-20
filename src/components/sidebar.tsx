@@ -140,6 +140,7 @@ export default function Sidebar() {
   }
   return (
     <aside
+      data-app-sidebar
       className={`fixed left-0 top-0 h-screen bg-background border-r flex flex-col overflow-y-auto transition-all duration-300
         ${collapsed ? "w-30" : "w-64"}`}
     >
