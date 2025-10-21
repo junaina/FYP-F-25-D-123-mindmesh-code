@@ -40,6 +40,8 @@ import {
   User,
   CheckSquare,
   Link2,
+  //knowledge organization
+  Table,
 } from "lucide-react";
 
 // If you want key safety elsewhere:
@@ -89,4 +91,7 @@ export const SlashIcons = {
   checkbox: CheckSquare,
   fileProperty: File,
   relation: Link2,
+
+  //knowledge organization views
+  table: Table,
 } satisfies Record<string, LucideIcon>;
