@@ -1,3 +1,5 @@
+import { Content } from "@tiptap/core";
+// app/(app)/api/projects/:projectId/docs/:docId/content
 import { PatchDocContentRequestSchema } from "./../../../../../../../../modules/documents/dto/content.dto";
 export const runtime = "nodejs";
 import { NextResponse } from "next/server";
@@ -44,7 +46,11 @@ export async function PATCH(
   const json = await req.json();
   const { content, lastKnownUpdatedAt } =
     PatchDocContentRequestSchema.parse(json);
-
+  try {
+    console.log("json.content:", JSON.stringify(json.content, null, 2));
+  } catch {
+    console.log("json.content (raw):", json.content);
+  }
   const res = await DocumentService.updateContent({
     projectId,
     docId,

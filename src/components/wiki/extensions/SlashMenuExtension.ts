@@ -20,7 +20,6 @@ export type SlashItem = {
 };
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
-
 import { SlashIcons } from "./slashIcons";
 import { LucideIcon } from "lucide-react";
 
@@ -95,300 +94,319 @@ const SLASH_ITEMS: SlashItem[] = [
     },
   },
 ];
+export type SlashMenuOptions = { extraItems?: SlashItem[] };
+export function SlashMenuExtension(options?: SlashMenuOptions) {
+  return Extension.create({
+    name: "slashMenu",
+    addOptions() {
+      return {
+        extraItems: options?.extraItems ?? [],
+      };
+    },
+    addProseMirrorPlugins(): Plugin[] {
+      const plugin = Suggestion<SlashItem>({
+        editor: this.editor,
+        char: "/",
+        startOfLine: true, // Notion-like: only at start of a block
+        allowSpaces: true,
 
-export const SlashMenuExtension = Extension.create({
-  name: "slashMenu",
+        //search
+        items: ({ query }) => {
+          console.log("[slash] items() query =", JSON.stringify(query));
+          const ALL = [
+            ...SLASH_ITEMS,
+            ...(this.options.extraItems as SlashItem[]),
+          ];
+          console.log(
+            "[slash] extraItems count =",
+            (this.options.extraItems as SlashItem[]).length
+          ); // <-- ADD
+          if (!query) return ALL;
+          const q = query.toLowerCase();
+          return ALL.filter((i) => i.title.toLowerCase().includes(q));
+        },
 
-  addProseMirrorPlugins(): Plugin[] {
-    const plugin = Suggestion<SlashItem>({
-      editor: this.editor,
-      char: "/",
-      startOfLine: true, // Notion-like: only at start of a block
-      allowSpaces: true,
-
-      //search
-      items: ({ query }) => {
-        console.log("[slash] items() query =", JSON.stringify(query));
-        if (!query) return SLASH_ITEMS;
-        const q = query.toLowerCase();
-        return SLASH_ITEMS.filter((i) => i.title.toLowerCase().includes(q));
-      },
-
-      command: ({ editor, range, props }) => {
-        console.log(
-          "[slash] command:",
-          props.title,
-          "range:",
-          range.from,
-          range.to
-        );
-        editor.chain().focus().deleteRange(range).run();
-        props.command({ editor });
-      },
-
-      // inside Suggestion({...})
-      render: () => {
-        let el: HTMLDivElement | null = null;
-        let cleanup: (() => void) | null = null;
-        let root: Root | null = null;
-        let lastEditor: any | null = null;
-        let lastRange: { from: number; to: number } | null = null;
-
-        // NEW: keyboard state
-        let selectedIndex = 0;
-        let currentItems: SlashItem[] = [];
-        const ensureEl = () => {
-          if (el) return el;
-          el = document.createElement("div");
-          el.className = styles.shell;
-
-          document.body.appendChild(el);
-          root = createRoot(el);
-          return el;
-        };
-
-        // Keep a reference to the list element
-        const ensureList = () => {
-          if (!el) return null;
-          let list = el.querySelector<HTMLDivElement>("[data-list]");
-          if (!list) {
-            list = document.createElement("div");
-            list.setAttribute("data-list", "true");
-            list.className = styles.list;
-            el.appendChild(list);
-          }
-          return list;
-        };
-        const scrollIntoViewIfNeeded = (
-          container: HTMLElement,
-          item: HTMLElement
-        ) => {
-          const cTop = container.scrollTop;
-          const cBottom = cTop + container.clientHeight;
-          const iTop = item.offsetTop;
-          const iBottom = iTop + item.offsetHeight;
-          if (iTop < cTop) container.scrollTop = iTop;
-          else if (iBottom > cBottom)
-            container.scrollTop = iBottom - container.clientHeight;
-        };
-
-        const clamp = (n: number, min: number, max: number) =>
-          Math.max(min, Math.min(max, n));
-        const renderItems = (
-          items: SlashItem[],
-          pick: (i: SlashItem) => void
-        ) => {
-          if (!el) return;
-          let list = el.querySelector<HTMLDivElement>("[data-list]");
-          if (!list) {
-            list = document.createElement("div");
-            list.setAttribute("data-list", "true");
-            list.className = styles.list;
-            el.appendChild(list);
-          }
-          list.innerHTML = "";
-          currentItems = items;
-
-          // Keep selectedIndex in range
-          selectedIndex = clamp(
-            selectedIndex,
-            0,
-            Math.max(0, items.length - 1)
+        command: ({ editor, range, props }) => {
+          console.log(
+            "[slash] command picked:",
+            props.title,
+            "range:",
+            range.from,
+            range.to
           );
+          editor.chain().focus().deleteRange(range).run();
+          props.command({ editor });
+        },
 
-          items.forEach((item, idx) => {
-            const row = document.createElement("div");
-            row.className =
-              styles.item + (idx === selectedIndex ? " " + styles.active : "");
-            row.setAttribute("role", "option");
-            row.setAttribute(
-              "aria-selected",
-              idx === selectedIndex ? "true" : "false"
+        // inside Suggestion({...})
+        render: () => {
+          let el: HTMLDivElement | null = null;
+          let cleanup: (() => void) | null = null;
+          let root: Root | null = null;
+          let lastEditor: any | null = null;
+          let lastRange: { from: number; to: number } | null = null;
+
+          // NEW: keyboard state
+          let selectedIndex = 0;
+          let currentItems: SlashItem[] = [];
+          const ensureEl = () => {
+            if (el) return el;
+            el = document.createElement("div");
+            el.className = styles.shell;
+
+            document.body.appendChild(el);
+            root = createRoot(el);
+            return el;
+          };
+
+          // Keep a reference to the list element
+          const ensureList = () => {
+            if (!el) return null;
+            let list = el.querySelector<HTMLDivElement>("[data-list]");
+            if (!list) {
+              list = document.createElement("div");
+              list.setAttribute("data-list", "true");
+              list.className = styles.list;
+              el.appendChild(list);
+            }
+            return list;
+          };
+          const scrollIntoViewIfNeeded = (
+            container: HTMLElement,
+            item: HTMLElement
+          ) => {
+            const cTop = container.scrollTop;
+            const cBottom = cTop + container.clientHeight;
+            const iTop = item.offsetTop;
+            const iBottom = iTop + item.offsetHeight;
+            if (iTop < cTop) container.scrollTop = iTop;
+            else if (iBottom > cBottom)
+              container.scrollTop = iBottom - container.clientHeight;
+          };
+
+          const clamp = (n: number, min: number, max: number) =>
+            Math.max(min, Math.min(max, n));
+          const renderItems = (
+            items: SlashItem[],
+            pick: (i: SlashItem) => void
+          ) => {
+            if (!el) return;
+            let list = el.querySelector<HTMLDivElement>("[data-list]");
+            if (!list) {
+              list = document.createElement("div");
+              list.setAttribute("data-list", "true");
+              list.className = styles.list;
+              el.appendChild(list);
+            }
+            list.innerHTML = "";
+            currentItems = items;
+
+            // Keep selectedIndex in range
+            selectedIndex = clamp(
+              selectedIndex,
+              0,
+              Math.max(0, items.length - 1)
             );
-            row.dataset.index = String(idx);
-            // Mouse interactions (don’t steal focus)
-            row.onmouseenter = () => {
-              selectedIndex = idx;
-              // only re-style this row quickly:
-              [...list.children].forEach(
-                (child, i) =>
-                  ((child as HTMLElement).className =
-                    styles.item +
-                    (i === selectedIndex ? " " + styles.active : ""))
+
+            items.forEach((item, idx) => {
+              const row = document.createElement("div");
+              row.className =
+                styles.item +
+                (idx === selectedIndex ? " " + styles.active : "");
+              row.setAttribute("role", "option");
+              row.setAttribute(
+                "aria-selected",
+                idx === selectedIndex ? "true" : "false"
               );
-            };
-            row.onmouseleave = () => {};
-            row.onmousedown = (e) => {
-              e.preventDefault();
-              pick(item);
-            };
-            const textWrap = document.createElement("div");
-            const title = document.createElement("div");
-            title.textContent = item.title;
-            title.className = styles.title;
-
-            const desc = document.createElement("div");
-            desc.textContent = item.description;
-            desc.className = styles.desc;
-
-            textWrap.appendChild(title);
-            textWrap.appendChild(desc);
-            row.appendChild(textWrap);
-
-            list.appendChild(row);
-          });
-
-          if (items.length === 0) {
-            const empty = document.createElement("div");
-            empty.textContent = "No results";
-            empty.className = styles.desc;
-            (list as HTMLDivElement).appendChild(empty);
-          } else {
-            // ensure the active row is visible if the list is scrollable
-            const active = list.querySelector<HTMLElement>(
-              `[data-index="${selectedIndex}"]`
-            );
-            if (active) scrollIntoViewIfNeeded(list, active);
-          }
-        };
-
-        // recompute position using Floating UI
-        const position = async (props: SuggestionProps<SlashItem>) => {
-          if (!el || !props.clientRect) return;
-
-          // Use a virtual element whose getBoundingClientRect is tiptap's caret rect
-          const reference = { getBoundingClientRect: props.clientRect } as any;
-
-          const { x, y, strategy } = await computePosition(reference, el!, {
-            placement: "bottom-start",
-            middleware: [
-              offset(4),
-              flip({ padding: 8 }), // flip above if not enough space below
-              shift({ padding: 8 }), // nudge inside viewport if near edges
-              size({
-                padding: 8,
-                // NOTE: availableHeight is provided here by the size() middleware
-                apply({ availableHeight, elements }) {
-                  const list =
-                    elements.floating.querySelector<HTMLDivElement>(
-                      "[data-list]"
-                    );
-                  if (list) {
-                    list.style.maxHeight = `${Math.min(
-                      availableHeight,
-                      320
-                    )}px`;
-                    list.style.overflowY = "auto";
-                  }
-                },
-              }),
-            ],
-          });
-
-          // apply coordinates + strategy
-          el!.style.position = strategy; // usually "fixed"
-          el!.style.left = `${x}px`;
-          el!.style.top = `${y}px`;
-        };
-
-        const startAutoUpdate = (props: SuggestionProps<SlashItem>) => {
-          if (!props.clientRect || !el) return;
-          const reference = { getBoundingClientRect: props.clientRect } as any;
-          cleanup = autoUpdate(reference, el!, () => position(props));
-        };
-
-        return {
-          onStart: (props) => {
-            ensureEl();
-            selectedIndex = 0;
-            lastEditor = props.editor; // <-- cache
-            lastRange = props.range;
-            renderItems(props.items, (item) => {
-              props.editor.chain().focus().deleteRange(props.range).run();
-              item.command({ editor: props.editor as any });
-            });
-            position(props);
-            startAutoUpdate(props);
-          },
-          onUpdate: (props) => {
-            lastEditor = props.editor; // <-- refresh cache
-            lastRange = props.range; // <-- refresh cache
-            renderItems(props.items, (item) => {
-              props.editor.chain().focus().deleteRange(props.range).run();
-              item.command({ editor: props.editor as any });
-            });
-            position(props);
-            // autoUpdate continues running
-          },
-          // NEW: keyboard nav
-          onKeyDown: ({ event, range }) => {
-            if (!currentItems.length) return false;
-            if (!lastEditor || !lastRange) return false; // safety guard
-
-            const runSelected = () => {
-              const item = currentItems[selectedIndex];
-              if (!item) return false;
-              lastEditor.chain().focus().deleteRange(lastRange).run();
-              item.command({ editor: lastEditor });
-              return true;
-            };
-
-            const list = el?.querySelector<HTMLDivElement>("[data-list]");
-            if (!list) return false;
-
-            switch (event.key) {
-              case "ArrowDown":
-                event.preventDefault();
-                selectedIndex = clamp(
-                  selectedIndex + 1,
-                  0,
-                  currentItems.length - 1
+              row.dataset.index = String(idx);
+              // Mouse interactions (don’t steal focus)
+              row.onmouseenter = () => {
+                selectedIndex = idx;
+                // only re-style this row quickly:
+                [...list.children].forEach(
+                  (child, i) =>
+                    ((child as HTMLElement).className =
+                      styles.item +
+                      (i === selectedIndex ? " " + styles.active : ""))
                 );
-                renderItems(currentItems, () => {});
-                return true;
-              case "ArrowUp":
-                event.preventDefault();
-                selectedIndex = clamp(
-                  selectedIndex - 1,
-                  0,
-                  currentItems.length - 1
-                );
-                renderItems(currentItems, () => {});
-                return true;
-              case "Home":
-                event.preventDefault();
-                selectedIndex = 0;
-                renderItems(currentItems, () => {});
-                return true;
-              case "End":
-                event.preventDefault();
-                selectedIndex = currentItems.length - 1;
-                renderItems(currentItems, () => {});
-                return true;
-              case "Enter":
-                event.preventDefault();
-                return runSelected();
-              case "Escape":
-                // let Suggestion close it
-                return false;
-              default:
-                return false; // allow other keys (typing) to update the query
-            }
-          },
-          onExit: () => {
-            if (cleanup) {
-              cleanup();
-              cleanup = null;
-            }
-            if (el) {
-              el.remove();
-              el = null;
-            }
-          },
-        };
-      },
-    });
+              };
+              row.onmouseleave = () => {};
+              row.onmousedown = (e) => {
+                e.preventDefault();
+                pick(item);
+              };
+              const textWrap = document.createElement("div");
+              const title = document.createElement("div");
+              title.textContent = item.title;
+              title.className = styles.title;
 
-    return [plugin as unknown as Plugin];
-  },
-});
+              const desc = document.createElement("div");
+              desc.textContent = item.description;
+              desc.className = styles.desc;
+
+              textWrap.appendChild(title);
+              textWrap.appendChild(desc);
+              row.appendChild(textWrap);
+
+              list.appendChild(row);
+            });
+
+            if (items.length === 0) {
+              const empty = document.createElement("div");
+              empty.textContent = "No results";
+              empty.className = styles.desc;
+              (list as HTMLDivElement).appendChild(empty);
+            } else {
+              // ensure the active row is visible if the list is scrollable
+              const active = list.querySelector<HTMLElement>(
+                `[data-index="${selectedIndex}"]`
+              );
+              if (active) scrollIntoViewIfNeeded(list, active);
+            }
+          };
+
+          // recompute position using Floating UI
+          const position = async (props: SuggestionProps<SlashItem>) => {
+            if (!el || !props.clientRect) return;
+
+            // Use a virtual element whose getBoundingClientRect is tiptap's caret rect
+            const reference = {
+              getBoundingClientRect: props.clientRect,
+            } as any;
+
+            const { x, y, strategy } = await computePosition(reference, el!, {
+              placement: "bottom-start",
+              middleware: [
+                offset(4),
+                flip({ padding: 8 }), // flip above if not enough space below
+                shift({ padding: 8 }), // nudge inside viewport if near edges
+                size({
+                  padding: 8,
+                  // NOTE: availableHeight is provided here by the size() middleware
+                  apply({ availableHeight, elements }) {
+                    const list =
+                      elements.floating.querySelector<HTMLDivElement>(
+                        "[data-list]"
+                      );
+                    if (list) {
+                      list.style.maxHeight = `${Math.min(
+                        availableHeight,
+                        320
+                      )}px`;
+                      list.style.overflowY = "auto";
+                    }
+                  },
+                }),
+              ],
+            });
+
+            // apply coordinates + strategy
+            el!.style.position = strategy; // usually "fixed"
+            el!.style.left = `${x}px`;
+            el!.style.top = `${y}px`;
+          };
+
+          const startAutoUpdate = (props: SuggestionProps<SlashItem>) => {
+            if (!props.clientRect || !el) return;
+            const reference = {
+              getBoundingClientRect: props.clientRect,
+            } as any;
+            cleanup = autoUpdate(reference, el!, () => position(props));
+          };
+
+          return {
+            onStart: (props) => {
+              ensureEl();
+              selectedIndex = 0;
+              lastEditor = props.editor; // <-- cache
+              lastRange = props.range;
+              renderItems(props.items, (item) => {
+                props.editor.chain().focus().deleteRange(props.range).run();
+                item.command({ editor: props.editor as any });
+              });
+              position(props);
+              startAutoUpdate(props);
+            },
+            onUpdate: (props) => {
+              lastEditor = props.editor; // <-- refresh cache
+              lastRange = props.range; // <-- refresh cache
+              renderItems(props.items, (item) => {
+                props.editor.chain().focus().deleteRange(props.range).run();
+                item.command({ editor: props.editor as any });
+              });
+              position(props);
+              // autoUpdate continues running
+            },
+            // NEW: keyboard nav
+            onKeyDown: ({ event, range }) => {
+              if (!currentItems.length) return false;
+              if (!lastEditor || !lastRange) return false; // safety guard
+
+              const runSelected = () => {
+                const item = currentItems[selectedIndex];
+                if (!item) return false;
+                lastEditor.chain().focus().deleteRange(lastRange).run();
+                item.command({ editor: lastEditor });
+                return true;
+              };
+
+              const list = el?.querySelector<HTMLDivElement>("[data-list]");
+              if (!list) return false;
+
+              switch (event.key) {
+                case "ArrowDown":
+                  event.preventDefault();
+                  selectedIndex = clamp(
+                    selectedIndex + 1,
+                    0,
+                    currentItems.length - 1
+                  );
+                  renderItems(currentItems, () => {});
+                  return true;
+                case "ArrowUp":
+                  event.preventDefault();
+                  selectedIndex = clamp(
+                    selectedIndex - 1,
+                    0,
+                    currentItems.length - 1
+                  );
+                  renderItems(currentItems, () => {});
+                  return true;
+                case "Home":
+                  event.preventDefault();
+                  selectedIndex = 0;
+                  renderItems(currentItems, () => {});
+                  return true;
+                case "End":
+                  event.preventDefault();
+                  selectedIndex = currentItems.length - 1;
+                  renderItems(currentItems, () => {});
+                  return true;
+                case "Enter":
+                  event.preventDefault();
+                  return runSelected();
+                case "Escape":
+                  // let Suggestion close it
+                  return false;
+                default:
+                  return false; // allow other keys (typing) to update the query
+              }
+            },
+            onExit: () => {
+              if (cleanup) {
+                cleanup();
+                cleanup = null;
+              }
+              if (el) {
+                el.remove();
+                el = null;
+              }
+            },
+          };
+        },
+      });
+
+      return [plugin as unknown as Plugin];
+    },
+  });
+}

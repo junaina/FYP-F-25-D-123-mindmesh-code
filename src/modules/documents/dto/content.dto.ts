@@ -75,6 +75,15 @@ const ToggleNode: z.ZodType<JC> = z.object({
     .min(2)
     .max(2),
 });
+// ADD (place above NodeSchema = z.union([...]) )
+const TableViewNode: z.ZodType<JC> = z.object({
+  type: z.literal("tableView"),
+  attrs: z
+    .object({
+      collectionId: z.string().uuid(),
+    })
+    .strict(),
+});
 
 NodeSchema = z.union([
   TextNode,
@@ -91,6 +100,7 @@ NodeSchema = z.union([
   ToggleNode,
   ToggleSummaryNode,
   ToggleBodyNode,
+  TableViewNode,
   z.object({ type: z.literal("horizontalRule") }) as z.ZodType<JC>,
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
 ]);
@@ -115,7 +125,6 @@ export const PatchDocContentRequestSchema = z.object({
 export type PatchDocContentRequest = z.infer<
   typeof PatchDocContentRequestSchema
 >;
-// => { content: JSONContent; lastKnownUpdatedAt?: Date }
 
 /* -------------------- GET response -------------------- */
 export const GetDocContentResponseSchema = z.object({
