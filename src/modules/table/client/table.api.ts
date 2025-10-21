@@ -156,7 +156,7 @@ export const tableApi = {
   ) {
     const url = `${base(ids)}/columns`;
     console.log("API:createColumn", { url, ids });
-    await fetch(url, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -165,6 +165,8 @@ export const tableApi = {
         options: ids.options ?? [],
       }),
     });
+    if (!res.ok) throw new Error(`createColumn ${res.status}`);
+    return (await res.json()) as ColumnDef;
   },
 
   async updateColumn(

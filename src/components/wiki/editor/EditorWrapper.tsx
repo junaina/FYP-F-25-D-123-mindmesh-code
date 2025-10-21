@@ -1,27 +1,30 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditor, EditorContent, type UseEditorOptions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import { CustomTaskItem } from "@/components/wiki/extensions/CustomTaskItem";
-import type { Content } from "@tiptap/core";
 import {
   Toggle,
   ToggleSummary,
   ToggleBody,
 } from "@/components/wiki/extensions/ToggleExtension";
-
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
-import type { JSONContent } from "@tiptap/core";
-import type { EditorEvents } from "@tiptap/core";
+import type { JSONContent, Content, EditorEvents } from "@tiptap/core";
+
 import {
   fetchDocContent,
   patchDocContent,
 } from "@/modules/documents/client/docs.api";
+
 import { SlashMenuExtension } from "@/components/wiki/extensions/SlashMenuExtension";
+
+import { TableViewExtension } from "@/components/wiki/extensions/kov/TableView/TableViewExtension";
+import { SlashIcons } from "@/components/wiki/extensions/slashIcons";
+
 type Props = { projectId: string; docId: string };
 
 const EMPTY_DOC: JSONContent = {
@@ -30,7 +33,6 @@ const EMPTY_DOC: JSONContent = {
 };
 
 export default function EditorWrapper({ projectId, docId }: Props) {
-  // do not start anything if ids are missing
   const idsReady = Boolean(projectId && docId);
   const [initial, setInitial] = useState<JSONContent | undefined>();
   const [serverUpdatedAt, setServerUpdatedAt] = useState<string | null>(null);
@@ -45,25 +47,71 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       setInitial(d.content);
       setServerUpdatedAt(d.updatedAt);
     })().catch(console.error);
-    return () => {
-      alive = false;
-    };
+    return () => void (alive = false);
   }, [idsReady, projectId, docId]);
 
-  const editorOptions: UseEditorOptions & { immediatelyRender: false } = {
-    extensions: [
+  // Memoize the “Table” slash item so it captures projectId/docId
+  const tableSlashItem = useMemo(
+    () => ({
+      title: "Table",
+      description: "Insert a database-like table",
+      icon: SlashIcons.table,
+      command: async ({ editor }: { editor: any }) => {
+        const url = `/api/projects/${projectId}/docs/${docId}/collections/table`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Untitled Table" }),
+        });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          console.error("[slash:table] create failed", res.status, txt);
+          return;
+        }
+        const { id: collectionId } = await res.json();
+
+        // Prefer the built-in command (now robust), otherwise force a raw insert of a block slice.
+
+        const hasCmd = typeof editor.commands.insertTableView === "function";
+        const ok = hasCmd
+          ? editor.chain().focus().insertTableView({ collectionId }).run()
+          : editor
+              .chain()
+              .focus()
+              .insertContent([
+                { type: "tableView", attrs: { collectionId } },
+                { type: "paragraph" },
+              ])
+              .run();
+
+        console.log("[slash:table] inserted =", ok);
+        console.log("[slash:table] doc after insert =", editor.getJSON());
+      },
+    }),
+    [projectId, docId]
+  );
+
+  // Memoize the extensions array
+  const extensions = useMemo(
+    () => [
       StarterKit,
       TaskList,
       CustomTaskItem,
-
       Link.configure({ openOnClick: false }),
       Image,
       Placeholder.configure({ placeholder: "Type / for commands…" }),
       Toggle,
       ToggleSummary,
       ToggleBody,
-      SlashMenuExtension,
+      TableViewExtension({ projectId, docId }),
+      SlashMenuExtension({ extraItems: [tableSlashItem] }), // call the factory
     ],
+    [projectId, docId, tableSlashItem]
+  );
+
+  // Build the editor options (optionally memoize this object too)
+  const editorOptions: UseEditorOptions & { immediatelyRender: false } = {
+    extensions,
     content: EMPTY_DOC,
     editorProps: {
       attributes: {
@@ -71,30 +119,26 @@ export default function EditorWrapper({ projectId, docId }: Props) {
           "prose dark:prose-invert max-w-none focus:outline-none min-h-[40vh] mm-editor",
       },
     },
-    immediatelyRender: false, // <-- fixes SSR hydration mismatch
+    immediatelyRender: false,
   };
-  // Always pass an options object to useEditor
-  const editor = useEditor(editorOptions, [projectId, docId]);
+
+  // ✅ The dependency array goes HERE (2nd arg). Using `extensions` keeps it precise.
+  const editor = useEditor(editorOptions, [extensions]);
+
   // Replace temp content with real content when it arrives
   const suppressSave = useRef(false);
+  const lastSent = useRef<string>("");
+  const appliedInitial = useRef(false);
   useEffect(() => {
     if (!editor || !initial) return;
-
-    // Capture a narrowed copy so TS knows it's defined inside the callback.
-    const contentToLoad: Content = initial; // JSONContent is a valid Content
+    appliedInitial.current = true;
+    const contentToLoad: Content = initial;
 
     suppressSave.current = true;
-
-    // microtask (could use requestAnimationFrame as well)
     queueMicrotask(() => {
       if (!editor) return;
-
-      // Use the Editor method if available to avoid emitting an update
-      // (second arg = emitUpdate). Fallback to command if not exposed.
       (editor as any).setContent?.(contentToLoad, false) ??
         editor.commands.setContent(contentToLoad);
-
-      // keep autosave dedupe happy
       lastSent.current = JSON.stringify(contentToLoad);
       suppressSave.current = false;
     });
@@ -102,11 +146,14 @@ export default function EditorWrapper({ projectId, docId }: Props) {
 
   // Autosave (debounced) + OCC
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSent = useRef<string>("");
-
   useEffect(() => {
     if (!editor) return;
-    console.log("has insertToggle:", typeof editor.commands.insertToggle);
+    const extNames = editor.extensionManager.extensions.map((e: any) => e.name);
+    console.log("[editor] extensions:", extNames);
+    console.log(
+      "[editor] has insertTableView:",
+      typeof editor.commands.insertTableView
+    );
     const onUpdate: (e: EditorEvents["update"]) => void = ({ transaction }) => {
       if (suppressSave.current) return;
       if (!transaction.docChanged) return;
@@ -125,8 +172,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
 
           lastSent.current = payload;
           setServerUpdatedAt(res.updatedAt);
-        } catch (err) {
-          // handle conflict/other errors → refetch + replace
+        } catch {
           const d = await fetchDocContent(projectId, docId);
           suppressSave.current = true;
           editor.commands.setContent(d.content);
@@ -146,9 +192,5 @@ export default function EditorWrapper({ projectId, docId }: Props) {
   }, [editor, projectId, docId, serverUpdatedAt]);
 
   if (!editor) return null;
-  return (
-    <div>
-      <EditorContent editor={editor} />
-    </div>
-  );
+  return <EditorContent editor={editor} />;
 }
