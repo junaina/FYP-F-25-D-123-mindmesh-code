@@ -8,22 +8,35 @@ type Props = {
   view: View;
   start: string;
   className?: string;
+  onChangeViewAndStart?: (nextView: View, nextStartISO: string) => void;
 };
 
 const VIEWS: View[] = ["hour", "day", "week", "month"];
 
-export default function ViewSwitcher({ view, start, className }: Props) {
+export default function ViewSwitcher({
+  view,
+  start,
+  className,
+  onChangeViewAndStart,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
 
-  const setView = (v: View) => {
-    const params = new URLSearchParams(sp?.toString());
-    params.set("view", v);
-    // normalize start for the newly selected view (month -> 1st, hour -> :00)
-    params.set("start", normalizeStart(v, start));
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  };
+  function change(next: View) {
+    // keep same start (you can normalize if you want)
+    const nextStartISO = start;
+
+    if (onChangeViewAndStart) {
+      onChangeViewAndStart(next, nextStartISO); // ✅ embedded (doc) case
+    } else {
+      // standalone page behavior
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", next);
+      url.searchParams.set("start", nextStartISO);
+      router.push(url.pathname + "?" + url.searchParams.toString());
+    }
+  }
 
   return (
     <div className={className}>
@@ -33,7 +46,7 @@ export default function ViewSwitcher({ view, start, className }: Props) {
           return (
             <button
               key={v}
-              onClick={() => setView(v)}
+              onClick={() => change(v)}
               className={[
                 "px-3 h-8 rounded-sm text-sm font-medium transition-colors",
                 active

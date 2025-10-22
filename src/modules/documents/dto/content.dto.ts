@@ -75,12 +75,23 @@ const ToggleNode: z.ZodType<JC> = z.object({
     .min(2)
     .max(2),
 });
-// ADD (place above NodeSchema = z.union([...]) )
 const TableViewNode: z.ZodType<JC> = z.object({
   type: z.literal("tableView"),
   attrs: z
     .object({
       collectionId: z.string().uuid(),
+    })
+    .strict(),
+});
+// Timeline view (embedded in doc)
+const TimelineViewNode: z.ZodType<JSONContent> = z.object({
+  type: z.literal("timelineView"),
+  attrs: z
+    .object({
+      collectionId: z.string().uuid(),
+      view: z.enum(["month", "week", "day", "hour"]).optional(),
+      // ISO string; UI can default to start-of-period if absent
+      start: z.string().datetime().optional(),
     })
     .strict(),
 });
@@ -101,6 +112,7 @@ NodeSchema = z.union([
   ToggleSummaryNode,
   ToggleBodyNode,
   TableViewNode,
+  TimelineViewNode,
   z.object({ type: z.literal("horizontalRule") }) as z.ZodType<JC>,
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
 ]);
