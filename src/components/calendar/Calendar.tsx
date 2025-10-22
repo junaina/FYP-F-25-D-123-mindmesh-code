@@ -45,7 +45,17 @@ const fmtMonthYear = new Intl.DateTimeFormat("en-US", {
 function formatMonthYearUTC(d: Date) {
   return fmtMonthYear.format(d);
 }
+const monthStartUTC = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 
+const parseIsoToMonthStartUTC = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : monthStartUTC(d);
+};
+
+const toMonthStartIsoUTC = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
 /* ================== Skeleton helpers ================== */
 
 /** Stable 0..100 hash for a string; used for deterministic variants per day. */
@@ -146,6 +156,8 @@ type Props = {
   projectId?: string;
   docId?: string; // host doc (calendar page)
   collectionId?: string; // the calendar collection id
+  initialAnchor?: string;
+  onAnchorChange?: (isoMonthStart: string) => void;
 };
 type PropsMap = Record<string, PropertyValueDto>;
 // A segment is a slice of an event across a single week row
@@ -173,25 +185,48 @@ export function Calendar(props: Props) {
       localStorage.setItem(LS_TITLE, calendarTitle);
   }, [calendarTitle]);
 
-  /* -------- View month (UTC) -------- */
-  const [viewAnchor, setViewAnchor] = React.useState(() => {
-    const now = new Date();
-    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  /* -------- View month (UTC) — now optionally host-controlled -------- */
+  // 1) seed from prop (if provided), else current month
+  const initialFromProp = React.useMemo(
+    () => parseIsoToMonthStartUTC(props.initialAnchor ?? null),
+    [props.initialAnchor]
+  );
+
+  const [viewAnchor, setViewAnchor] = React.useState<Date>(() => {
+    return initialFromProp ?? monthStartUTC(new Date());
   });
+
+  // 2) if host changes the prop later (e.g., undo/redo), sync when month differs
+  React.useEffect(() => {
+    if (!initialFromProp) return;
+    const sameMonth =
+      viewAnchor.getUTCFullYear() === initialFromProp.getUTCFullYear() &&
+      viewAnchor.getUTCMonth() === initialFromProp.getUTCMonth();
+    if (!sameMonth) setViewAnchor(initialFromProp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFromProp?.getUTCFullYear(), initialFromProp?.getUTCMonth()]);
+
+  // 3) notify host whenever the visible month changes
+  React.useEffect(() => {
+    props.onAnchorChange?.(toMonthStartIsoUTC(viewAnchor));
+  }, [viewAnchor, props.onAnchorChange]);
+
+  // 4) same nav handlers as before (just using the helper)
   const goPrev = () =>
-    setViewAnchor(
-      (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1))
+    setViewAnchor((d) =>
+      monthStartUTC(
+        new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1))
+      )
     );
+
   const goNext = () =>
-    setViewAnchor(
-      (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))
+    setViewAnchor((d) =>
+      monthStartUTC(
+        new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))
+      )
     );
-  const goToday = () => {
-    const now = new Date();
-    setViewAnchor(
-      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-    );
-  };
+
+  const goToday = () => setViewAnchor(monthStartUTC(new Date()));
 
   /*----------------------- */
   const qc = useQueryClient();
