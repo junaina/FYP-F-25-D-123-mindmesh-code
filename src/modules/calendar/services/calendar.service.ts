@@ -10,6 +10,7 @@ import {
   repoGetDocumentPropertyValues,
   repoGetUsedPropertyDefsForCollection,
   repoGetPropertyTypes,
+  repoCreateCollection,
 } from "../repo/calendar.repo";
 import {
   repoCreateDocument,
@@ -42,6 +43,51 @@ export type CreateEventInput = {
   end?: string; // YYYY-MM-DD
   inheritAllCalendarProps?: boolean;
 };
+export async function resolveAndAssertProjectId(
+  documentId: string,
+  provided?: string
+): Promise<string> {
+  const actual = await repoGetDocumentProjectId(documentId);
+  if (!actual) {
+    throw new Error("document not found");
+  }
+  if (provided && provided !== actual) {
+    throw new Error("project mismatch for document");
+  }
+  return actual;
+}
+
+//creating a calendar collection
+export async function createCalendarCollection(input: {
+  projectId?: string;
+  docId: string;
+  userId: string;
+  name?: string;
+  autoBindDateProperty?: boolean;
+}) {
+  const { docId, userId } = input;
+  const name = input.name ?? "Untitled Calendar";
+  const autoBind = input.autoBindDateProperty ?? true;
+
+  const actualProjectId = await resolveAndAssertProjectId(
+    docId,
+    input.projectId
+  );
+  const { id: collectionId } = await repoCreateCollection({
+    documentId: docId,
+    createdById: userId,
+    name,
+    type: "calendar",
+  });
+  if (autoBind) {
+    // Ensure required date property definitions exist at the project level.
+    await repoEnsureDatePropDef(actualProjectId, CAL_BINDINGS.single);
+    await repoEnsureDatePropDef(actualProjectId, CAL_BINDINGS.range.start);
+    await repoEnsureDatePropDef(actualProjectId, CAL_BINDINGS.range.end);
+  }
+
+  return { id: collectionId };
+}
 
 export async function createEventSvc(input: CreateEventInput) {
   const {
