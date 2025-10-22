@@ -23,6 +23,7 @@ import {
 import { SlashMenuExtension } from "@/components/wiki/extensions/SlashMenuExtension";
 
 import { TableViewExtension } from "@/components/wiki/extensions/kov/TableView/TableViewExtension";
+import { TimelineViewExtension } from "@/components/wiki/extensions/kov/TimelineView/TimelineViewExtension";
 import { SlashIcons } from "@/components/wiki/extensions/slashIcons";
 
 type Props = { projectId: string; docId: string };
@@ -90,6 +91,63 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     }),
     [projectId, docId]
   );
+  // Memoize the “Timeline” slash item so it captures projectId/docId
+  const timelineSlashItem = useMemo(
+    () => ({
+      title: "Timeline",
+      description: "Insert a timeline for this doc",
+      icon: SlashIcons.timeline, // or add a dedicated .timeline icon in slashIcons.ts
+      command: async ({ editor }: { editor: any }) => {
+        const url = `/api/projects/${projectId}/docs/${docId}/collections/timeline`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Untitled Timeline" }),
+        });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          console.error("[slash:timeline] create failed", res.status, txt);
+          return;
+        }
+        const { id: collectionId } = await res.json();
+
+        // Prefer the command (inserts node + paragraph). Fallback to raw insert.
+        const hasCmd = typeof editor.commands.insertTimelineView === "function";
+        const defaultView = "month";
+        const defaultStart = new Date().toISOString();
+
+        const ok = hasCmd
+          ? editor
+              .chain()
+              .focus()
+              .insertTimelineView({
+                collectionId,
+                view: defaultView,
+                start: defaultStart,
+              })
+              .run()
+          : editor
+              .chain()
+              .focus()
+              .insertContent([
+                {
+                  type: "timelineView",
+                  attrs: {
+                    collectionId,
+                    view: defaultView,
+                    start: defaultStart,
+                  },
+                },
+                { type: "paragraph" },
+              ])
+              .run();
+
+        console.log("[slash:timeline] inserted =", ok);
+        console.log("[slash:timeline] doc after insert =", editor.getJSON());
+      },
+    }),
+    [projectId, docId]
+  );
 
   // Memoize the extensions array
   const extensions = useMemo(
@@ -104,9 +162,10 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       ToggleSummary,
       ToggleBody,
       TableViewExtension({ projectId, docId }),
-      SlashMenuExtension({ extraItems: [tableSlashItem] }), // call the factory
+      TimelineViewExtension({ projectId, docId }),
+      SlashMenuExtension({ extraItems: [tableSlashItem, timelineSlashItem] }),
     ],
-    [projectId, docId, tableSlashItem]
+    [projectId, docId, tableSlashItem, timelineSlashItem]
   );
 
   // Build the editor options (optionally memoize this object too)

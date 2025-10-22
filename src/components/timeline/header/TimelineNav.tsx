@@ -9,9 +9,15 @@ type Props = {
   view: View;
   start: string;
   className?: string;
+  onChangeViewAndStart?: (nextView: View, nextStartISO: string) => void;
 };
 
-export default function TimelineNav({ view, start, className }: Props) {
+export default function TimelineNav({
+  view,
+  start,
+  className,
+  onChangeViewAndStart,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -27,11 +33,30 @@ export default function TimelineNav({ view, start, className }: Props) {
   const onNext = () => go(stepStart(view, start, +1));
   const onToday = () => go(normalizeStart(view, new Date().toISOString()));
 
+  //helper for wiki doc embedding
+  function move(dir: "prev" | "next") {
+    // compute next start iso based on view
+    const delta = dir === "prev" ? -1 : 1;
+    const nextStartISO = stepStart(view, start, delta);
+
+    if (onChangeViewAndStart) {
+      onChangeViewAndStart(view, nextStartISO); // ✅ embedded (doc) case
+    } else {
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", view);
+      url.searchParams.set("start", nextStartISO);
+      router.push(url.pathname + "?" + url.searchParams.toString());
+    }
+  }
+  // const prev = () => set(view, shift(start, view, -1));
+  // const next = () => set(view, shift(start, view, +1));
+  // const today = () => set(view, new Date().toISOString());
+
   return (
     <div className={className}>
       <div className="flex items-center gap-2">
         <button
-          onClick={onPrev}
+          onClick={() => move("prev")}
           className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-card hover:bg-accent/10"
           aria-label="Previous"
         >
@@ -46,7 +71,7 @@ export default function TimelineNav({ view, start, className }: Props) {
         </button>
 
         <button
-          onClick={onNext}
+          onClick={() => move("next")}
           className="inline-flex h-8 w-8 items-center justify-center rounded-md border bg-card hover:bg-accent/10"
           aria-label="Next"
         >
