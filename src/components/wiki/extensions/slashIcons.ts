@@ -42,6 +42,7 @@ import {
   Link2,
   //knowledge organization
   Table,
+  GanttChart,
 } from "lucide-react";
 
 // If you want key safety elsewhere:
@@ -94,4 +95,5 @@ export const SlashIcons = {
 
   //knowledge organization views
   table: Table,
+  timeline: GanttChart,
 } satisfies Record<string, LucideIcon>;

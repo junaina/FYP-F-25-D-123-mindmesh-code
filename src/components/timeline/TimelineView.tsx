@@ -30,6 +30,7 @@ export interface TimelineViewProps {
   start: string; // ISO
   nowMs?: number; // pass from server
   className?: string;
+  onChangeViewAndStart?: (nextView: View, nextStartISO: string) => void;
 }
 
 export default function TimelineView({
@@ -40,6 +41,7 @@ export default function TimelineView({
   start,
   nowMs,
   className,
+  onChangeViewAndStart,
 }: TimelineViewProps) {
   const { columns, startMs, endMs } = buildScale(view, start);
   const [propVisible, setPropVisible] = useState<Set<string>>(new Set());
@@ -50,6 +52,7 @@ export default function TimelineView({
   const [propertyOptions, setPropertyOptions] = useState<PropertyOptionsMap>(
     {}
   );
+
   // helper: map current visible NAMES -> IDS using loaded defs
   function currentVisibleIds(): string[] {
     const ids: string[] = [];
@@ -190,7 +193,11 @@ export default function TimelineView({
       {/* Header row: left switcher, center title, right nav */}
       <div className="mb-2 flex w-full items-center">
         <div className="flex-1">
-          <ViewSwitcher view={view} start={start} />
+          <ViewSwitcher
+            view={view}
+            start={start}
+            onChangeViewAndStart={onChangeViewAndStart}
+          />
         </div>
 
         <div className="flex-1 text-center">
@@ -209,7 +216,11 @@ export default function TimelineView({
               startISO={start}
             />
           )}
-          <TimelineNav view={view} start={start} />
+          <TimelineNav
+            view={view}
+            start={start}
+            onChangeViewAndStart={onChangeViewAndStart}
+          />
           <PropertyVisibilityMenu
             properties={propRows}
             visible={propVisible}
