@@ -95,7 +95,19 @@ const TimelineViewNode: z.ZodType<JSONContent> = z.object({
     })
     .strict(),
 });
-
+//calendar view node
+const CalendarViewNode: z.ZodType<JSONContent> = z.object({
+  type: z.literal("calendarView"),
+  attrs: z
+    .object({
+      collectionId: z.string().uuid(),
+      // keep future-proof; start with just "month" if that's all you support today
+      view: z.enum(["month"]).optional(),
+      // ISO string; UI can default to start-of-period if absent
+      start: z.string().datetime().optional(),
+    })
+    .strict(),
+});
 NodeSchema = z.union([
   TextNode,
   HeadingNode,
@@ -113,6 +125,7 @@ NodeSchema = z.union([
   ToggleBodyNode,
   TableViewNode,
   TimelineViewNode,
+  CalendarViewNode,
   z.object({ type: z.literal("horizontalRule") }) as z.ZodType<JC>,
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
 ]);

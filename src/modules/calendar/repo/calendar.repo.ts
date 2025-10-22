@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/prisma";
 const DATE_PROP_TYPE = "date_time";
+type CreateCollectionArgs = {
+  documentId: string;
+  createdById: string;
+  name: string;
+  type: "calendar";
+};
+
 /** Resolve the propertyDefinition ids for date bindings in a project. */
 export async function repoGetDatePropIds(
   projectId: string,
@@ -228,6 +235,16 @@ export async function repoLinkToCollection(
   return prisma.collectionItem.create({
     data: { collectionId, documentId, addedById },
   });
+}
+
+//creating a collection
+export async function repoCreateCollection(args: CreateCollectionArgs) {
+  const { documentId, createdById, name, type } = args;
+  const row = await prisma.collection.create({
+    data: { documentId, createdById, name, type },
+    select: { id: true },
+  });
+  return row;
 }
 
 export async function repoUpdateDocumentTitle(

@@ -24,14 +24,17 @@ import { SlashMenuExtension } from "@/components/wiki/extensions/SlashMenuExtens
 
 import { TableViewExtension } from "@/components/wiki/extensions/kov/TableView/TableViewExtension";
 import { TimelineViewExtension } from "@/components/wiki/extensions/kov/TimelineView/TimelineViewExtension";
+import { CalendarViewExtension } from "../extensions/kov/CalendarView/CalendarViewExtension";
 import { SlashIcons } from "@/components/wiki/extensions/slashIcons";
-
 type Props = { projectId: string; docId: string };
 
 const EMPTY_DOC: JSONContent = {
   type: "doc",
   content: [{ type: "paragraph" }],
 };
+// helper
+const monthStartIsoUtc = (d = new Date()) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
 
 export default function EditorWrapper({ projectId, docId }: Props) {
   const idsReady = Boolean(projectId && docId);
@@ -50,6 +53,78 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     })().catch(console.error);
     return () => void (alive = false);
   }, [idsReady, projectId, docId]);
+
+  // put this near your existing slash items (e.g., after timelineSlashItem)
+  const calendarSlashItem = useMemo(
+    () => ({
+      title: "Calendar",
+      description: "Insert a calendar view",
+      icon: SlashIcons.calendar,
+      command: async ({ editor }: { editor: any }) => {
+        try {
+          // 1) Create calendar collection (network)
+          const res = await fetch(
+            `/api/projects/${projectId}/docs/${docId}/collections/calendar`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: "Calendar" }),
+            }
+          );
+          if (!res.ok) {
+            console.error(
+              "[/calendar] create failed",
+              res.status,
+              await res.text().catch(() => "")
+            );
+            return;
+          }
+          const { id: collectionId } = await res.json();
+
+          // 2) Defer the ProseMirror insert to the next frame
+          const start = new Date(
+            Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
+          ).toISOString();
+
+          requestAnimationFrame(() => {
+            if (!editor || editor.isDestroyed) return;
+
+            const pos = editor.state.selection.from; // fresh state
+            const inserted =
+              typeof editor.commands.insertCalendarView === "function"
+                ? editor
+                    .chain()
+                    .focus()
+                    .insertCalendarView({ collectionId, view: "month", start })
+                    .run()
+                : editor
+                    .chain()
+                    .focus()
+                    .insertContentAt({ from: pos, to: pos }, [
+                      {
+                        type: "calendarView",
+                        attrs: { collectionId, view: "month", start },
+                      },
+                      { type: "paragraph" },
+                    ])
+                    .run();
+
+            if (!inserted) return;
+
+            // 3) Persist immediately (optional; autosave will also run)
+            patchDocContent(projectId, docId, {
+              content: editor.getJSON(),
+            }).catch((e: any) => {
+              console.warn("[/calendar] patch after insert failed", e);
+            });
+          });
+        } catch (e) {
+          console.error("[/calendar] unexpected error", e);
+        }
+      },
+    }),
+    [projectId, docId]
+  );
 
   // Memoize the “Table” slash item so it captures projectId/docId
   const tableSlashItem = useMemo(
@@ -163,9 +238,12 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       ToggleBody,
       TableViewExtension({ projectId, docId }),
       TimelineViewExtension({ projectId, docId }),
-      SlashMenuExtension({ extraItems: [tableSlashItem, timelineSlashItem] }),
+      CalendarViewExtension({ projectId, docId }),
+      SlashMenuExtension({
+        extraItems: [tableSlashItem, timelineSlashItem, calendarSlashItem],
+      }),
     ],
-    [projectId, docId, tableSlashItem, timelineSlashItem]
+    [projectId, docId, tableSlashItem, timelineSlashItem, calendarSlashItem]
   );
 
   // Build the editor options (optionally memoize this object too)
