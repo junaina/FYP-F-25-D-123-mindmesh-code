@@ -139,3 +139,27 @@ export async function createTimelineEvent(
   if (!res.ok) throw new Error("Failed to create timeline event");
   return (await res.json()) as { id: string };
 }
+// Create a timeline collection under a doc
+export async function createTimeline(params: {
+  projectId: string;
+  docId: string;
+  name?: string; // optional display name
+}) {
+  const { projectId, docId, name } = params;
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/docs/${encodeURIComponent(
+      docId
+    )}/collections/timeline`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(name ? { name } : {}),
+    }
+  );
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "Failed to create timeline");
+  }
+  // Expecting { id, documentId, name, type, createdById, ... }
+  return (await res.json()) as { id: string };
+}
