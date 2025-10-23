@@ -49,6 +49,40 @@ export type DbValueUpdate = {
   valueJson: string[] | null; // multi_select/person/file store string IDs
   optionId: string | null;
 };
+export async function listForProject(projectId: string, userId: string) {
+  return prisma.document.findMany({
+    where: {
+      projectId,
+      isArchived: false,
+      project: {
+        OR: [{ createdById: userId }, { members: { some: { userId } } }],
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      updatedAt: true,
+      project: { select: { id: true, name: true, slug: true } },
+    },
+  });
+}
+
+export async function createInProject(
+  projectId: string,
+  userId: string,
+  title?: string
+) {
+  return prisma.document.create({
+    data: {
+      projectId,
+      createdById: userId,
+      title: title?.trim() || "Untitled",
+      content: {}, // required Json
+    },
+    select: { id: true },
+  });
+}
 async function assertDocInProject(docId: string, projectId: string) {
   const doc = await prisma.document.findFirst({
     where: { id: docId, projectId },
