@@ -101,7 +101,7 @@ export default function SiteNavbar() {
           </li>
           <li>
             <a
-              href="#login"
+              href="/login"
               className="whitespace-nowrap text-sm hover:text-foreground/80"
               onClick={clickAnimate}
             >
@@ -110,7 +110,7 @@ export default function SiteNavbar() {
           </li>
           <li>
             <a
-              href="#signup"
+              href="/signup"
               className="whitespace-nowrap rounded-[var(--radius)] bg-[--accent] px-3 py-2 text-sm font-medium text-[--accent-foreground]"
               onClick={clickAnimate}
             >
