@@ -69,4 +69,14 @@ export const projectRepo = {
     });
     return deleted;
   },
+  //helper to check memebership/ownership
+  getByIdForUser: async (projectId: string, userId: string) => {
+    return prisma.project.findFirst({
+      where: {
+        id: projectId,
+        OR: [{ createdById: userId }, { members: { some: { userId } } }],
+      },
+      select: { id: true, name: true, slug: true, visibility: true },
+    });
+  },
 };
