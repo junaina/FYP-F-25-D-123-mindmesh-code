@@ -23,6 +23,7 @@ import {
   repoReadDocDateValues,
   repoUpdateDocumentTitle,
   repoUnlinkFromCollection,
+  repoGetOptionsByPropertyIds,
   repoDeleteDocument,
 } from "../repo/calendar.repo";
 import {
@@ -162,8 +163,8 @@ export async function createEventSvc(input: CreateEventInput) {
       const defs = await repoGetCollectionPropDefs(collectionId);
       const skip =
         mode === "single"
-          ? new Set([CAL_BINDINGS.single])
-          : new Set([CAL_BINDINGS.range.start, CAL_BINDINGS.range.end]);
+          ? new Set<string>([CAL_BINDINGS.single])
+          : new Set<string>([CAL_BINDINGS.range.start, CAL_BINDINGS.range.end]);
 
       await Promise.all(
         defs
@@ -196,12 +197,17 @@ export async function listProperties(
     docId,
     collectionId
   );
-  const mapKind = (t: string) => (t === "date" ? "date_time" : t);
+  const selectLikeIds = defs
+    .filter((d) => ["select", "status", "multi_select"].includes(d.type))
+    .map((d) => d.id);
+  const optionsByProp = await repoGetOptionsByPropertyIds(selectLikeIds);
+
   return {
     properties: defs.map((d) => ({
       id: d.id,
       name: d.name,
-      kind: mapKind(d.type),
+      kind: d.type === "date" ? "date_time" : d.type,
+      options: optionsByProp.get(d.id) ?? undefined,
     })),
   };
 }
