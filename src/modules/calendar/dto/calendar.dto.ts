@@ -65,7 +65,16 @@ export type InstancesResponse = z.infer<typeof InstancesResponseDto>;
 export const CalendarPropertyDto = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
-  kind: PropertyTypeDto, // includes "date_time" like your docs DTO
+  kind: PropertyTypeDto,
+  options: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        value: z.string(),
+        color: z.string().nullable(),
+      })
+    )
+    .optional(),
 });
 export type CalendarProperty = z.infer<typeof CalendarPropertyDto>;
 

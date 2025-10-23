@@ -306,6 +306,29 @@ export async function repoReplaceVisiblePropertyIds(
     }
   });
 }
+export async function repoGetOptionsByPropertyIds(propertyIds: string[]) {
+  if (!propertyIds.length)
+    return new Map<
+      string,
+      { id: string; value: string; color: string | null }[]
+    >();
+  const rows = await prisma.propertyOption.findMany({
+    where: { propertyId: { in: propertyIds } },
+    select: { propertyId: true, id: true, value: true, color: true },
+    orderBy: [{ position: "asc" }, { value: "asc" }],
+  });
+  const map = new Map<
+    string,
+    { id: string; value: string; color: string | null }[]
+  >();
+  for (const r of rows) {
+    const arr = map.get(r.propertyId);
+    const item = { id: r.id, value: r.value, color: r.color };
+    if (arr) arr.push(item);
+    else map.set(r.propertyId, [item]);
+  }
+  return map;
+}
 // Get the owning project for a document (null if not found)
 export async function repoGetDocumentProjectId(
   documentId: string
