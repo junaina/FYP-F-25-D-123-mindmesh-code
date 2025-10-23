@@ -9,6 +9,17 @@ import {
   PropertyValueDto,
   DocHeaderDto,
 } from "@/modules/documents/dto/doc.dto";
+//creating a doc inside a project
+export async function createProjectDocument(projectId: string, title?: string) {
+  const res = await fetch(`/api/projects/${projectId}/docs`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title }),
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to create document");
+  return res.json() as Promise<{ id: string }>;
+}
 
 /** GET /api/projects/:projectId/docs/:docId */
 export async function fetchDocHeader(projectId: string, docId: string) {
