@@ -1,7 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type ProjectCardProps = {
@@ -61,7 +66,12 @@ export function ProjectCard({
     const hasImage = !!(preview || image);
 
     return (
-      <Card className={cn("hover:shadow-md transition cursor-pointer overflow-hidden", className)}>
+      <Card
+        className={cn(
+          "hover:shadow-md transition cursor-pointer overflow-hidden",
+          className
+        )}
+      >
         {/* Clickable banner */}
         <div
           role="button"
@@ -69,10 +79,10 @@ export function ProjectCard({
           onClick={openPicker}
           className={cn(
             "relative h-32 w-full group",
-            !hasImage && placeholder, // show placeholder when no image
+            !hasImage && placeholder // show placeholder when no image
           )}
         >
-          {/* Existing/previewed image */}
+          {/* Existing/previewed image
           {hasImage && (
             // use <img> for blob preview compatibility
             <img
@@ -80,13 +90,11 @@ export function ProjectCard({
               alt={title}
               className="h-full w-full object-cover"
             />
-          )}
-
-          {/* Hover affordance */}
+          )} */}
+          {/* Hover affordance
           <div className="pointer-events-none absolute inset-0 grid place-items-center text-xs font-medium text-white/95 opacity-0 group-hover:opacity-100 bg-black/20 transition">
             Click to add cover
-          </div>
-
+          </div> */}
           {/* Hidden file input */}
           <input
             ref={inputRef}
@@ -107,7 +115,9 @@ export function ProjectCard({
 
   // default compact card (Recently Visited)
   return (
-    <Card className={cn("hover:shadow-md transition cursor-pointer", className)}>
+    <Card
+      className={cn("hover:shadow-md transition cursor-pointer", className)}
+    >
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {project && <CardDescription>Project: {project}</CardDescription>}
