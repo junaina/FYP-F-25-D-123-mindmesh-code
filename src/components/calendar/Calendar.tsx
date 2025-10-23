@@ -15,6 +15,7 @@ import {
   createEvent as apiCreateEvent,
   moveEvent as apiMoveEvent,
   resizeEvent as apiResizeEvent,
+  putSettings as putSettings,
 } from "@/modules/calendar/client/calendar.api";
 function useMeasuredHeight<T extends HTMLElement>() {
   const ref = React.useRef<T | null>(null);
@@ -124,7 +125,14 @@ function SkeletonDay({ dayKey }: { dayKey: string }) {
 }
 
 /** Render exactly what the calendar service returns (toPropertyValueDto). */
-function displayPropValue(v: PropertyValueDto): string {
+function displayPropValue(
+  v: PropertyValueDto,
+  propId: string,
+  metaById: Map<
+    string,
+    { options?: { id: string; value: string; color: string | null }[] }
+  >
+): string {
   switch (v.type) {
     case "text":
     case "email":
@@ -136,16 +144,29 @@ function displayPropValue(v: PropertyValueDto): string {
       return v.value ? "✓" : "";
     case "date_time":
       return v.value ? String(v.value).slice(0, 10) : "";
-    case "multi_select":
+
+    case "select":
+    case "status": {
+      const id = v.value ? String(v.value) : "";
+      const opt = metaById.get(propId)?.options?.find((o) => o.id === id);
+      return opt?.value ?? id; // fallback to raw id if somehow missing
+    }
+
+    case "multi_select": {
+      const ids = Array.isArray(v.value) ? (v.value as string[]) : [];
+      const names =
+        metaById
+          .get(propId)
+          ?.options?.filter((o) => ids.includes(o.id))
+          .map((o) => o.value) ?? [];
+      return names.join(", ");
+    }
+
     case "file":
     case "person": {
       const arr = Array.isArray(v.value) ? v.value : [];
       return arr.join(", ");
     }
-    case "select":
-    case "status":
-      // Day 1: optionId only; show raw id (labels later)
-      return v.value ? String(v.value) : "";
     default:
       return "";
   }
@@ -325,6 +346,12 @@ export function Calendar(props: Props) {
     return map;
   }, [properties.data]);
 
+  const nameToPropId = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const [id, name] of propIdToName.entries()) m.set(name, id);
+    return m;
+  }, [propIdToName]);
+
   // Build the property menu index from backend properties (name/kind)
   const propertyIndex = React.useMemo(() => {
     const rows = properties.data?.properties ?? [];
@@ -336,25 +363,41 @@ export function Calendar(props: Props) {
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [properties.data]);
+  const propertyMetaById = React.useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        kind: string;
+        options?: { id: string; value: string; color: string | null }[];
+      }
+    >();
+    const rows = properties.data?.properties ?? [];
+    for (const p of rows) map.set(p.id, p as any);
+    return map;
+  }, [properties.data]);
 
   // Visibility set is kept by name (menu works with names)
   const LS_VISIBLE = "mindmesh:calendar:visibleProps:v2";
-  const [visibleProps, setVisibleProps] = React.useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set<string>();
-    try {
-      const raw = localStorage.getItem(LS_VISIBLE);
-      return new Set(raw ? (JSON.parse(raw) as string[]) : []); // start empty; user picks
-    } catch {
-      return new Set<string>();
-    }
-  });
+  // Keep a Set of *IDs* as the real source of truth
+  const [visibleIds, setVisibleIds] = React.useState<Set<string>>(new Set());
+
+  // When settings and properties arrive, sync IDs
   React.useEffect(() => {
-    if (typeof window !== "undefined")
-      localStorage.setItem(
-        LS_VISIBLE,
-        JSON.stringify(Array.from(visibleProps))
-      );
-  }, [visibleProps]);
+    const ids = settings.data?.visiblePropertyIds ?? [];
+    setVisibleIds(new Set(ids));
+  }, [settings.data]);
+
+  // Derive a names Set just for the menu UI
+  const visibleNames = React.useMemo(() => {
+    const out = new Set<string>();
+    for (const id of visibleIds) {
+      const name = propIdToName.get(id);
+      if (name) out.add(name);
+    }
+    return out;
+  }, [visibleIds, propIdToName]);
 
   // Build flat rows for range layout
   const rangeRows = React.useMemo(() => {
@@ -484,15 +527,31 @@ export function Calendar(props: Props) {
         <div className="flex items-center gap-1 sm:gap-2">
           <PropertyVisibilityMenu
             properties={propertyIndex}
-            visible={visibleProps}
-            onToggle={(name, next) =>
-              setVisibleProps((prev) => {
-                const s = new Set(prev);
-                if (next) s.add(name);
-                else s.delete(name);
-                return s;
-              })
-            }
+            visible={visibleNames}
+            onToggle={async (name, next) => {
+              const id = nameToPropId.get(name);
+              if (!id) return;
+
+              // compute next ID set
+              const nextIds = new Set(visibleIds);
+              if (next) nextIds.add(id);
+              else nextIds.delete(id);
+
+              // persist to backend
+              const body = Array.from(nextIds);
+              await putSettings(projectId!, docId!, collectionId!, body);
+
+              // local state + refetch instances so new props appear
+              setVisibleIds(nextIds);
+              await Promise.all([
+                qc.invalidateQueries({
+                  queryKey: ["cal-settings", collectionId],
+                }),
+                qc.invalidateQueries({
+                  queryKey: ["cal", collectionId, from, to],
+                }),
+              ]);
+            }}
             onOpenDetails={(name) =>
               console.debug("open property details:", name)
             }
@@ -601,11 +660,14 @@ export function Calendar(props: Props) {
                             {Object.entries(s.properties).map(
                               ([propId, val]) => {
                                 const name = propIdToName.get(propId);
-                                if (!name || !visibleProps.has(name))
+                                if (!name || !visibleNames.has(name))
                                   return null;
                                 const txt = displayPropValue(
-                                  val as PropertyValueDto
+                                  val as PropertyValueDto,
+                                  propId,
+                                  propertyMetaById
                                 ).trim();
+
                                 if (!txt) return null;
                                 return (
                                   <span
