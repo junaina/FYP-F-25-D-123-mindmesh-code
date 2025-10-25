@@ -44,6 +44,15 @@ type Props = {
   projectId?: string;
   docId?: string;
   collectionId?: string;
+  metaByName?: Map<
+    string,
+    {
+      id: string;
+      name: string;
+      kind: string;
+      options?: { id: string; value: string; color?: string | null }[];
+    }
+  >;
 };
 
 export default function EventsLayer({
@@ -60,6 +69,7 @@ export default function EventsLayer({
   projectId,
   docId,
   collectionId,
+  metaByName,
 }: Props) {
   const spanMs = Math.max(1, endMs - startMs);
 
@@ -143,18 +153,23 @@ export default function EventsLayer({
     [propertyDefs, propertyOptions]
   );
 
-  // --- helper: produce already-filtered, already-resolved values for the chip
-  function toDisplayValues(
-    props?: Array<{ name: string; value: unknown }>
-  ): Record<string, string | string[]> {
-    const out: Record<string, string | string[]> = {};
-    if (!props) return out;
-    props?.forEach((pp) => {
-      const parts = resolve(pp.name, pp.value);
-      console.log("[toDisplayValues]", { name: pp.name, raw: pp.value, parts });
-      if (propertyVisible && !propertyVisible.has(pp.name)) return;
-      if (parts.length) out[pp.name] = parts.length === 1 ? parts[0] : parts;
-    });
+  // keep raw IDs / arrays; only filter by visibility
+  function visibleValues(row: {
+    start: string;
+    end: string;
+    properties?: Array<{ name: string; value: unknown }>;
+  }): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+
+    // include event-level fields if visible (or if no filter provided)
+    if (!propertyVisible || propertyVisible.has("start")) out.start = row.start;
+    if (!propertyVisible || propertyVisible.has("end")) out.end = row.end;
+
+    // include document properties
+    for (const p of row.properties ?? []) {
+      if (propertyVisible && !propertyVisible.has(p.name)) continue;
+      out[p.name] = p.value; // keep raw ids/arrays/strings
+    }
     return out;
   }
 
@@ -187,6 +202,7 @@ export default function EventsLayer({
       setPendingDelete(null);
     }
   }
+
   return (
     <div
       className="absolute inset-0 pointer-events-auto overflow-y-auto"
@@ -194,46 +210,47 @@ export default function EventsLayer({
     >
       {/* This inner container is as tall as the stacked lanes */}
       <div className="relative" style={{ height: contentHeight }}>
-        {placed.map((p) => (
-          <div
-            key={p.id}
-            className="absolute"
-            style={{
-              top: p.lane * laneHeight + LANE_GAP / 2, // center gap a bit
-              left: p.leftPx,
-              width: p.widthPx,
-              overflow: "visible",
-            }}
-          >
-            <ContextMenu>
-              <ContextMenuTrigger asChild>
-                <div>
-                  <EventChip
-                    title={p.title}
-                    compact={p.isCompact}
-                    onClick={() => onOpenDoc?.(p.documentId)}
-                    values={toDisplayValues(
-                      p.properties as Array<{ name: string; value: unknown }>
-                    )}
-                    visible={propertyVisible}
-                  />
-                </div>
-              </ContextMenuTrigger>
-              <ContextMenuContent className="w-40">
-                <ContextMenuItem
-                  className="text-destructive"
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setPendingDelete({ id: p.documentId, title: p.title });
-                    setConfirmOpen(true);
-                  }}
-                >
-                  Delete
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          </div>
-        ))}
+        {placed.map((p) => {
+          const vv = visibleValues(p);
+          console.log("[EventsLayer visibleValues]", {
+            title: p.title,
+            keys: Object.keys(vv),
+            values: vv,
+            visible: propertyVisible
+              ? Array.from(propertyVisible)
+              : "(no filter)",
+          });
+
+          return (
+            <div
+              key={p.id}
+              className="absolute"
+              style={{
+                top: p.lane * laneHeight + LANE_GAP / 2,
+                left: p.leftPx,
+                width: p.widthPx,
+                overflow: "visible",
+              }}
+            >
+              <ContextMenu>
+                <ContextMenuTrigger asChild>
+                  <div>
+                    <EventChip
+                      title={p.title}
+                      compact={p.isCompact}
+                      onClick={() => onOpenDoc?.(p.documentId)}
+                      values={vv}
+                      visible={propertyVisible}
+                      metaByName={metaByName}
+                    />
+                  </div>
+                </ContextMenuTrigger>
+                {/* ... */}
+              </ContextMenu>
+            </div>
+          );
+        })}
+
         <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>

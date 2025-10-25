@@ -17,6 +17,7 @@ import {
   resizeEvent as apiResizeEvent,
   putSettings as putSettings,
 } from "@/modules/calendar/client/calendar.api";
+import { PropertyChipsById } from "../properties/chips/PropertyChips";
 function useMeasuredHeight<T extends HTMLElement>() {
   const ref = React.useRef<T | null>(null);
   const [h, setH] = React.useState(0);
@@ -509,7 +510,7 @@ export function Calendar(props: Props) {
 
   /* ================== RENDER ================== */
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 not-prose">
       {/* ======= Title row ======= */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="min-w-0">
@@ -657,7 +658,7 @@ export function Calendar(props: Props) {
                           </div>
                           {/* pills wrap; lane grows naturally */}
                           <div className="mt-0.5 flex flex-wrap gap-1">
-                            {Object.entries(s.properties).map(
+                            {/* {Object.entries(s.properties).map(
                               ([propId, val]) => {
                                 const name = propIdToName.get(propId);
                                 if (!name || !visibleNames.has(name))
@@ -677,6 +678,23 @@ export function Calendar(props: Props) {
                                   >
                                     {txt}
                                   </span>
+                                );
+                              }
+                            )} */}
+                            {Object.entries(s.properties).map(
+                              ([propId, val]) => {
+                                const name = propIdToName.get(propId);
+                                if (!name || !visibleNames.has(name))
+                                  return null;
+
+                                return (
+                                  <PropertyChipsById
+                                    key={propId}
+                                    propertyId={propId}
+                                    value={val as PropertyValueDto}
+                                    metaById={propertyMetaById}
+                                    titlePrefix={name}
+                                  />
                                 );
                               }
                             )}

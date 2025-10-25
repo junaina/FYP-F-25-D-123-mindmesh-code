@@ -1,7 +1,7 @@
 export type PropertyDef = { id: string; name: string; kind: string };
 export type OptionsByPropertyId = Record<
   string,
-  { id: string; name: string }[]
+  { id: string; name: string; color?: string | null }[]
 >;
 export type PropertyOptionsMap = OptionsByPropertyId;
 export function makePropertyDisplayMapper(
