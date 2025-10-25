@@ -95,7 +95,7 @@ export function ItemProperties({
                 href={mailto}
                 onClick={stop}
                 onPointerDown={stop}
-                className="underline text-primary text-[11px] leading-5"
+                className=" text-primary text-[11px] leading-5"
               >
                 {v.value || "—"}
               </a>

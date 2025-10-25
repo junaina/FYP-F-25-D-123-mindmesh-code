@@ -9,6 +9,7 @@ import { projectDashboardService } from "@/modules/projects/service/project-dash
 type Ctx = { params: { projectId: string } };
 
 export async function GET(_req: Request, { params }: Ctx) {
+  
   const sid = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!sid)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
