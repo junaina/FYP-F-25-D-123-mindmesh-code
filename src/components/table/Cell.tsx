@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ColumnDef } from "@/modules/table/domain/types";
 
+import { OptionChip } from "@/components/properties/chips/Chip";
 import TextEditor from "./editors/TextEditor";
 import NumberEditor from "./editors/NumberEditor";
 import CheckboxEditor from "./editors/CheckboxEditor";
@@ -38,13 +39,13 @@ function labelsFor(
   return ids.map((id) => labelFor(options, id) ?? id);
 }
 
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-md border border-border/60 px-2 py-0.5 text-xs text-foreground/80">
-      {children}
-    </span>
-  );
-}
+// function Chip({ children }: { children: React.ReactNode }) {
+//   return (
+//     <span className="inline-flex items-center rounded-md border border-border/60 px-2 py-0.5 text-xs text-foreground/80">
+//       {children}
+//     </span>
+//   );
+// }
 
 /* ---------- component ---------- */
 
@@ -73,31 +74,57 @@ export default function Cell({
   const asIds = Array.isArray(value) ? (value as string[]) : [];
 
   /* ---------- read view (pretty) ---------- */
-  // at top of file (no need to import React in Next 13+)
-  // import React from "react";
 
   const ReadView: React.FC = () => {
     switch (column.type) {
       case "select":
       case "status": {
-        const lab = labelFor(column.options, value as string | null);
-        return (
-          <span className="text-foreground/80">
-            {lab ?? <span className="opacity-60"> </span>}
-          </span>
-        );
-      }
-      case "multi_select": {
-        const labs = labelsFor(column.options, asIds);
-        return labs.length ? (
-          <div className="flex flex-wrap gap-1">
-            {labs.map((l, idx) => (
-              <Chip key={`${column.id}-${l}-${idx}`}>{l}</Chip>
-            ))}
-          </div>
+        // const lab = labelFor(column.options, value as string | null);
+        // return (
+        //   <span className="text-foreground/80">
+        //     {lab ?? <span className="opacity-60"> </span>}
+        //   </span>
+        // );
+        const id = (value as string | null) ?? null;
+        const opt = (column.options ?? []).find((o) => o.id === id);
+        return id ? (
+          <OptionChip
+            label={opt?.value ?? id}
+            colorClass={(opt as any)?.color ?? null}
+            title={opt?.value ?? id}
+          />
         ) : (
           <span className="opacity-60"> </span>
         );
+      }
+      case "multi_select": {
+        const ids = Array.isArray(value) ? (value as string[]) : [];
+        if (!ids.length) return <span className="opacity-60"> </span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {ids.map((id) => {
+              const opt = (column.options ?? []).find((o) => o.id === id);
+              return (
+                <OptionChip
+                  key={`${column.id}-${id}`}
+                  label={opt?.value ?? id}
+                  colorClass={(opt as any)?.color ?? null}
+                  title={opt?.value ?? id}
+                />
+              );
+            })}
+          </div>
+        );
+        // const labs = labelsFor(column.options, asIds);
+        // return labs.length ? (
+        //   <div className="flex flex-wrap gap-1">
+        //     {labs.map((l, idx) => (
+        //       <Chip key={`${column.id}-${l}-${idx}`}>{l}</Chip>
+        //     ))}
+        //   </div>
+        // ) : (
+        //   <span className="opacity-60"> </span>
+        // );
       }
       case "checkbox":
         return (
