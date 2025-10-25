@@ -10,7 +10,6 @@ import { prisma } from "@/lib/prisma";
 import { HttpError } from "@/lib/https";
 
 export const CollectionBoardService = {
-  // Choose a grouping property heuristically: the status property used by the most docs; if tie, any.
   async getBoard(
     projectId: string,
     collectionId: string
@@ -91,7 +90,6 @@ export const CollectionBoardService = {
   ): Promise<StatusPropertyChoice[]> {
     const docIds = await CollectionBoardRepo.listDocIds(collectionId);
     const total = docIds.length;
-    // Count per status property
     const usage = await CollectionBoardRepo.statusUsageForDocs(
       projectId,
       docIds

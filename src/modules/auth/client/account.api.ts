@@ -1,5 +1,4 @@
 export const accountApi = {
-  // tells UI if we should show the Change Password card
   async security() {
     const r = await fetch("/api/account/security", { cache: "no-store" });
     if (!r.ok) throw new Error("Failed to load security capabilities");

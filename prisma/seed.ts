@@ -153,19 +153,16 @@ async function main() {
     },
   });
 
-  // Calendar collection (lives inside the parent document)
   const collection = await prisma.collection.create({
     data: {
       name: "Team Calendar",
       type: "calendar",
       documentId: calendarPage.id,
       createdById: USER_ID,
-      // If your Collection model also requires projectId, uncomment:
-      // projectId: PROJECT_ID!,
+      
     },
   });
 
-  // Event documents (these are the items shown on the calendar)
   const eventA = await prisma.document.create({
     data: {
       projectId: PROJECT_ID!,
@@ -185,13 +182,12 @@ async function main() {
   const eventC = await prisma.document.create({
     data: {
       projectId: PROJECT_ID!,
-      title: "Standup", // duplicate title to show no uniqueness constraints
+      title: "Standup", 
       createdById: USER_ID,
       content: {} as Prisma.JsonObject,
     },
   });
 
-  // Link events to the calendar collection
   await prisma.collectionItem.createMany({
     data: [
       {
@@ -213,14 +209,11 @@ async function main() {
     skipDuplicates: true,
   });
 
-  // Values:
-  // A) Single-day event → uses `date`
   await ensureDocumentProperty(eventA.id, dateProp.id);
   await upsertDateValue(eventA.id, dateProp.id, "2025-10-12T00:00:00.000Z");
   await ensureDocumentProperty(eventA.id, statusProp.id);
   await upsertTextValue(eventA.id, statusProp.id, "Planned");
 
-  // B) Range event → uses `start` and `end`
   await ensureDocumentProperty(eventB.id, startProp.id);
   await ensureDocumentProperty(eventB.id, endProp.id);
   await upsertDateValue(eventB.id, startProp.id, "2025-10-10T00:00:00.000Z");
@@ -228,16 +221,14 @@ async function main() {
   await ensureDocumentProperty(eventB.id, statusProp.id);
   await upsertTextValue(eventB.id, statusProp.id, "In Progress");
 
-  // C) Another single-day, same name as A
   await ensureDocumentProperty(eventC.id, dateProp.id);
   await upsertDateValue(eventC.id, dateProp.id, "2025-10-12T00:00:00.000Z");
   await ensureDocumentProperty(eventC.id, statusProp.id);
   await upsertTextValue(eventC.id, statusProp.id, "Done");
 
-  // Make `status` visible on this calendar
   await ensureVisibility(collection.id, statusProp.id, true);
 
-  console.log("\n✅ Seed complete.\n");
+  console.log("\n Seed complete.\n");
   console.table([
     { key: "projectId", value: PROJECT_ID },
     { key: "parentDocId (calendar page)", value: calendarPage.id },
@@ -247,7 +238,7 @@ async function main() {
     { key: "eventC docId (single-day duplicate name)", value: eventC.id },
   ]);
 
-  console.log("\n🔎 Try in Postman:");
+  console.log("\n Try in Postman:");
   console.log(
     `GET /api/projects/${PROJECT_ID}/docs/${calendarPage.id}/collections/${collection.id}/calendar?from=2025-10-01&to=2025-11-01`
   );

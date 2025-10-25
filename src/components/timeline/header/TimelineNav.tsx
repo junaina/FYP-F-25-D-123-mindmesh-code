@@ -40,7 +40,7 @@ export default function TimelineNav({
     const nextStartISO = stepStart(view, start, delta);
 
     if (onChangeViewAndStart) {
-      onChangeViewAndStart(view, nextStartISO); // ✅ embedded (doc) case
+      onChangeViewAndStart(view, nextStartISO); 
     } else {
       const url = new URL(window.location.href);
       url.searchParams.set("view", view);

@@ -78,7 +78,7 @@ export async function createInProject(
       projectId,
       createdById: userId,
       title: title?.trim() || "Untitled",
-      content: {}, // required Json
+      content: {}, 
     },
     select: { id: true },
   });
@@ -109,7 +109,6 @@ async function assertDocAndPropertySameProject(
   if (!doc) throw new Error("Document not found");
   if (!prop) throw new Error("PropertyDefinition not found");
 }
-//delete an option
 async function txDeleteOptionSafe(args: {
   propertyId: string;
   optionId: string;
@@ -117,7 +116,7 @@ async function txDeleteOptionSafe(args: {
   const { propertyId, optionId } = args;
 
   return prisma.$transaction(async (tx) => {
-    // ensure the option belongs to the property
+   
     const exists = await tx.propertyOption.findFirst({
       where: { id: optionId, propertyId },
       select: { id: true },
@@ -126,13 +125,11 @@ async function txDeleteOptionSafe(args: {
       throw new Error("Option not found");
     }
 
-    // 1) detach all document values pointing to this option
     await tx.documentPropertyValue.updateMany({
       where: { propertyId, optionId },
       data: { optionId: null },
     });
 
-    // 2) delete the option
     try {
       await tx.propertyOption.delete({ where: { id: optionId } });
     } catch (e) {
@@ -140,7 +137,7 @@ async function txDeleteOptionSafe(args: {
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === "P2003"
       ) {
-        // surface a stable error the service/route can map to 409
+       
         throw Object.assign(new Error("Option is still referenced elsewhere"), {
           code: "OPTION_IN_USE",
         });
@@ -154,7 +151,6 @@ async function updateOption(
   optionId: string,
   data: { value?: string; color?: string | null; position?: number | null }
 ): Promise<RepoOptionOut> {
-  // ensure option belongs to property
   const ok = await prisma.propertyOption.findFirst({
     where: { id: optionId, propertyId },
     select: { id: true },
@@ -179,7 +175,6 @@ async function updateOption(
       position: updated.position ?? null,
     };
   } catch (e) {
-    // map Prisma unique constraint to stable code (for 409)
     if (
       e instanceof Prisma.PrismaClientKnownRequestError &&
       e.code === "P2002"
@@ -191,9 +186,7 @@ async function updateOption(
     throw e;
   }
 }
-//function to read a property and its value.
 async function readPropertiesWithValues(projectId: string, docId: string) {
-  //ensure doc belongs to a project
   await assertDocInProject(docId, projectId);
   const links = await prisma.documentProperty.findMany({
     where: { documentId: docId },
@@ -207,7 +200,6 @@ async function readPropertiesWithValues(projectId: string, docId: string) {
       },
     },
   });
-  //fetching all values for the doc in one go
   const values = await prisma.documentPropertyValue.findMany({
     where: { documentId: docId },
     include: {
@@ -299,13 +291,13 @@ export const DocumentRepo = {
     const { propertyId, updateBasics, fromType, toType, keepField } = args;
 
     return prisma.$transaction(async (tx) => {
-      // 1) update definition
+   
       await tx.propertyDefinition.update({
         where: { id: propertyId },
         data: { name: updateBasics.name, type: updateBasics.type },
       });
 
-      // 2) if type changed, normalize ALL values to new shape
+     
       if (fromType !== toType) {
         await tx.documentPropertyValue.updateMany({
           where: { propertyId },
@@ -319,13 +311,10 @@ export const DocumentRepo = {
           },
         });
 
-        // 3) ALWAYS delete options on type change
-        // (This will fail with FK Restrict if any TaskBoardColumn/Binding still references an option)
-        //Reassignment flow (future): if you want to delete an option that’s used by TaskBoardColumn, add a query param ?reassignTo=<optionId> to move board columns & values before delete—happy to wire later.
+       
         await tx.propertyOption.deleteMany({ where: { propertyId } });
       }
 
-      // 4) return fresh definition (options will be [] after a type change)
       const withOptions = await tx.propertyDefinition.findUnique({
         where: { id: propertyId },
         include: {
@@ -406,7 +395,6 @@ export const DocumentRepo = {
     });
   },
   async deleteValue(documentId: string, propertyId: string): Promise<void> {
-    // deleteMany is safe if it might not exist
     await prisma.documentPropertyValue.deleteMany({
       where: { documentId, propertyId },
     });
@@ -463,7 +451,6 @@ export const DocumentRepo = {
     const touchedIds = await prisma.$transaction(async (tx) => {
       const touched = new Set<string>();
 
-      // upsert by id if present; otherwise upsert by unique (propertyId, value)
       for (const o of normalized) {
         if (o.id) {
           const row = await tx.propertyOption.update({
@@ -495,7 +482,6 @@ export const DocumentRepo = {
         }
       }
 
-      // delete anything not touched
       await tx.propertyOption.deleteMany({
         where: {
           propertyId,
@@ -506,7 +492,6 @@ export const DocumentRepo = {
       return Array.from(touched);
     });
 
-    // return fresh list
     const rows = await prisma.propertyOption.findMany({
       where: { propertyId },
       orderBy: [{ position: "asc" }, { value: "asc" }],
@@ -520,7 +505,6 @@ export const DocumentRepo = {
       position: r.position ?? null,
     }));
   },
-  /** Return options (guarding doc/property project match) */
   async readPropertyOptions(
     projectId: string,
     docId: string,
@@ -548,7 +532,6 @@ export const DocumentRepo = {
   }) {
     const { docId, propertyId } = args;
     return prisma.$transaction(async (tx) => {
-      // remove value + link for THIS doc
       await tx.documentPropertyValue.deleteMany({
         where: { documentId: docId, propertyId },
       });
@@ -556,19 +539,15 @@ export const DocumentRepo = {
         where: { documentId_propertyId: { documentId: docId, propertyId } },
       });
 
-      // still used elsewhere?
       const remaining = await tx.documentProperty.count({
         where: { propertyId },
       });
-      if (remaining > 0) return; // stop here (definition still in use)
+      if (remaining > 0) return; 
 
-      // GC: remove all values for this property across project (safety)
       await tx.documentPropertyValue.deleteMany({ where: { propertyId } });
 
-      // delete options (may throw P2003 if referenced by TaskBoardColumn/Bindings)
       await tx.propertyOption.deleteMany({ where: { propertyId } });
 
-      // delete definition
       await tx.propertyDefinition.delete({ where: { id: propertyId } });
     });
   },

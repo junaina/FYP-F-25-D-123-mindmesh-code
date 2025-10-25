@@ -7,7 +7,6 @@ type CreateCollectionArgs = {
   type: "calendar";
 };
 
-/** Resolve the propertyDefinition ids for date bindings in a project. */
 export async function repoGetDatePropIds(
   projectId: string,
   names: { single?: string; start?: string; end?: string }
@@ -22,7 +21,6 @@ export async function repoGetDatePropIds(
     where: { projectId, name: { in: wanted }, type: DATE_PROP_TYPE },
     select: { id: true, name: true },
   });
-  // fallback to legacy "date"
   if (defs.length === 0) {
     defs = await prisma.propertyDefinition.findMany({
       where: { projectId, name: { in: wanted }, type: "date" },
@@ -37,7 +35,6 @@ export async function repoGetDatePropIds(
   };
 }
 
-/** Minimal headers for all EVENT docs in a collection (doc-scoped through Document). */
 export async function repoGetEventDocHeaders(
   projectId: string,
   docId: string,
@@ -57,7 +54,6 @@ export async function repoGetEventDocHeaders(
   return items.map((i) => i.document);
 }
 
-/** Visible property ids for this collection (doc-scoped through Document). */
 export async function repoGetVisiblePropertyIds(
   projectId: string,
   docId: string,
@@ -74,7 +70,6 @@ export async function repoGetVisiblePropertyIds(
   return rows.map((r) => r.propertyId);
 }
 
-/** Bulk fetch values for given docs+props. */
 export async function repoGetDocumentPropertyValues(
   documentIds: string[],
   propertyIds: string[]
@@ -95,13 +90,11 @@ export async function repoGetDocumentPropertyValues(
   });
 }
 
-/** Unique property defs used by any event doc in this collection (doc-scoped through Document). */
 export async function repoGetUsedPropertyDefsForCollection(
   projectId: string,
   docId: string,
   collectionId: string
 ) {
-  // 1) gather event doc ids under this collection, scoped to the parent doc/project via Document
   const eventDocIds = (
     await prisma.collectionItem.findMany({
       where: {
@@ -114,7 +107,6 @@ export async function repoGetUsedPropertyDefsForCollection(
 
   if (!eventDocIds.length) return [];
 
-  // 2) which properties are used by those docs?
   const used = await prisma.documentProperty.findMany({
     where: { documentId: { in: eventDocIds } },
     select: { propertyId: true },
@@ -123,14 +115,12 @@ export async function repoGetUsedPropertyDefsForCollection(
   const propIds = used.map((u) => u.propertyId);
   if (!propIds.length) return [];
 
-  // 3) return id/name/type for menu rendering
   return prisma.propertyDefinition.findMany({
     where: { id: { in: propIds } },
     select: { id: true, name: true, type: true },
   });
 }
 
-/** Map propertyId -> type (handy for casting values). */
 export async function repoGetPropertyTypes(propertyIds: string[]) {
   if (!propertyIds.length) return new Map<string, string>();
   const defs = await prisma.propertyDefinition.findMany({
@@ -140,7 +130,6 @@ export async function repoGetPropertyTypes(propertyIds: string[]) {
   return new Map(defs.map((d) => [d.id, d.type]));
 }
 
-// ---------- PropertyDefinitions / Values ----------
 export async function repoEnsureDatePropDef(projectId: string, name: string) {
   const existing = await prisma.propertyDefinition.findFirst({
     where: { projectId, name },
@@ -215,7 +204,6 @@ export async function repoGetCollectionPropDefs(collectionId: string) {
   });
 }
 
-// ---------- Documents / Collection Items ----------
 const EMPTY_TIPTAP_DOC = { type: "doc", content: [] as any[] };
 export async function repoCreateDocument(
   projectId: string,
@@ -237,7 +225,6 @@ export async function repoLinkToCollection(
   });
 }
 
-//creating a collection
 export async function repoCreateCollection(args: CreateCollectionArgs) {
   const { documentId, createdById, name, type } = args;
   const row = await prisma.collection.create({
@@ -267,7 +254,6 @@ export async function repoUnlinkFromCollection(
   });
 }
 
-// ---------- Read current date values for a doc ----------
 export async function repoReadDocDateValues(
   projectId: string,
   documentId: string
@@ -287,7 +273,6 @@ export async function repoReadDocDateValues(
   );
   return { defs, values };
 }
-// Replace all visible property rows for a collection with the provided ids
 export async function repoReplaceVisiblePropertyIds(
   collectionId: string,
   propertyIds: string[]
@@ -329,7 +314,6 @@ export async function repoGetOptionsByPropertyIds(propertyIds: string[]) {
   }
   return map;
 }
-// Get the owning project for a document (null if not found)
 export async function repoGetDocumentProjectId(
   documentId: string
 ): Promise<string | null> {

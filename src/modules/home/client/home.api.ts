@@ -1,8 +1,6 @@
 import { headers, cookies } from "next/headers";
 
-/**
- * Client-side (browser) fetch. Use inside Client Components.
- */
+
 export async function getHomeDataClient() {
   const res = await fetch("/api/home", { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to load home data");
@@ -17,10 +15,7 @@ export async function getHomeDataClient() {
   }>;
 }
 
-/**
- * Server-side (RSC) fetch. Builds absolute URL + forwards cookies.
- * This is what your /home Server Component should call.
- */
+
 export async function getHomeDataServer() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");

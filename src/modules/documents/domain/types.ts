@@ -1,4 +1,3 @@
-//list of property kinds
 
 export const PROPERTY_TYPES = [
   "text",
@@ -14,10 +13,8 @@ export const PROPERTY_TYPES = [
   "status",
 ] as const;
 
-// `PROPERTY_TYPES` is an array of string literals, so `PropertyType` is a union of those string literals
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
-// PropertyOption represents an option for properties like select, multi_select, status, persons, files, urls, emails
 export interface PropertyOption {
   id: string;
   value: string;
@@ -40,9 +37,9 @@ export type PropertyValue =
         | null
         | { type: "select"; value: string | null } //option Id
         | { type: "multi_select"; value: string[] | null } //array of option Ids
-        | { type: "date_time"; value: string | null } //ISO string
+        | { type: "date_time"; value: string | null } 
         | { type: "email"; value: string[] | null } //array of email strings
-        | { type: "person"; value: string[] | null } //user Ids
+        | { type: "person"; value: string[] | null } 
         | { type: "file"; value: string[] | null } //array of file Ids
         | { type: "checkbox"; value: boolean | null }
         | { type: "url"; value: string[] | null } //multiple url strings

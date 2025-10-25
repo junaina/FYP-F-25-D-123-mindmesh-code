@@ -1,4 +1,3 @@
-// src/app/(app)/api/projects/[projectId]/docs/[docId]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
@@ -35,7 +34,7 @@ export async function GET(
   }
 ) {
   try {
-    const params = await ctx.params; // 👈 Next 15: MUST await
+    const params = await ctx.params; 
     const { projectId, docId } = parseProjectDocParams(params);
 
     const data = await DocumentService.getHeader(projectId, docId);
@@ -56,7 +55,7 @@ export async function PATCH(
   }
 ) {
   try {
-    const params = await ctx.params; // 👈 await here too
+    const params = await ctx.params;
     const { projectId, docId } = parseProjectDocParams(params);
 
     const body = parsePatchDocHeader(await req.json());

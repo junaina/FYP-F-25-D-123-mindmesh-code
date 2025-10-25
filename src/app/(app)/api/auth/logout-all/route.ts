@@ -1,4 +1,3 @@
-// src/app/(app)/api/auth/logout-all/route.ts
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
@@ -10,20 +9,16 @@ export async function POST() {
   const jar = await cookies();
   const sid = jar.get(SESSION_COOKIE)?.value;
   if (!sid) {
-    // no session; nothing to do
     return new NextResponse(null, { status: 204 });
   }
 
-  // Who is this?
   const me = await AuthService.getMeFromSessionId(sid);
   if (me) {
     await AuthService.logoutAll(me.id);
   } else {
-    // If session isn’t valid, still try to revoke just in case
     await AuthService.logout(sid);
   }
 
-  // Clear cookie locally
   const res = new NextResponse(null, { status: 204 });
   res.cookies.set(SESSION_COOKIE, "", {
     httpOnly: true,

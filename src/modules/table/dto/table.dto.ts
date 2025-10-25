@@ -4,7 +4,6 @@ import {
   PropertyValueDto,
 } from "@/modules/documents/dto/doc.dto";
 
-/* --------- params --------- */
 export const ProjectParamsDto = z.object({ projectId: z.string().uuid() });
 export const CollectionParamsDto = ProjectParamsDto.extend({
   collectionId: z.string().uuid(),
@@ -19,18 +18,14 @@ export const OptionInCollectionParamsDto = PropInCollectionParamsDto.extend({
   optionId: z.string().uuid(),
 });
 
-/* ---- create / rename table ----
-   NOTE: In your schema, a Collection belongs to a host Document.
-   So we need documentId at creation time. */
 export const CreateTableBodyDto = z.object({
   name: z.string().trim().min(1).max(128),
-  documentId: z.string().uuid(), // host document for the table view
+  documentId: z.string().uuid(), 
 });
 export const RenameTableBodyDto = z.object({
   name: z.string().trim().min(1).max(128),
 });
 
-/* ---- schema / columns ---- */
 export const AddColumnBodyDto = z.object({
   name: z.string().trim().min(1).max(128),
   type: PropertyTypeDto,
@@ -54,7 +49,6 @@ export const UpdateColumnBodyDto = z
     message: "Provide at least one of name or type",
   });
 
-/* ---- rows ---- */
 export const CreateRowBodyDto = z.object({
   title: z.string().trim().min(1).max(256).default("Untitled"),
   description: z.string().nullable().optional(),
@@ -66,10 +60,8 @@ export const RenameRowBodyDto = z.object({
   description: z.string().nullable().optional(),
 });
 
-/* ---- cells ---- */
 export const PatchCellBodyDto = PropertyValueDto;
 
-/* ---- options ---- */
 export const SaveOptionsBodyDto = z.object({
   options: z.array(
     z.object({

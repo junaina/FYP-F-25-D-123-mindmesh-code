@@ -1,4 +1,3 @@
-// src/components/wiki/extensions/CustomTaskItem.ts
 import TaskItem from "@tiptap/extension-task-item";
 
 export const CustomTaskItem = TaskItem.extend({

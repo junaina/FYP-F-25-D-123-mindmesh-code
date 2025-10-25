@@ -1,4 +1,3 @@
-// src/components/wiki/extensions/SlashMenuExtension.ts
 import { Extension, type Editor } from "@tiptap/core";
 import Suggestion, { type SuggestionProps } from "@tiptap/suggestion";
 import type { Plugin } from "prosemirror-state";

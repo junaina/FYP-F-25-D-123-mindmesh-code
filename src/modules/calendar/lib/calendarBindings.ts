@@ -1,10 +1,8 @@
-// modules/calendar/lib/calendarBindings.ts
 export const CAL_BINDINGS = {
   single: "date",
   range: { start: "start", end: "end" },
 } as const;
 
-// "YYYY-MM-DD" → Date at UTC midnight
 export function parseYmdToUTC(ymd: string): Date {
   return new Date(`${ymd}T00:00:00.000Z`);
 }

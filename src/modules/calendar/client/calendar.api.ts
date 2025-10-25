@@ -1,4 +1,3 @@
-// src/modules/calendar/client/calendar.api.ts
 export async function fetchInstances(
   projectId: string,
   docId: string,
@@ -37,7 +36,6 @@ export async function fetchSettings(
   return r.json();
 }
 
-// Create (single or range)
 export async function createEvent(
   projectId: string,
   docId: string,
@@ -45,11 +43,9 @@ export async function createEvent(
   body: {
     title?: string;
     mode?: "single" | "range";
-    // When mode = "single"
-    date?: string; // "YYYY-MM-DD"
-    // When mode = "range"
-    start?: string; // "YYYY-MM-DD"
-    end?: string; // "YYYY-MM-DD"
+    date?: string; 
+    start?: string; 
+    end?: string; 
     inheritAllCalendarProps?: boolean;
   }
 ): Promise<{ documentId: string }> {
@@ -65,7 +61,6 @@ export async function createEvent(
   return r.json();
 }
 
-// Move (drag) — shift by N days
 export async function moveEvent(
   projectId: string,
   docId: string,
@@ -84,14 +79,13 @@ export async function moveEvent(
   if (!r.ok) throw new Error(`move event failed (${r.status})`);
 }
 
-// Resize one edge to a specific date
 export async function resizeEvent(
   projectId: string,
   docId: string,
   collectionId: string,
   documentId: string,
   edge: "start" | "end",
-  to: string // "YYYY-MM-DD"
+  to: string
 ): Promise<void> {
   const r = await fetch(
     `/api/projects/${projectId}/docs/${docId}/collections/${collectionId}/calendar/events/${documentId}`,
@@ -104,7 +98,6 @@ export async function resizeEvent(
   if (!r.ok) throw new Error(`resize event failed (${r.status})`);
 }
 
-// Rename (title only)
 export async function renameEvent(
   projectId: string,
   docId: string,
@@ -123,7 +116,6 @@ export async function renameEvent(
   if (!r.ok) throw new Error(`rename event failed (${r.status})`);
 }
 
-// Delete the underlying Document globally (no unlink mode)
 export async function deleteEvent(
   projectId: string,
   docId: string,
@@ -137,9 +129,6 @@ export async function deleteEvent(
   if (!r.ok) throw new Error(`delete event failed (${r.status})`);
 }
 
-// ---------------------------------------------------------
-// Settings (PUT) — persist visiblePropertyIds
-// ---------------------------------------------------------
 export async function putSettings(
   projectId: string,
   docId: string,

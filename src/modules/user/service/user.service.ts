@@ -11,7 +11,6 @@ export type SidebarProfile = {
   fallbackColor: string; // hex
 };
 
-// tiny deterministic hash
 function hashSeed(s: string) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < s.length; i++) {
@@ -56,7 +55,6 @@ const COLORS = [
   "#84CC16",
 ];
 
-// Build the UI-friendly profile using only inputs from the route
 export async function buildSidebarProfile(args: {
   id: string;
   firstName: string;
@@ -66,9 +64,8 @@ export async function buildSidebarProfile(args: {
 }) {
   let avatarUrl = args.avatarUrl ?? null;
 
-  // If the caller didn’t pass it, fetch once from DB
   if (typeof args.avatarUrl === "undefined") {
-    const u = await userRepo.findAvatarById(args.id); // select { avatarUrl: true }
+    const u = await userRepo.findAvatarById(args.id); 
     avatarUrl = u?.avatarUrl ?? null;
   }
 
@@ -100,7 +97,6 @@ export const userService = {
     const firstName = input.firstName.trim();
     const lastName = input.lastName.trim();
 
-    // normalize avatar if it was sent; "" -> null; undefined -> don't change
     const avatarSupplied = Object.prototype.hasOwnProperty.call(
       input,
       "avatarUrl"
@@ -115,7 +111,6 @@ export const userService = {
       avatarUrl,
     });
 
-    // IMPORTANT: pass avatarUrl into the builder
     return buildSidebarProfile({
       id: u.id,
       firstName: u.firstName,
@@ -131,7 +126,6 @@ export async function changePassword(
 ) {
   const rec = await userRepo.getPasswordHash(userId);
 
-  // If the account was created via OAuth and has no local password:
   if (!rec?.passwordHash) {
     throw new Error("No password set for this account");
   }
@@ -146,7 +140,6 @@ export async function changePassword(
   return { success: true };
 }
 export async function deleteAccount(userId: string) {
-  // Block if user still owns/created projects
   const owned = await userRepo.countProjectsCreatedBy(userId);
   if (owned > 0) {
     const err: any = new Error(
@@ -156,14 +149,11 @@ export async function deleteAccount(userId: string) {
     throw err;
   }
 
-  // Revoke all sessions first
   await SessionRepo.revokeAllSessionsDB(userId);
 
-  // Attempt hard delete
   try {
     await userRepo.deleteUserHard(userId);
   } catch (e: any) {
-    // If any unexpected FK remains:
     const err: any = new Error(
       "Your account cannot be deleted because other data still references it."
     );

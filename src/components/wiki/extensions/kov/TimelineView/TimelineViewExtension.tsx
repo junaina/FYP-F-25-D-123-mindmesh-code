@@ -1,4 +1,3 @@
-// src/components/wiki/extensions/kov/TimelineView/TimelineViewExtension.tsx
 "use client";
 
 import { Node, mergeAttributes, CommandProps } from "@tiptap/core";

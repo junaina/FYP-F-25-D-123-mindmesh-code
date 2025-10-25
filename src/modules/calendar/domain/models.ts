@@ -1,8 +1,7 @@
-// src/modules/calendar/domain/models.ts
 export type CalendarBindings = {
-  single?: string; // default "date"  (single-day)
-  start?: string; // default "start" (range)
-  end?: string; // default "end"   (range)
+  single?: string; 
+  start?: string;
+  end?: string; 
 };
 
 export const DEFAULT_BINDINGS: CalendarBindings = {
@@ -15,10 +14,10 @@ export type CalendarInstance = {
   instanceId: string;
   documentId: string;
   title: string;
-  start: string; // ISO (for single-day we mirror start=end)
-  end: string; // ISO
+  start: string; 
+  end: string; 
   isRange: boolean;
-  properties: Record<string, unknown>; // keyed by propertyId → { type, value } from service
+  properties: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
 };

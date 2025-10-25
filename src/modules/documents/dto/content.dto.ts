@@ -1,9 +1,7 @@
-// src/modules/documents/dto/content.dto.ts
 import { z } from "zod";
 import type { JSONContent } from "@tiptap/core";
 import { ALLOWED_MARK_TYPES } from "../domain/content.types";
 
-/* -------------------- marks -------------------- */
 const AllowedMark = z.enum(ALLOWED_MARK_TYPES);
 const MarkSchema = z.object({
   type: AllowedMark,
@@ -17,7 +15,6 @@ const MarkSchema = z.object({
     .optional(),
 });
 
-/* -------------------- nodes (recursive) -------------------- */
 type JC = JSONContent;
 let NodeSchema: z.ZodType<JC>;
 const NodeArray = () => z.array(z.lazy(() => NodeSchema)).optional();
@@ -52,21 +49,17 @@ const container = (t: string) =>
     content: NodeArray(),
     marks: z.array(MarkSchema).optional(),
   }) as z.ZodType<JC>;
-// Summary is inline*; for validation we allow any content (text/inline nodes)
 const ToggleSummaryNode: z.ZodType<JC> = z.object({
   type: z.literal("toggleSummary"),
   content: NodeArray(),
   marks: z.array(MarkSchema).optional(),
 });
 
-// Body is block+; we require at least one child
 const ToggleBodyNode: z.ZodType<JC> = z.object({
   type: z.literal("toggleBody"),
   content: z.array(z.lazy(() => NodeSchema)).min(1),
 });
 
-// Parent toggle has an `open` attr and exactly two children: summary + body.
-// (We accept an array of those two nodes; TipTap enforces order/structure.)
 const ToggleNode: z.ZodType<JC> = z.object({
   type: z.literal("toggle"),
   attrs: z.object({ open: z.boolean().optional() }).optional(),
@@ -83,27 +76,22 @@ const TableViewNode: z.ZodType<JC> = z.object({
     })
     .strict(),
 });
-// Timeline view (embedded in doc)
 const TimelineViewNode: z.ZodType<JSONContent> = z.object({
   type: z.literal("timelineView"),
   attrs: z
     .object({
       collectionId: z.string().uuid(),
       view: z.enum(["month", "week", "day", "hour"]).optional(),
-      // ISO string; UI can default to start-of-period if absent
       start: z.string().datetime().optional(),
     })
     .strict(),
 });
-//calendar view node
 const CalendarViewNode: z.ZodType<JSONContent> = z.object({
   type: z.literal("calendarView"),
   attrs: z
     .object({
       collectionId: z.string().uuid(),
-      // keep future-proof; start with just "month" if that's all you support today
       view: z.enum(["month"]).optional(),
-      // ISO string; UI can default to start-of-period if absent
       start: z.string().datetime().optional(),
     })
     .strict(),
@@ -130,15 +118,12 @@ NodeSchema = z.union([
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
 ]);
 
-/* -------------------- top-level doc schema -------------------- */
 export const DocContentSchema = z.object({
   type: z.literal("doc"),
   content: z.array(NodeSchema).optional(),
 }) satisfies z.ZodType<JSONContent>;
 export type DocContent = z.infer<typeof DocContentSchema>;
 
-/* -------------------- PATCH body (request) -------------------- */
-/** HTTP sends ISO string; transform → Date for service/DB */
 export const PatchDocContentRequestSchema = z.object({
   content: DocContentSchema,
   lastKnownUpdatedAt: z
@@ -151,10 +136,9 @@ export type PatchDocContentRequest = z.infer<
   typeof PatchDocContentRequestSchema
 >;
 
-/* -------------------- GET response -------------------- */
 export const GetDocContentResponseSchema = z.object({
   id: z.string().uuid(),
   content: DocContentSchema,
-  updatedAt: z.string().datetime(), // keep ISO on the wire
+  updatedAt: z.string().datetime(), 
 });
 export type GetDocContentResponse = z.infer<typeof GetDocContentResponseSchema>;

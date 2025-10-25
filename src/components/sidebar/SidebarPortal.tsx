@@ -1,4 +1,3 @@
-// src/components/sidebar/SidebarPortal.tsx
 "use client";
 
 import * as React from "react";

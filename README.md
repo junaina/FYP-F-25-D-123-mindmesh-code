@@ -1,7 +1,5 @@
 feat(docs-api): project-scoped DocHeader endpoints + options CRUD (read/write)
 
-✅ What’s working
-
 - Project-scoped routes:
   - GET /api/projects/:projectId/docs/:docId → fetch DocHeader (id, projectId, title, description, created/updated, doc-scoped property defs with options)
   - PATCH /api/projects/:projectId/docs/:docId → update DocHeader title/description and upsert property _values_

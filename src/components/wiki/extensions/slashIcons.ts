@@ -1,4 +1,3 @@
-// src/components/wiki/extensions/slashIcons.ts
 import type { LucideIcon } from "lucide-react";
 import {
   // Headings & text

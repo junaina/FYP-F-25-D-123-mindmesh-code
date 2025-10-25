@@ -1,4 +1,3 @@
-// src/components/timeline/events/adapters.ts
 export type PropertyDef = { id: string; name: string; kind: string };
 export type OptionsByPropertyId = Record<
   string,

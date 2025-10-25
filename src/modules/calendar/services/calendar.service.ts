@@ -1,4 +1,3 @@
-// src/modules/calendar/services/calendar.service.ts
 import {
   DEFAULT_BINDINGS,
   CalendarInstance,
@@ -39,9 +38,9 @@ export type CreateEventInput = {
   userId: string;
   title?: string;
   mode?: "single" | "range";
-  date?: string; // YYYY-MM-DD
-  start?: string; // YYYY-MM-DD
-  end?: string; // YYYY-MM-DD
+  date?: string; 
+  start?: string; 
+  end?: string; 
   inheritAllCalendarProps?: boolean;
 };
 export async function resolveAndAssertProjectId(
@@ -58,7 +57,6 @@ export async function resolveAndAssertProjectId(
   return actual;
 }
 
-//creating a calendar collection
 export async function createCalendarCollection(input: {
   projectId?: string;
   docId: string;
@@ -81,7 +79,6 @@ export async function createCalendarCollection(input: {
     type: "calendar",
   });
   if (autoBind) {
-    // Ensure required date property definitions exist at the project level.
     await repoEnsureDatePropDef(actualProjectId, CAL_BINDINGS.single);
     await repoEnsureDatePropDef(actualProjectId, CAL_BINDINGS.range.start);
     await repoEnsureDatePropDef(actualProjectId, CAL_BINDINGS.range.end);
@@ -111,7 +108,6 @@ export async function createEventSvc(input: CreateEventInput) {
     }
   }
 
-  // 1) Create the document with valid TipTap content (repo should seed {type:"doc",content:[]})
   const doc = await repoCreateDocument(
     projectId,
     title.trim().slice(0, 255),
@@ -119,14 +115,9 @@ export async function createEventSvc(input: CreateEventInput) {
   );
 
   try {
-    // 2) Link into the calendar collection
     await repoLinkToCollection(collectionId, doc.id, userId);
 
-    // 3) (Optional) If your DocumentService.patchHeader enforces invariants beyond just setting title,
-    //    keep this; otherwise you can remove it as we already created the doc with the title.
-    // await DocumentService.patchHeader(projectId, doc.id, { title: title.trim().slice(0, 255) });
-
-    // 4) Ensure/link date property DEFINITIONS, then set VALUES via DocumentService
+    
     if (mode === "single") {
       const dateDef = await repoEnsureDatePropDef(
         projectId,
@@ -158,7 +149,6 @@ export async function createEventSvc(input: CreateEventInput) {
       });
     }
 
-    // 5) Inherit all other property DEFINITIONS used in this calendar (no values)
     if (inheritAllCalendarProps) {
       const defs = await repoGetCollectionPropDefs(collectionId);
       const skip =
@@ -173,12 +163,10 @@ export async function createEventSvc(input: CreateEventInput) {
       );
     }
 
-    // 6) Return the full header (matches your doc module’s “non-collection doc GET” shape)
     const header = await DocumentService.getHeader(projectId, doc.id);
     return { document: header };
   } catch (err) {
-    // If any step after creation fails, delete the doc to avoid orphaned rows
-    // (You can remove this if you prefer to keep partially created docs for debugging.)
+   
     try {
       await repoDeleteDocument(doc.id);
     } catch {}
@@ -186,7 +174,6 @@ export async function createEventSvc(input: CreateEventInput) {
   }
 }
 
-/** GET /calendar/properties */
 export async function listProperties(
   projectId: string,
   docId: string,
@@ -212,46 +199,38 @@ export async function listProperties(
   };
 }
 
-/** GET /calendar?from&to */
 export async function listInstances(
   projectId: string,
   collectionId: string,
   fromISO: string,
   toISO: string,
-  // pass docId for repo scoping
   docId?: string
 ): Promise<{ instances: CalendarInstance[] }> {
   const from = new Date(fromISO);
   const to = new Date(toISO);
 
-  // 1) event docs (doc-scoped)
   const docs = await repoGetEventDocHeaders(projectId, docId!, collectionId);
   const docIds = docs.map((d) => d.id);
   if (!docIds.length) return { instances: [] };
 
-  // 2) date prop ids (project-scoped)
   const { singleId, startId, endId } = await repoGetDatePropIds(
     projectId,
     DEFAULT_BINDINGS
   );
 
-  // 3) visible prop ids (doc-scoped)
   const visiblePropIds = await repoGetVisiblePropertyIds(
     projectId,
     docId!,
     collectionId
   );
 
-  // 4) types for visible props (to cast values)
   const typeByPropId = await repoGetPropertyTypes(visiblePropIds);
 
-  // 5) load value rows for date + visible props
   const wantedPropIds = [singleId, startId, endId, ...visiblePropIds].filter(
     Boolean
   ) as string[];
   const values = await repoGetDocumentPropertyValues(docIds, wantedPropIds);
 
-  // 6) index by doc
   const byDoc = new Map<string, typeof values>();
   for (const v of values) {
     const arr = byDoc.get(v.documentId);
@@ -259,7 +238,6 @@ export async function listInstances(
     else byDoc.set(v.documentId, [v]);
   }
 
-  // 7) shape instances
   const out: CalendarInstance[] = [];
   for (const d of docs) {
     const arr = byDoc.get(d.id) ?? [];
@@ -296,7 +274,6 @@ export async function listInstances(
     });
   }
 
-  // deterministic order
   out.sort(
     (a, b) =>
       a.start.localeCompare(b.start) ||
@@ -326,7 +303,6 @@ export async function moveEventSvc(params: {
     documentId
   );
 
-  // single-day
   if (defs.date?.id && values[defs.date.id]) {
     const next = addDaysUTC(values[defs.date.id]!, deltaDays);
     await DocumentService.setPropertyValue(
@@ -341,7 +317,6 @@ export async function moveEventSvc(params: {
     return;
   }
 
-  // range
   if (
     defs.start?.id &&
     defs.end?.id &&
@@ -385,14 +360,12 @@ export async function resizeEventSvc(params: {
   );
   const toDate = parseYmdToUTC(to);
 
-  // single-day
   if (defs.date?.id && values[defs.date.id]) {
-    // If user resizes the "end" edge, interpret as "convert to range".
     if (edge === "end") {
       await convertSingleToRange({
         projectId: resolvedProjectId,
         documentId,
-        endYmd: to, // YYYY-MM-DD
+        endYmd: to, 
       });
       return;
     }
@@ -449,7 +422,6 @@ export async function renameEventSvc(params: {
     projectId
   );
 
-  // Use the Document module so all header rules are centralized
   await DocumentService.patchHeader(resolvedProjectId, documentId, {
     title: title.trim().slice(0, 255),
   });
@@ -459,7 +431,6 @@ export async function deleteEventSvc(
   documentId: string,
   projectIdFromUrl?: string
 ) {
-  // Optional safety: verify the URL projectId matches the document’s real projectId
   if (projectIdFromUrl) {
     const actual = await repoGetDocumentProjectId(documentId);
     if (!actual) throw new Error("document not found");
@@ -470,7 +441,6 @@ export async function deleteEventSvc(
   await repoDeleteDocument(documentId);
 }
 
-/** GET /calendar/settings */
 export async function getSettings(
   projectId: string,
   docId: string,
@@ -480,19 +450,16 @@ export async function getSettings(
   return { visiblePropertyIds: ids };
 }
 
-/** PUT /calendar/settings */
 export async function setSettings(
   _projectId: string,
   _docId: string,
   collectionId: string,
   visiblePropertyIds: string[]
 ) {
-  // You can add guards here (e.g., verify propertyIds belong to project) if desired.
   await repoReplaceVisiblePropertyIds(collectionId, visiblePropertyIds);
   return { visiblePropertyIds };
 }
 
-/** Convert a raw value row into your doc DTO-like { type, value } based on property kind. */
 function toPropertyValueDto(
   row: {
     valueString: string | null;
@@ -533,26 +500,22 @@ function toPropertyValueDto(
   }
 }
 
-/** Convert a single-date document to a start/end range in a safe way. */
 async function convertSingleToRange(params: {
   projectId: string;
   documentId: string;
-  endYmd: string; // YYYY-MM-DD
+  endYmd: string; 
 }) {
   const { projectId, documentId, endYmd } = params;
 
   const { defs, values } = await repoReadDocDateValues(projectId, documentId);
 
-  // Require an existing single date value.
   if (!defs.date?.id || !values[defs.date.id]) {
     throw new Error("cannot convert: no single date on document");
   }
 
-  // Normalize: the single date becomes the start.
   const startDate = values[defs.date.id]!;
   const endDate = parseYmdToUTC(endYmd);
 
-  // Ensure range definitions exist (create/link if needed).
   const startDef = await repoEnsureDatePropDef(
     projectId,
     CAL_BINDINGS.range.start
@@ -561,10 +524,8 @@ async function convertSingleToRange(params: {
   await repoEnsureDocProperty(documentId, startDef.id);
   await repoEnsureDocProperty(documentId, endDef.id);
 
-  // If end < start, clamp to start (or, if you prefer, swap them).
   const safeEnd = endDate < startDate ? startDate : endDate;
 
-  // Write values through the DocumentService (keeps rules centralized).
   await Promise.all([
     DocumentService.setPropertyValue(projectId, documentId, startDef.id, {
       type: "date_time",
@@ -575,9 +536,7 @@ async function convertSingleToRange(params: {
       value: safeEnd.toISOString(),
     }),
   ]);
-  // Optionally: remove the single date property from the document.
 
-  // Resolve projectId for a document; if a projectId is provided, verify it matches.
   async function resolveAndAssertProjectId(
     documentId: string,
     providedProjectId?: string
