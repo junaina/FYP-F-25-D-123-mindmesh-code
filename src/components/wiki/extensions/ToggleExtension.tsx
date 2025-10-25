@@ -1,5 +1,4 @@
-// src/components/wiki/extensions/ToggleExtension.tsx
-// Notion-style Toggle (Accordion) for TipTap with lucide-react chevron
+
 
 import {
   Node,

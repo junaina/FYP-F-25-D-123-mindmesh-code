@@ -1,4 +1,3 @@
-// src/types/wiki.ts
 export const PROPERTY_TYPES = [
   "text",
   "number",

@@ -34,7 +34,6 @@ export const propertyTypeDto = z.enum([
 export type ProjectDocPropParamsDto = z.infer<typeof ProjectDocPropParamsDto>;
 export type PropertyTypeDto = z.infer<typeof PropertyTypeDto>;
 
-//when creating
 export const propertyOptionInputDto = z.object({
   value: z.string().min(1),
   color: z.string().min(1).optional(),
@@ -68,12 +67,11 @@ export const createPropertyBodyDto = z
   );
 export type CreatePropertyBodyDto = z.infer<typeof createPropertyBodyDto>;
 
-//when updating
 export const PropertyOptionDto = z.object({
-  id: z.string().uuid(), // PropertyOption.id (UUID in DB)
+  id: z.string().uuid(), 
   value: z.string().min(0).max(200),
   color: z.string().nullable().optional(),
-  position: z.number().int().nullable().optional(), // optional; UI ordering
+  position: z.number().int().nullable().optional(), 
 });
 export type PropertyOptionDto = z.infer<typeof PropertyOptionDto>;
 
@@ -84,12 +82,7 @@ export const PropertyDefinitionDto = z.object({
   options: z.array(PropertyOptionDto).default([]),
 });
 export type PropertyDefinitionDto = z.infer<typeof PropertyDefinitionDto>;
-/* ---------------------------------
-   Property values (kept name)
-   NOTE:
-   - select/status carry optionId (UUID) or null
-   - url is a free-text URL stored in valueString
----------------------------------- */
+
 export const PropertyValueDto = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), value: z.string().nullable() }),
   z.object({ type: z.literal("number"), value: z.number().nullable() }),
@@ -107,9 +100,7 @@ export const PropertyValueDto = z.discriminatedUnion("type", [
   }), // free-text URL
 ]);
 export type PropertyValueDto = z.infer<typeof PropertyValueDto>;
-/* ---------------------------------
-   GET /api/docs/:id response
----------------------------------- */
+
 
 export const PropertyDefinitionWithValueDto = PropertyDefinitionDto.extend({
   value: PropertyValueDto.nullable().optional(),
@@ -127,24 +118,17 @@ export const DocHeaderDto = z.object({
   properties: z.array(PropertyDefinitionWithValueDto), // doc-scoped definitions
 });
 export type DocHeaderDto = z.infer<typeof DocHeaderDto>;
-/* ---------------------------------
-   PATCH /api/docs/:id body (values only)
-   { title?, description?, properties?: { [propName]: PropertyValueDto } }
----------------------------------- */
+
 export const PatchDocHeaderDto = z.object({
   title: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   properties: z.record(z.string(), PropertyValueDto).optional(),
 });
 export type PatchDocHeaderDto = z.infer<typeof PatchDocHeaderDto>;
-/* ---------------------------------
-   Params for /api/docs/:id
----------------------------------- */
+
 export const DocIdParamDto = z.object({ id: z.string().uuid() });
 export type DocIdParamDto = z.infer<typeof DocIdParamDto>;
-/* ---------------------------------
-   PUT /api/docs/:docId/properties/:propertyId/options
----------------------------------- */
+
 export const DocPropOptionsParamsDto = z.object({
   docId: z.string().uuid(),
   propertyId: z.string().uuid(),
@@ -173,7 +157,6 @@ export const PatchPropertyDefDto = z
     message: "provide at least one of name or type",
   });
 export type PatchPropertyDefDto = z.infer<typeof PatchPropertyDefDto>;
-//body for editiing a single option's appearance
 export const patchPropertyOptionDto = z
   .object({
     value: z.string().trim().min(1).max(200).optional(),
@@ -188,9 +171,7 @@ export const patchPropertyOptionDto = z
     { message: "Provide at least one of value, color, or position" }
   );
 export type PatchPropertyOptionDto = z.infer<typeof patchPropertyOptionDto>;
-/* ---------------------------------
-   Tiny helpers so routes stay tidy
----------------------------------- */
+
 export function parseDocId(params: unknown) {
   return DocIdParamDto.parse(params);
 }

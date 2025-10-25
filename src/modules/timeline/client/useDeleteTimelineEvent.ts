@@ -17,9 +17,7 @@ export function useDeleteTimelineEvent(opts: {
     mutationFn: (input: { documentId: string }) =>
       deleteEvent({ ...opts, documentId: input.documentId }),
     onSuccess: () => {
-      // invalidate all cached windows/views of this collection’s events
       qc.invalidateQueries({
-        // matches: ["timeline.events", projectId, docId, collectionId, ...]
         queryKey: [
           timelineKeys.events(projectId, docId, collectionId, "hour", "0")[0],
           projectId,

@@ -1,9 +1,7 @@
 import type { JSONContent } from "@tiptap/core";
 
-/** The persisted Tiptap document (root node “doc”). */
 export type DocContent = JSONContent;
 
-/** Keep a single source of truth for what you *intend* to support. */
 export const ALLOWED_NODE_TYPES = [
   "doc",
   "paragraph",

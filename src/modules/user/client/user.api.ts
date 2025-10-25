@@ -20,7 +20,7 @@ export const userApi = {
       cache: "no-store",
     });
     if (res.status === 401) return null;
-    return (await res.json()) as MeForSidebar; // no parsing, per your preference
+    return (await res.json()) as MeForSidebar; 
   },
   async updateProfile(input: UpdateProfileInput) {
     const res = await fetch("/api/me", {

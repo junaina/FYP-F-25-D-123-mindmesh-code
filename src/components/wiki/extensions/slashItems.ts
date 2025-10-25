@@ -1,4 +1,3 @@
-// src/components/wiki/editor/slashItems.ts
 
 export type SlashItem = {
   title: string;

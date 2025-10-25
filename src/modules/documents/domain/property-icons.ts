@@ -1,17 +1,16 @@
-//property icon registry
 import type { LucideIcon } from "lucide-react";
 import {
-  Tag, // select
-  Tags, // multi_select
-  CheckCircle2, // status
-  UserRound, // person
-  Paperclip, // file
-  Link2, // url
-  Mail, // email
-  Hash, // number
-  CalendarDays, // date_time
-  AlignLeft, // text
-  Square, // checkbox (unchecked)
+  Tag, 
+  Tags, 
+  CheckCircle2,
+  UserRound,
+  Paperclip, 
+  Link2, 
+  Mail, 
+  Hash,
+  CalendarDays, 
+  AlignLeft,
+  Square,
 } from "lucide-react";
 
 export type PropertyType =

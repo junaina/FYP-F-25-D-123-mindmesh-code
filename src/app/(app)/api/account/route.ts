@@ -1,4 +1,3 @@
-// src/app/(app)/api/account/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -18,7 +17,6 @@ export async function DELETE() {
 
     await userService.deleteAccount(me.id);
 
-    // Clear the session cookie (mirrors your logout flow)
     const res = NextResponse.json({ ok: true }, { status: 200 });
     res.cookies.set(SESSION_COOKIE, "", {
       ...sessionCookieOptions,

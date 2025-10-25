@@ -16,7 +16,7 @@ export async function GET(_req: NextRequest) {
     if (!me) return badRequest("unauthorized");
 
     const caps = await AuthService.getAuthCapabilities(me.id);
-    return ok(caps); // { hasPassword: boolean, providers: string[] }
+    return ok(caps); 
   } catch (e: any) {
     return badRequest(e?.message ?? "bad_request");
   }

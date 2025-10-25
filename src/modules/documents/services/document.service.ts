@@ -46,26 +46,15 @@ const TARGET_FIELD: Record<
 };
 
 const MAX_CONTENT_BYTES = 2_000_000;
-/** Safely coerce Tiptap JSON to Prisma's JSON input type */
 const toInputJson = (c: DocContent): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(c)) as Prisma.InputJsonValue;
-// const OPTION_TYPES = new Set<PropertyType>([
-//   "select",
-//   "status",
-//   "multi_select",
-//   "person",
-//   "file",
-//   "url",
-//   "email",
-// ]);
-//when creating a property
+
 type CreatePropertyArgs = {
   projectId: string;
   docId: string;
   body: CreatePropertyBodyDto;
 };
 
-/** --- repo payload shapes we read (minimal, matches your prisma selects) --- */
 type RepoPropertyOption = {
   id: string;
   value: string;
@@ -76,7 +65,7 @@ type RepoPropertyOption = {
 type RepoPropertyDefinition = {
   id: string;
   name: string;
-  type: string; // we’ll narrow to PropertyType safely
+  type: string; 
   options: RepoPropertyOption[];
 };
 
@@ -93,14 +82,13 @@ type RepoDocumentHeader = {
   }>;
 };
 
-/** --- the exact shape upsertValue expects based on your prisma model --- */
 type DbValueUpdate = {
   valueString: string | null;
   valueNumber: number | null;
   valueBool: boolean | null;
   valueDate: Date | null;
-  valueJson: string[] | null; // multi_select/person/file store string IDs
-  optionId: string | null; // select/status -> PropertyOption.id
+  valueJson: string[] | null; 
+  optionId: string | null; 
 };
 export type SaveOptionInput = {
   id?: string;
@@ -126,15 +114,14 @@ export type UpdateContentArgs = {
   projectId: string;
   docId: string;
   userId: string;
-  content: DocContent; // already Zod-validated at the route
-  lastKnownUpdatedAt?: Date; // OCC token from the client
+  content: DocContent; 
+  lastKnownUpdatedAt?: Date; 
 };
 
 export type UpdateContentResult =
   | { mutated: true; updatedAt: Date }
-  | { mutated: false; currentUpdatedAt: Date }; // return server ts on conflict
+  | { mutated: false; currentUpdatedAt: Date }; 
 ////////////////////////////////////////////////////////////////////////////////
-/** map DB value shape -> PropertyValueDto */
 function dbValueToDto(
   propType: PropertyType,
   db: {
@@ -185,7 +172,6 @@ function dbValueToDto(
   }
 }
 
-/** narrow string -> PropertyType */
 function toPropertyType(s: string): PropertyType {
   const normalized = s === "date" ? "date_time" : s;
   return (PROPERTY_TYPES as readonly string[]).includes(normalized)
@@ -193,7 +179,6 @@ function toPropertyType(s: string): PropertyType {
     : "text";
 }
 
-/** map a PropertyValueDto to the DB update shape (no stale columns left set) */
 function valueDtoToDb(p: PropertyValueDto): DbValueUpdate {
   const base: DbValueUpdate = {
     valueString: null,
@@ -229,23 +214,18 @@ function valueDtoToDb(p: PropertyValueDto): DbValueUpdate {
       return { ...base, valueJson: Array.isArray(p.value) ? p.value : [] };
 
     default:
-      // exhaustive by design; base keeps all columns null
       return base;
   }
 }
 
 export const DocumentService = {
-  // when updating a property definition
-  // PATCH /api/projects/:projectId/docs/:docId/properties/:propertyId
   async updatePropertyDefinition({
     projectId,
     docId,
     propertyId,
     body,
   }: UpdatePropertyArgs) {
-    // 1. verify project/doc/property exist and are linked
     await DocumentRepo.assertDocInProject(docId, projectId);
-    //load current def (with options)
     const current = await DocumentRepo.getPropertyDefinition(
       projectId,
       propertyId
@@ -257,7 +237,6 @@ export const DocumentService = {
       ? (current.type as PropertyType)
       : "text";
     const toType = body.type ?? fromType;
-    //update using repo
     return DocumentRepo.txUpdatePropertyDefinition({
       projectId,
       propertyId,
@@ -268,15 +247,11 @@ export const DocumentService = {
     });
   },
 
-  // POST /api/projects/:projectId/docs/:docId/properties
   async createProperty(args: CreatePropertyArgs) {
     const { projectId, docId, body } = args;
 
-    // 1. verifying project/doc exist and are linked
     await DocumentRepo.assertDocInProject(docId, projectId);
-    //2. create definition
     const def = await DocumentRepo.createDef(projectId, body.name, body.type);
-    //3.. upsert options if provided
     let options: Array<OptionOut> = [];
     if (body.options?.length) {
       options = await DocumentRepo.savePropertyOptions(
@@ -286,23 +261,19 @@ export const DocumentService = {
         body.options
       );
     }
-    //4. link to doc
     await DocumentRepo.ensureLink(docId, def.id);
     return { ...def, options };
   },
 
-  /** GET /api/docs/:id */
   async getHeader(projectId: string, docId: string) {
     await DocumentRepo.assertDocInProject(docId, projectId);
     const row = await DocumentRepo.findHeaderById(projectId, docId);
     if (!row) return null;
 
     const defs = (row as any).properties.map((link: any) => {
-      // in your current repo, each element is already flat -> use it directly
-      const p = link; // 👈 THIS was missing
+      const p = link;
       const t = toPropertyType(String(p.type));
 
-      // p.value is DB shape or undefined/null
       const valueDto =
         p.value !== undefined ? dbValueToDto(t, p.value ?? null) : undefined;
 
@@ -336,14 +307,12 @@ export const DocumentService = {
       properties: defs,
     };
   },
-  /** PATCH /api/docs/:id */
   async patchHeader(
     projectId: string,
     docId: string,
     payload: PatchDocHeaderDto
   ) {
     await DocumentRepo.assertDocInProject(docId, projectId);
-    // 1) basics
     if ("title" in payload || "description" in payload) {
       await DocumentRepo.updateBasics(docId, {
         title: payload.title,
@@ -351,7 +320,6 @@ export const DocumentService = {
       });
     }
 
-    // 2) values (optional)
     if (payload.properties) {
       const current = (await DocumentRepo.findHeaderById(
         projectId,
@@ -359,25 +327,21 @@ export const DocumentService = {
       )) as RepoDocumentHeader | null;
       if (!current) throw new Error("Document not found");
 
-      const incoming = Object.entries(payload.properties); // [ [name, PropertyValueDto], ... ]
+      const incoming = Object.entries(payload.properties); 
       const incomingNames = incoming.map(([n]) => n);
 
-      // ensure defs (create if missing with incoming type)
       const existingDefs = await DocumentRepo.defsByNames(projectId, incomingNames);
 const byName = new Map(existingDefs.map((d) => [d.name, d]));
 
-// ✅ FIX: also handle type mismatches
 for (const [name, pv] of incoming) {
   const existing = byName.get(name);
 
-  // 1️⃣ Create if missing
   if (!existing) {
     const created = await DocumentRepo.createDef(projectId, name, pv.type);
     byName.set(name, created);
     continue;
   }
 
-  // 2️⃣ If type differs, update it globally (Notion-like)
   if (existing.type !== pv.type) {
     const updated = await DocumentRepo.txUpdatePropertyDefinition({
       projectId,
@@ -391,13 +355,11 @@ for (const [name, pv] of incoming) {
   }
 }
 
-      // ensure links
       for (const [name] of incoming) {
         const def = byName.get(name)!;
         await DocumentRepo.ensureLink(docId, def.id);
       }
 
-      // prune links/values not present in the payload (optional behavior)
       const links = await DocumentRepo.linksForDoc(docId);
       for (const link of links) {
         const keep = incomingNames.includes(link.property.name);

@@ -1,4 +1,3 @@
-// src/modules/documents/client/docs.api.ts
 import {
   PatchDocHeaderDto,
   PatchPropertyDefDto,
@@ -9,7 +8,7 @@ import {
   PropertyValueDto,
   DocHeaderDto,
 } from "@/modules/documents/dto/doc.dto";
-//creating a doc inside a project
+
 export async function createProjectDocument(projectId: string, title?: string) {
   const res = await fetch(`/api/projects/${projectId}/docs`, {
     method: "POST",
@@ -21,7 +20,6 @@ export async function createProjectDocument(projectId: string, title?: string) {
   return res.json() as Promise<{ id: string }>;
 }
 
-/** GET /api/projects/:projectId/docs/:docId */
 export async function fetchDocHeader(projectId: string, docId: string) {
   console.log(
     "fetchDocHeader url:",
@@ -38,7 +36,6 @@ export async function fetchDocHeader(projectId: string, docId: string) {
   return data;
 }
 
-/** PATCH /api/projects/:projectId/docs/:docId */
 export async function patchDocHeader(
   projectId: string,
   docId: string,
@@ -78,7 +75,6 @@ export async function createProperty(
   return res.json() as Promise<PropertyDefinitionDto>;
 }
 
-/** PUT /api/projects/:projectId/docs/:docId/properties/:propertyId/options */
 export async function savePropertyOptions(
   projectId: string,
   docId: string,
@@ -104,7 +100,6 @@ export async function savePropertyOptions(
   return res.json();
 }
 
-// PATCH /api/projects/:projectId/docs/:docId/properties/:propertyId
 export async function patchPropertyDef(
   projectId: string,
   docId: string,
@@ -127,7 +122,6 @@ export async function patchPropertyDef(
   }
   return res.json();
 }
-//patch property value
 export async function patchPropertyValue(
   projectId: string,
   docId: string,
@@ -149,7 +143,6 @@ export async function patchPropertyValue(
   return (await res.json()) as { ok: true };
 }
 
-// src/modules/documents/client/docs.api.ts
 export async function deleteProperty(
   projectId: string,
   docId: string,
@@ -166,7 +159,6 @@ export async function deleteProperty(
     );
   }
 }
-// GET /api/projects/:projectId/docs/:docId/properties/:propertyId/options
 export async function readPropertyOptions(
   projectId: string,
   docId: string,
@@ -207,7 +199,6 @@ export async function readDocProperties(
   return res.json();
 }
 
-////////////////////////Editor API////////////////////////
 export async function fetchDocContent(projectId: string, docId: string) {
   if (!projectId || !docId) {
     throw new Error(

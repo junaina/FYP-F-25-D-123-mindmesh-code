@@ -24,10 +24,6 @@ export const TimelineEventDto = z.object({
   properties: z.array(TimelineEventPropertyDto),
 });
 export type TimelineEvent = z.infer<typeof TimelineEventDto>;
-/**
- * Envelope for the GET response: { events: TimelineEvent[] }
- * (Helpful for validating in tests and keeping service/route aligned.)
- */
 
 //create a timeline event
 export const CreateTimelineEventDto = z

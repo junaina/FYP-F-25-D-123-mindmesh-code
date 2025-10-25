@@ -44,7 +44,6 @@ export async function signup(
     });
     return { result: { user: toUserSafe(user) }, sessionId: session.id };
   } catch (e: any) {
-    // Prisma unique violation
     if (
       e?.code === "P2002" &&
       Array.isArray(e?.meta?.target) &&
@@ -87,7 +86,6 @@ export async function login(
   return { result: { user: toUserSafe(user) }, sessionId: session.id };
 }
 
-//reads a sesh id and returns the safe user or null
 export async function getMeFromSessionId(
   sessionId: string
 ): Promise<UserSafe | null> {
@@ -96,10 +94,8 @@ export async function getMeFromSessionId(
   return toUserSafe(s.user);
 }
 
-////////////OAUTH/////////////////
 
 export function googleAuthUrl(state: string) {
-  // IMPORTANT: do NOT generate state here. Use the state that was created in the route.
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: process.env.GOOGLE_REDIRECT_URI!,
@@ -107,7 +103,7 @@ export function googleAuthUrl(state: string) {
     scope: "openid email profile",
     include_granted_scopes: "true",
     prompt: "consent",
-    state, // ← use the state provided by the route
+    state,
   });
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
@@ -118,7 +114,6 @@ export async function googleCallback(params: {
   ip?: string;
   ua?: string;
 }) {
-  //exchange code for tokens
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -132,7 +127,6 @@ export async function googleCallback(params: {
   });
   if (!res.ok) throw new Error("google_token_exchange_failed");
   const tokens = (await res.json()) as { id_token: string };
-  //decode id_token
   const payload = JSON.parse(
     Buffer.from(tokens.id_token.split(".")[1], "base64").toString()
   );
@@ -145,12 +139,10 @@ export async function googleCallback(params: {
   const firstName = String(payload.given_name ?? "User");
   const lastName = String(payload.family_name ?? "");
 
-  //find or create user
   const identity = await OauthRepo.findOauthIdentity(provider, providerUserId);
   let user = identity?.user;
 
   if (!user) {
-    // Try by email first (user may have signed up with password)
     if (email) {
       user = (await OauthRepo.findUserByEmail(email)) ?? undefined;
     }
@@ -162,11 +154,9 @@ export async function googleCallback(params: {
         emailVerified,
       });
     }
-    // Ensure identity is linked
     await OauthRepo.linkOauthIdentity(user.id, provider, providerUserId);
   }
 
-  // 4) Create session
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
   const session = await SessionRepo.createSessionDB({
     userId: user.id,
@@ -186,11 +176,9 @@ export async function getAuthCapabilities(userId: string) {
   return { hasPassword, providers };
 }
 export async function logout(sessionId: string) {
-  // revoke only this session
   await SessionRepo.revokeSessionDB(sessionId);
 }
 
 export async function logoutAll(userId: string) {
-  // revoke all sessions for this user (other devices too)
   await SessionRepo.revokeAllSessionsDB(userId);
 }

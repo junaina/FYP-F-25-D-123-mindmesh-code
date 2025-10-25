@@ -1,4 +1,3 @@
-// add types
 import type {
   TimelinePropertyDef,
   GetTimelinePropertiesResponse,
@@ -64,7 +63,6 @@ export async function setTimelineVisibleProperties(
   if (!res.ok) throw new Error("Failed to save visible properties");
   return (await res.json()) as GetTimelinePropertiesResponse;
 }
-//GET /api/projects/:projectId/docs/:docId/collections/:collectionId/timeline/events
 
 export async function listEvents(params: {
   projectId: ID;
@@ -121,7 +119,6 @@ export async function deleteEvent(params: {
   }
   return;
 }
-// POST /api/projects/:pid/docs/:did/collections/:cid/timeline/events
 export async function createTimelineEvent(
   projectId: string,
   docId: string,
@@ -143,7 +140,7 @@ export async function createTimelineEvent(
 export async function createTimeline(params: {
   projectId: string;
   docId: string;
-  name?: string; // optional display name
+  name?: string;
 }) {
   const { projectId, docId, name } = params;
   const res = await fetch(
@@ -160,6 +157,5 @@ export async function createTimeline(params: {
     const msg = await res.text().catch(() => "");
     throw new Error(msg || "Failed to create timeline");
   }
-  // Expecting { id, documentId, name, type, createdById, ... }
   return (await res.json()) as { id: string };
 }

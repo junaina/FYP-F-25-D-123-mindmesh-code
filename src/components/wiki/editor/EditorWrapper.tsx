@@ -259,7 +259,6 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     immediatelyRender: false,
   };
 
-  // ✅ The dependency array goes HERE (2nd arg). Using `extensions` keeps it precise.
   const editor = useEditor(editorOptions, [extensions]);
 
   // Replace temp content with real content when it arrives

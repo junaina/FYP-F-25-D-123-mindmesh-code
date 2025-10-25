@@ -1,4 +1,3 @@
-// src/modules/table/client/useTableData.ts
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type {
@@ -10,9 +9,7 @@ import type {
 import { tableApi } from "./table.api";
 import type { RowsPage } from "../domain/types";
 type Ids = { projectId: string; docId: string; collectionId: string };
-// Add right below: type Ids = { projectId: string; docId: string; collectionId: string };
 
-// --- Shapes returned by your GET /table rows route
 type RowsApi = {
   rows: Array<{
     id: string;
@@ -121,7 +118,6 @@ export function useTableData(ids: Ids) {
   const [tableName, setTableName] = useState<string>("Table");
   const rows = useMemo(() => pages.flatMap((p) => p.rows), [pages]);
 
-  // ---- Initial load (still stubbed via wrapper)
   useEffect(() => {
     let mounted = true;
 
@@ -136,7 +132,6 @@ export function useTableData(ids: Ids) {
 
         if (Array.isArray(cols)) setColumns(cols);
 
-        // first is already a RowsPage { rows: Row[], nextCursor }
         setPages([first]);
       } catch (e) {
         console.log("HOOK:init failed (using mock)", e);
@@ -150,17 +145,14 @@ export function useTableData(ids: Ids) {
     };
   }, [ids]);
 
-  // ---- Pagination
-  // ---- Pagination
   async function loadMore() {
     const cursor = pages.at(-1)?.nextCursor ?? null;
-    if (!cursor) return; // don’t append fake page
+    if (!cursor) return;
 
     const next = await tableApi.getRows({ ...ids, limit: 20, cursor });
     setPages((prev) => [...prev, next]);
   }
 
-  // Create row: wait for server, then insert the **real** row
   async function addRow() {
     const created = await tableApi.createRow(ids);
     setPages((prev) => {
@@ -172,7 +164,6 @@ export function useTableData(ids: Ids) {
 
   async function patchRowTitle(p: { rowId: string; title: string }) {
     console.log("HOOK:patchRowTitle", p);
-    // optimistic
     setPages((prev) => {
       const next = structuredClone(prev);
       next.forEach((pg) =>
@@ -189,7 +180,6 @@ export function useTableData(ids: Ids) {
     type: PropertyType;
     options?: Array<Pick<PropertyOption, "value" | "color">>;
   }) {
-    // Let the server create it, then update UI from the response (or refetch)
     const created = await tableApi.createColumn({
       ...ids,
       name: p.name,
@@ -198,8 +188,7 @@ export function useTableData(ids: Ids) {
         value: opt.value,
         color: opt.color ?? undefined,
       })),
-    }); // return ColumnDef from API
-    // If the API returns void, do not check for truthiness
+    }); 
     if (created !== undefined && created !== null) {
       setColumns((c) => [...c, created]);
     }
@@ -222,7 +211,7 @@ export function useTableData(ids: Ids) {
     try {
       await tableApi.updateColumn({ ...ids, ...p });
     } catch (e) {
-      setColumns(prev); // rollback
+      setColumns(prev);
       throw e;
     }
   }
@@ -234,12 +223,12 @@ export function useTableData(ids: Ids) {
     try {
       await tableApi.deleteColumn({ ...ids, ...p });
     } catch (e) {
-      setColumns(prev); // rollback
+      setColumns(prev); 
       throw e;
     }
   }
   async function deleteRow(rowId: string) {
-    // optimistic remove
+ 
     const prev = pages;
     setPages((p) =>
       p.map((pg) => ({ ...pg, rows: pg.rows.filter((r) => r.id !== rowId) }))
@@ -248,20 +237,17 @@ export function useTableData(ids: Ids) {
     try {
       await tableApi.deleteRow({ ...ids, rowId });
     } catch (e) {
-      // rollback on error
       setPages(prev);
       console.error("deleteRow failed", e);
       throw e;
     }
   }
-  // ---- Cells
   async function patchCell(p: {
     rowId: string;
     propertyId: string;
     value: unknown;
   }) {
     console.log("HOOK:patchCell", p);
-    // optimistic
     const prev = pages;
     const col = columns.find((c) => c.id === p.propertyId);
     let normalized = p.value;
@@ -298,11 +284,10 @@ export function useTableData(ids: Ids) {
         value: p.value,
       });
     } catch (e) {
-      setPages(prev); // rollback
+      setPages(prev); 
       throw e;
     }
   }
-  // NEW: rename table (optimistic)
   async function patchTableName(name: string) {
     console.log("HOOK:patchTableName", { name });
     const prev = tableName;
@@ -310,7 +295,7 @@ export function useTableData(ids: Ids) {
     try {
       await tableApi.updateTable({ ...ids, name });
     } catch (e) {
-      setTableName(prev); // rollback
+      setTableName(prev); 
       throw e;
     }
   }

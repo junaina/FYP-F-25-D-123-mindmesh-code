@@ -1,4 +1,3 @@
-// src/modules/table/client/table.api.ts
 import type { ColumnDef, RowsPage, Row } from "../domain/types";
 
 type Ids = { projectId: string; docId: string; collectionId: string };
@@ -79,12 +78,9 @@ export const tableApi = {
     if (!res.ok) throw new Error(`getRows ${res.status}`);
 
     const data = await res.json();
-    // TEMP: keep this log until you see rows on screen
     console.log("API:getRows RAW →", data);
 
-    // Accept BOTH shapes:
-    //  - { rows: [...] , nextCursor }
-    //  - { rows: { rows: [...], nextCursor }, nextCursor }
+  
     const apiRows = Array.isArray(data?.rows?.rows)
       ? data.rows.rows
       : Array.isArray(data?.rows)
@@ -127,14 +123,13 @@ export const tableApi = {
     collectionId: string;
     rowId: string;
     propertyId: string;
-    type: string; // "text" | "select" | "multi_select" | ...
-    value: unknown; // primitive(s)
+    type: string; 
+    value: unknown;
   }) {
     const { projectId, docId, collectionId, rowId, propertyId, type, value } =
       p;
     const url = `/api/projects/${projectId}/docs/${docId}/collections/${collectionId}/table/rows/${rowId}/cells/${propertyId}`;
 
-    // Conform to PropertyValueDto
     const body =
       type === "multi_select"
         ? { type, value: Array.isArray(value) ? value : [] }

@@ -17,7 +17,7 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ projectId: string; docId: string }> }
 ) {
-  const { projectId, docId } = await ctx.params; // ✅ await params
+  const { projectId, docId } = await ctx.params; 
   const user = await requireUser();
 
   const doc = await DocumentService.getContent({
@@ -40,7 +40,7 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ projectId: string; docId: string }> }
 ) {
-  const { projectId, docId } = await ctx.params; // ✅ await params
+  const { projectId, docId } = await ctx.params;
   const user = await requireUser();
 
   const json = await req.json();

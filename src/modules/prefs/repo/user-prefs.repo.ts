@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import type { UpdatePrefsInput } from "../dto/preferences.dto";
 
 export async function getByUserId(userId: string) {
-  // Create defaults if missing, so GET always returns something
   return prisma.globalUserPrefs.upsert({
     where: { userId },
     create: {

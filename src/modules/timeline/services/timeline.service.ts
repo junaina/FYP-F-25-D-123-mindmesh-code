@@ -13,7 +13,6 @@ const DATE_PROP_TYPE = "date_time";
 const START = "start";
 const END = "end";
 
-//normalize a single property value row to a JSON-serializable value
 function toValue(pv: {
   valueString: string | null;
   valueNumber: number | null;
@@ -33,7 +32,7 @@ function toValue(pv: {
   if (kind === "select" || kind == "status") return pv.optionId;
   if (kind == "file" || kind === "person")
     return pv.valueJson as string | unknown;
-  //text/email/url/phone
+
   return pv.valueJson ?? pv.valueString ?? null;
 }
 function mapKind(dbType: string): TimelinePropertyDef["kind"] {
@@ -70,7 +69,7 @@ export async function listTimelinePropertyDefs(
   const optionsByProp = new Map<string, { id: string; name: string }[]>();
   for (const o of opts) {
     const arr = optionsByProp.get(o.propertyId) ?? [];
-    arr.push({ id: o.id, name: o.value }); // <-- value -> name for DTO
+    arr.push({ id: o.id, name: o.value });
     optionsByProp.set(o.propertyId, arr);
   }
 
@@ -78,14 +77,12 @@ export async function listTimelinePropertyDefs(
     id: d.id,
     name: d.name,
     kind: mapKind(d.type),
-    options: optionsByProp.get(d.id), // undefined if not select-ish
+    options: optionsByProp.get(d.id), 
   }));
 
   return dto;
 }
 export const TimelineService = {
-  //listing evevnts for the given collection scoped to project and document
-  //returns timelineeventdto
   async listEvents(params: {
     projectId: string;
     docId: string;
@@ -115,7 +112,7 @@ export const TimelineService = {
         end,
         addedById: item.addedById,
         properties: doc.propertyValues.map((pv) => ({
-          id: pv.property?.id ?? pv.propertyId, // prefer definition id
+          id: pv.property?.id ?? pv.propertyId, 
           name: pv.property?.name ?? "",
           type: pv.property?.type ?? "",
           value: toValue(pv),
@@ -123,14 +120,12 @@ export const TimelineService = {
       };
     });
   },
-  //list timelines (collections) for the given doc
   async listTimelinesForDoc(params: { projectId: string; docId: string }) {
     const { docId } = params;
     return TimelineRepo.listTimelineCollectionsByDoc(docId);
   },
-  //CREATE EVENTS
   async createTimeline(args: {
-    projectId: string; // for routing symmetry; not used in repo write
+    projectId: string; 
     docId: string;
     data: CreateTimelineInput;
   }) {
@@ -143,7 +138,7 @@ export const TimelineService = {
       createdById: user.id,
     });
 
-    return row; // { id, documentId, name, type, createdById }
+    return row; 
   },
   async createEvent(params: {
     projectId: string;
@@ -152,20 +147,17 @@ export const TimelineService = {
   }) {
     const { projectId, collectionId, data } = params;
     const user = await requireUser();
-    //creating a doc and linking it to the collection
     const doc = await TimelineRepo.createDocument(
       projectId,
       data.title.trim().slice(0, 255),
       user.id
     );
     await TimelineRepo.linkToCollection(collectionId, doc.id, user.id);
-    // 2) ensure start/end definitions & links
     const startDef = await TimelineRepo.ensureDatePropDef(projectId, START);
     const endDef = await TimelineRepo.ensureDatePropDef(projectId, END);
     await TimelineRepo.ensureDocProperty(doc.id, startDef.id);
     await TimelineRepo.ensureDocProperty(doc.id, endDef.id);
 
-    // 3) write values via DocumentService (central rules)
     await Promise.all([
       DocumentService.setPropertyValue(projectId, doc.id, startDef.id, {
         type: DATE_PROP_TYPE,
@@ -185,7 +177,6 @@ export const TimelineService = {
       collectionId,
     };
   },
-  //PATCH A TIMELINE NAME
   async renameTimeline(params: {
     projectId: string;
     docId: string;
@@ -193,7 +184,6 @@ export const TimelineService = {
     name: string;
   }) {
     const { projectId, docId, collectionId, name } = params;
-    // (Auth optional here in dev since you're bypassing elsewhere.)
     return TimelineRepo.updateTimelineName({
       projectId,
       docId,
@@ -201,7 +191,6 @@ export const TimelineService = {
       name: name.trim().slice(0, 120),
     });
   },
-  //toggle visible properties ona  timeline
   async getTimelineProperties(params: {
     projectId: string;
     docId: string;
@@ -230,7 +219,6 @@ export const TimelineService = {
 
     return { properties, visiblePropertyIds, optionsByPropertyId };
   },
-  //put: replacing the visible set of properties
   async setTimelineVisibleProperties(params: {
     projectId: string;
     docId: string;
@@ -239,7 +227,6 @@ export const TimelineService = {
   }) {
     const { projectId, docId, collectionId, visiblePropertyIds } = params;
 
-    // Optional guard (cheap): only allow ids that appear in the union list
     const used = await TimelineRepo.getUsedPropertyDefsForCollection(
       projectId,
       docId,
@@ -259,7 +246,6 @@ export const TimelineService = {
   }) {
     const { projectId, docId, collectionId, documentId } = params;
 
-    // Ensure the doc really belongs to this timeline
     await TimelineRepo.assertEventBelongsToTimeline({
       projectId,
       docId,
@@ -267,22 +253,19 @@ export const TimelineService = {
       documentId,
     });
 
-    // Delete the document (cascades CollectionItem by FK)
     await TimelineRepo.deleteDocument(documentId);
 
     return { success: true as const };
   },
-  /** MOVE: set a new start; preserve duration. */
   async moveEvent(params: {
     projectId: string;
     docId: string;
     collectionId: string;
     documentId: string;
-    to: string; // ISO for new start
+    to: string;
   }) {
     const { projectId, docId, collectionId, documentId, to } = params;
 
-    // Guard: ensure the event is inside the timeline
     await TimelineRepo.assertEventBelongsToTimeline({
       projectId,
       docId,
@@ -290,14 +273,12 @@ export const TimelineService = {
       documentId,
     });
 
-    // Read current start/end ids+values
     const {
       startId: maybeStartId,
       endId: maybeEndId,
       values,
     } = await TimelineRepo.readDocStartEnd(projectId, documentId);
 
-    // Ensure the prop definitions exist and linked
     const { startId, endId } =
       maybeStartId && maybeEndId
         ? { startId: maybeStartId, endId: maybeEndId }
@@ -310,19 +291,16 @@ export const TimelineService = {
     const curStart = values[startId] ?? null;
     const curEnd = values[endId] ?? null;
     if (!curStart || !curEnd) {
-      // If one is missing, we can't preserve duration safely
       throw Object.assign(new Error("event has no valid start/end to move"), {
         code: "NOT_FOUND" as const,
       });
     }
 
-    // Compute new end by preserving duration
     const newStart = new Date(to);
     const durationMs =
       new Date(curEnd).getTime() - new Date(curStart).getTime();
     const newEnd = new Date(newStart.getTime() + durationMs);
 
-    // Write both values via DocumentService
     await Promise.all([
       DocumentService.setPropertyValue(projectId, documentId, startId, {
         type: DATE_PROP_TYPE,
@@ -337,14 +315,13 @@ export const TimelineService = {
     return { success: true as const };
   },
 
-  /** RESIZE: set one edge to a new instant with validation. */
   async resizeEvent(params: {
     projectId: string;
     docId: string;
     collectionId: string;
     documentId: string;
     edge: "start" | "end";
-    to: string; // ISO for new edge value
+    to: string; 
   }) {
     const { projectId, docId, collectionId, documentId, edge, to } = params;
 

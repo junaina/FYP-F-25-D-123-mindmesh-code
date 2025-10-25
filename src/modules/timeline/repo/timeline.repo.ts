@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 const DATE_PROP_TYPE = "date_time";
 const START = "start";
 const END = "end";
-// load property defs (no options yet)
 export async function getPropertyDefs(
   projectId: string,
   propertyIds: string[]
@@ -15,7 +14,6 @@ export async function getPropertyDefs(
   });
 }
 
-// load options for a set of propertyIds
 export async function getOptionsForPropertyIds(propertyIds: string[]) {
   if (!propertyIds.length) return [];
   return prisma.propertyOption.findMany({
@@ -27,7 +25,7 @@ export async function getOptionsForPropertyIds(propertyIds: string[]) {
       position: true,
       color: true,
     },
-    orderBy: [{ position: "asc" }, { value: "asc" }], // fall back to value
+    orderBy: [{ position: "asc" }, { value: "asc" }], 
   });
 }
 export const TimelineRepo = {
@@ -148,7 +146,6 @@ export const TimelineRepo = {
       create: { documentId, propertyId },
     });
   },
-  /** POST: create a document seeded with empty TipTap content. */
   async createDocument(projectId: string, title: string, createdById: string) {
     const EMPTY_TIPTAP_DOC = { type: "doc", content: [] as any[] };
     return prisma.document.create({
@@ -161,7 +158,6 @@ export const TimelineRepo = {
       select: { id: true, projectId: true, title: true },
     });
   },
-  //PATCH timeline collection name
   async assertTimelineCollection(
     projectId: string,
     docId: string,
@@ -182,7 +178,6 @@ export const TimelineRepo = {
       });
     }
   },
-  //here i am renaming a timeline after its been asserted it exists
   async updateTimelineName(args: {
     projectId: string;
     docId: string;
@@ -219,8 +214,7 @@ export const TimelineRepo = {
     });
     return rows.map((r) => r.documentId);
   },
-  //unique property defs used by any event i the collection
-  // ...
+
   async getUsedPropertyDefsForCollection(
     projectId: string,
     docId: string,
@@ -241,14 +235,12 @@ export const TimelineRepo = {
     const propIds = used.map((u) => u.propertyId);
     if (!propIds.length) return [];
 
-    // IMPORTANT: include `type`
     const defs = await prisma.propertyDefinition.findMany({
       where: { id: { in: propIds } },
       select: { id: true, name: true, type: true }, // <-- add type
       orderBy: { name: "asc" },
     });
 
-    // normalize legacy "date" to "date_time" for UI
     const mapKind = (t: string) => (t === "date" ? "date_time" : t);
 
     return defs.map((d) => ({
@@ -257,9 +249,6 @@ export const TimelineRepo = {
       kind: mapKind(d.type),
     }));
   },
-  // ...
-
-  //currently visible ids for this collection
   async getVisiblePropertyIds(
     projectId: string,
     docId: string,
@@ -275,7 +264,6 @@ export const TimelineRepo = {
     });
     return rows.map((r) => r.propertyId);
   },
-  //replacing the visible set for a collection in one transaction
   async replaceVisiblePropertyIds(collectionId: string, propertyIds: string[]) {
     await prisma.$transaction(async (tx) => {
       await tx.viewPropertyVisibility.deleteMany({ where: { collectionId } });
@@ -340,9 +328,7 @@ export const TimelineRepo = {
       values,
     };
   },
-  /** Ensure the date prop definitions exist, return their ids. */
   async ensureStartEndPropDefs(projectId: string) {
-    // Try find existing first
     const existing = await prisma.propertyDefinition.findMany({
       where: { projectId, name: { in: [START, END] } },
       select: { id: true, name: true },

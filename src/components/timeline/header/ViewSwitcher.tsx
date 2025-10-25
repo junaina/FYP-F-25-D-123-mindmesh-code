@@ -28,7 +28,7 @@ export default function ViewSwitcher({
     const nextStartISO = start;
 
     if (onChangeViewAndStart) {
-      onChangeViewAndStart(next, nextStartISO); // ✅ embedded (doc) case
+      onChangeViewAndStart(next, nextStartISO); 
     } else {
       // standalone page behavior
       const url = new URL(window.location.href);

@@ -17,7 +17,6 @@ import {
   getCollectionColumnPropertyIds,
   attachPropertiesToDocument,
 } from "../repo/table.repo";
-/** Infer TS types from Zod */
 type AddColumnBody = z.infer<typeof AddColumnBodyDto>;
 type UpdateColumnBody = z.infer<typeof UpdateColumnBodyDto>;
 type CreateRowBody = z.infer<typeof CreateRowBodyDto>;
@@ -27,7 +26,6 @@ type SaveOptionsBody = z.infer<typeof SaveOptionsBodyDto>;
 type CreateTableBody = z.infer<typeof CreateTableBodyDto>;
 
 export const TableService = {
-  /* ---------- collections / table ---------- */
   async createTable(projectId: string, body: CreateTableBody, userId: string) {
     // ensure host document belongs to the same project
     return TableRepo.createTableCollection(
@@ -43,7 +41,6 @@ export const TableService = {
     await TableRepo.renameCollection(collectionId, name);
   },
 
-  /* ---------- schema (columns as union of doc properties) ---------- */
   async getSchema(projectId: string, collectionId: string) {
     await TableRepo.assertCollectionInProject(collectionId, projectId);
     const docIds = await TableRepo.docIdsInCollection(collectionId);
@@ -57,10 +54,8 @@ export const TableService = {
   ) {
     await TableRepo.assertCollectionInProject(collectionId, projectId);
 
-    // 1) create project-scoped definition
     const def = await DocumentRepo.createDef(projectId, body.name, body.type);
 
-    // 2) seed options if provided (need one doc context to call your option API)
     if (body.options?.length) {
       const oneDoc = await TableRepo.anyDocId(collectionId);
       if (oneDoc) {
@@ -74,7 +69,6 @@ export const TableService = {
       }
     }
 
-    // 3) link to ALL docs in table
     const docIds = await TableRepo.docIdsInCollection(collectionId);
     await TableRepo.linkPropertyToDocs(def.id, docIds);
 
@@ -89,11 +83,9 @@ export const TableService = {
   ) {
     await TableRepo.assertCollectionInProject(collectionId, projectId);
 
-    // ensure linked to all docs
     const docIds = await TableRepo.docIdsInCollection(collectionId);
     await TableRepo.linkPropertyToDocs(propertyId, docIds);
 
-    // migrate definition using your existing semantics
     const current = await DocumentRepo.getPropertyDefinition(
       projectId,
       propertyId
@@ -144,11 +136,10 @@ export const TableService = {
     await TableRepo.unlinkPropertyAcrossCollection(collectionId, propertyId);
   },
 
-  /* ---------- rows (documents) ---------- */
   async listRows(projectId: string, collectionId: string) {
     await TableRepo.assertCollectionInProject(collectionId, projectId);
     const rows = await TableRepo.listDocsWithValues(projectId, collectionId);
-    return { rows, nextCursor: null }; // ← match the frontend’s RowsApi type
+    return { rows, nextCursor: null }; 
   },
 
   async createRow(
@@ -159,7 +150,6 @@ export const TableService = {
   ) {
     await TableRepo.assertCollectionInProject(collectionId, projectId);
 
-    // 1) create the document (make sure your TableRepo.createDoc sets EMPTY_TIPTAP_DOC)
     const doc = await TableRepo.createDoc(
       projectId,
       body.title,
@@ -167,14 +157,11 @@ export const TableService = {
       userId
     );
 
-    // 2) link it into the collection
     await TableRepo.addDocToCollection(collectionId, doc.id, userId);
 
-    // 3) attach this table's columns to the document (so the doc shows them immediately)
     const propertyIds = await getCollectionColumnPropertyIds(collectionId);
     await attachPropertiesToDocument(doc.id, propertyIds);
 
-    // 4) if the caller passed initial values for some properties, apply them
     if (body.initialProperties) {
       await DocumentService.patchHeader(projectId, doc.id, {
         properties: body.initialProperties,
@@ -204,7 +191,6 @@ export const TableService = {
     });
   },
 
-  /* ---------- cells (inline editing) ---------- */
   async patchCell(
     projectId: string,
     collectionId: string,
@@ -217,7 +203,6 @@ export const TableService = {
     return { ok: true };
   },
 
-  /* ---------- options ---------- */
   readOptions(projectId: string, collectionId: string, propertyId: string) {
     return TableRepo.readOptions(projectId, collectionId, propertyId);
   },

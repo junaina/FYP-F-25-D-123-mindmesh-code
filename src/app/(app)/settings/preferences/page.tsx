@@ -1,4 +1,3 @@
-// src/app/(app)/settings/preferences/page.tsx
 "use client";
 
 import * as React from "react";

@@ -28,7 +28,7 @@ export const AuthAPI = {
       credentials: "include",
       body: JSON.stringify(input),
     });
-    // route returns { user } with 201
+    
     return parse<SignupResult>(res);
   },
   async me(): Promise<UserSafe | null> {
@@ -37,12 +37,12 @@ export const AuthAPI = {
       credentials: "include",
       cache: "no-store",
     });
-    if (res.status === 401) return null; // your route 401s when unauth
-    // route returns the user object (not wrapped)
+    if (res.status === 401) return null;
+    
     return parse<UserSafe>(res);
   },
 
-  // supports ?next=
+
   startGoogleOAuth(next?: string) {
     const url = next
       ? `/api/auth/oauth/google?next=${encodeURIComponent(next)}`

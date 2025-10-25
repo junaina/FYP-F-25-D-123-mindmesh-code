@@ -49,7 +49,6 @@ export const projectService = {
     userId: string,
     projectId: string
   ): Promise<{ id: string }> => {
-    // RBAC: OWNER or ADMIN can delete
     const role = await projectRepo.getMemberRole(projectId, userId);
     if (!role || (role !== "OWNER" && role !== "ADMIN")) {
       const err: any = new Error(
@@ -58,7 +57,6 @@ export const projectService = {
       err.status = 403;
       throw err;
     }
-    // Hard delete; schema uses onDelete: Cascade for relations
     return projectRepo.deleteById(projectId);
   },
 };

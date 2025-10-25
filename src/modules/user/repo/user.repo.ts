@@ -43,7 +43,6 @@ export const userRepo = {
       firstName: data.firstName,
       lastName: data.lastName,
     };
-    // only touch avatarUrl if it was supplied (can be null)
     if ("avatarUrl" in data) updateData.avatarUrl = data.avatarUrl;
 
     return prisma.user.update({
@@ -75,7 +74,6 @@ export const userRepo = {
     return prisma.project.count({ where: { createdById: userId } });
   },
   async deleteUserHard(userId: string) {
-    // Will throw Prisma P2003 FK error if anything still references this user
     return prisma.user.delete({
       where: { id: userId },
       select: { id: true, email: true },

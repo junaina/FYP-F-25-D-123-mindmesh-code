@@ -10,7 +10,7 @@ type Args = {
   docId: string;
   getLastServerUpdatedAt: () => string | null;
   setLastServerUpdatedAt: (iso: string) => void;
-  onConflict?: () => Promise<void>; // e.g., refetch + replace content
+  onConflict?: () => Promise<void>; 
   debounceMs?: number;
 };
 
@@ -29,7 +29,6 @@ export function useAutosave({
   useEffect(() => {
     if (!editor) return;
 
-    // optional: only autosave when the document (not just selection) changed
     const onUpdate: (e: EditorEvents["update"]) => void = ({ transaction }) => {
       if (!transaction.docChanged) return;
 
@@ -62,7 +61,7 @@ export function useAutosave({
 
     return () => {
       if (t.current) clearTimeout(t.current);
-      editor.off("update", onUpdate); // <-- remove listener (no unsub())
+      editor.off("update", onUpdate); 
     };
   }, [
     editor,
