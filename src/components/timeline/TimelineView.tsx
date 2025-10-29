@@ -127,6 +127,33 @@ export default function TimelineView({
     }
     return rows;
   }, [propertyDefs]);
+  const metaByName = useMemo(() => {
+    const m = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        kind: string;
+        options?: { id: string; value: string; color?: string | null }[];
+      }
+    >();
+
+    for (const def of propertyDefs) {
+      const raw = propertyOptions?.[def.id] ?? [];
+      const opts = raw.map((o: any) => ({
+        id: o.id,
+        value: o.name ?? o.value ?? "",
+        color: o.color ?? null, // will be undefined now if your API doesn’t send color yet
+      }));
+      m.set(def.name, {
+        id: def.id,
+        name: def.name,
+        kind: def.kind ?? "text",
+        options: opts,
+      });
+    }
+    return m;
+  }, [propertyDefs, propertyOptions]);
 
   useEffect(() => {
     if (!projectId || !docId || !collectionId) return;
@@ -272,6 +299,7 @@ export default function TimelineView({
                       projectId={projectId}
                       docId={docId}
                       collectionId={collectionId}
+                      metaByName={metaByName}
                     />
                   )}
               </GridBands>

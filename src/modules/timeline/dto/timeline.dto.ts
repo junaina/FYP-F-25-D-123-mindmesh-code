@@ -74,22 +74,25 @@ export const PatchTimelineNameDto = z.object({
   name: z.string().trim().min(1).max(120),
 });
 
+export const PropertyOptionDto = z.object({
+  id: z.string().uuid(),
+  name: z.string(), // we’ll map Prisma's `value` -> `name`
+  color: z.string().nullable().optional(),
+});
+export type PropertyOption = z.infer<typeof PropertyOptionDto>;
+
 //get and put property visibility on timeline
 /** Property definition (the union list the UI can choose from) */
 export const TimelinePropertyDefDto = z.object({
   id: z.string().uuid(),
   name: z.string(),
   kind: z.string(), // 'text' | 'number' | 'date_time' | 'select' | 'multi_select' | ...
+  options: z.array(PropertyOptionDto).optional(),
 });
 export type TimelinePropertyDef = z.infer<typeof TimelinePropertyDefDto>;
 
-export const PropertyOptionDto = z.object({
-  id: z.string().uuid(),
-  name: z.string(), // we’ll map Prisma's `value` -> `name`
-});
-export type PropertyOption = z.infer<typeof PropertyOptionDto>;
-
 /** GET response: union of props + currently visible propertyIds */
+
 export const GetTimelinePropertiesResponseDto = z.object({
   properties: z.array(TimelinePropertyDefDto),
   visiblePropertyIds: z.array(z.string().uuid()),

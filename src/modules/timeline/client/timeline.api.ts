@@ -26,7 +26,10 @@ export async function getTimelineProperties(params: {
   return json as {
     properties: { id: string; name: string; kind: string }[];
     visiblePropertyIds: string[];
-    optionsByPropertyId?: Record<string, { id: string; name: string }[]>;
+    optionsByPropertyId?: Record<
+      string,
+      { id: string; name: string; color?: string | null }[]
+    >;
   };
 }
 async function apiFetch<T>(
