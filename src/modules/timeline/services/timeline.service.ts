@@ -66,10 +66,13 @@ export async function listTimelinePropertyDefs(
   const defs = await getPropertyDefs(projectId, propertyIds);
   const opts = await getOptionsForPropertyIds(propertyIds);
 
-  const optionsByProp = new Map<string, { id: string; name: string }[]>();
+  const optionsByProp = new Map<
+    string,
+    { id: string; name: string; color?: string | null }[]
+  >();
   for (const o of opts) {
     const arr = optionsByProp.get(o.propertyId) ?? [];
-    arr.push({ id: o.id, name: o.value });
+    arr.push({ id: o.id, name: o.value, color: o.color ?? null });
     optionsByProp.set(o.propertyId, arr);
   }
 
@@ -77,7 +80,7 @@ export async function listTimelinePropertyDefs(
     id: d.id,
     name: d.name,
     kind: mapKind(d.type),
-    options: optionsByProp.get(d.id), 
+    options: optionsByProp.get(d.id),
   }));
 
   return dto;
@@ -112,7 +115,7 @@ export const TimelineService = {
         end,
         addedById: item.addedById,
         properties: doc.propertyValues.map((pv) => ({
-          id: pv.property?.id ?? pv.propertyId, 
+          id: pv.property?.id ?? pv.propertyId,
           name: pv.property?.name ?? "",
           type: pv.property?.type ?? "",
           value: toValue(pv),
@@ -125,7 +128,7 @@ export const TimelineService = {
     return TimelineRepo.listTimelineCollectionsByDoc(docId);
   },
   async createTimeline(args: {
-    projectId: string; 
+    projectId: string;
     docId: string;
     data: CreateTimelineInput;
   }) {
@@ -138,7 +141,7 @@ export const TimelineService = {
       createdById: user.id,
     });
 
-    return row; 
+    return row;
   },
   async createEvent(params: {
     projectId: string;
@@ -211,9 +214,13 @@ export const TimelineService = {
       properties.map((p) => p.id)
     );
     const optionsByPropertyId = optionRows.reduce<
-      Record<string, { id: string; name: string }[]>
+      Record<string, { id: string; name: string; color?: string | null }[]>
     >((acc, row) => {
-      (acc[row.propertyId] ??= []).push({ id: row.id, name: row.value });
+      (acc[row.propertyId] ??= []).push({
+        id: row.id,
+        name: row.value,
+        color: row.color ?? null,
+      });
       return acc;
     }, {});
 
@@ -321,7 +328,7 @@ export const TimelineService = {
     collectionId: string;
     documentId: string;
     edge: "start" | "end";
-    to: string; 
+    to: string;
   }) {
     const { projectId, docId, collectionId, documentId, edge, to } = params;
 

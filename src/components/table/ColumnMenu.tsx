@@ -50,13 +50,13 @@ export default function ColumnMenu({
             }}
           />
         </div>
-        {(column.type === "select" ||
+        {/* {(column.type === "select" ||
           column.type === "status" ||
           column.type === "multi_select") && (
           <DropdownMenuItem onClick={() => onEditOptions?.(column)}>
             Edit options…
           </DropdownMenuItem>
-        )}
+        )} */}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-red-500"

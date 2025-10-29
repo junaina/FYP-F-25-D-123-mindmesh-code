@@ -25,7 +25,7 @@ export default function ColumnsBar({
       style={{ display: "grid", gridTemplateColumns: template }}
     >
       {/* Name header */}
-      <div className="px-3 py-2 text-sm font-medium border-b border-border">
+      <div className="ml-2 px-3 py-2 text-sm font-medium border-b border-border flex items-center justify-between">
         Name
       </div>
 
