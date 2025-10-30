@@ -422,6 +422,7 @@ export default function EditPropertyPopover({
                     optionsDirtyRef.current = true;
                   }}
                   onSaved={async (opts) => {
+                    optionsDirtyRef.current = true;
                     // build a fresh def and notify the row
                     setInitialOptions(opts);
                     onUpdated?.({

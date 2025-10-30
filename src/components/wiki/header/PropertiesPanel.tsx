@@ -62,6 +62,9 @@ export default function PropertiesPanel({
           docId={docId}
           property={def}
           onUpdated={async (p) => {
+            setList((prev) =>
+              prev.map((d) => (d.id === p.id ? { ...d, ...p } : d))
+            );
             onUpdated?.(p);
             await refresh(); // ensure options/values are fresh
           }}
