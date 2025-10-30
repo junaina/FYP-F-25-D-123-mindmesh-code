@@ -49,12 +49,7 @@ export default function PropertyRow({
   onDeleted,
   onUpdated,
 }: Props) {
-  // keep a local copy of the definition (so the row updates immediately after edits)
-  const [def, setDef] = React.useState(property); // was: React.useEffect(() => setDef(property), [property]);
-  React.useEffect(() => {
-    // only replace local def when we switched to another property entirely
-    setDef((prev) => (prev?.id !== property.id ? property : prev));
-  }, [property.id]);
+  const def = property;
 
   // local value state (defaults to embedded value, can be overridden by prop)
   const [local, setLocal] = React.useState<PropertyValueDto | undefined>(
@@ -468,7 +463,6 @@ export default function PropertyRow({
         docId={docId}
         property={def}
         onUpdated={(updated) => {
-          setDef(updated);
           onUpdated?.(updated);
         }}
         onDeleted={onDeleted ?? (() => {})}
@@ -512,7 +506,7 @@ export default function PropertyRow({
             align="start"
             sideOffset={6}
             // match the value column’s width (Notion-style)
-            style={{ width: panelWidth }}
+            style={{ width: panelWidth ?? 240 }}
             className="p-0 border rounded-lg bg-popover text-popover-foreground shadow-xl overflow-hidden"
             key={`${def.id}-${def.type}`}
           >
