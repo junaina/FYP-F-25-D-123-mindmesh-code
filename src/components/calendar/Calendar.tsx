@@ -60,7 +60,6 @@ const toMonthStartIsoUTC = (d: Date) =>
   new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
 /* ================== Skeleton helpers ================== */
 
-/** Stable 0..100 hash for a string; used for deterministic variants per day. */
 function hash01(s: string) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < s.length; i++) {
@@ -70,10 +69,8 @@ function hash01(s: string) {
   return (h >>> 0) / 0xffffffff;
 }
 
-/** Decide a preset for a given day string so it’s stable across renders. */
 function skeletonPresetForDay(dayKey: string) {
   const r = hash01(dayKey);
-  // 0..1 → pick one of three richer templates
   if (r < 0.33) return { lines: 3, pills: 2 };
   if (r < 0.66) return { lines: 2, pills: 3 };
   return { lines: 1, pills: 1 };
