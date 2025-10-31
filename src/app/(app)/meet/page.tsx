@@ -81,7 +81,6 @@ export default function MeetPage() {
             />
           </div>
 
-          {/* Dev-only area: manual signaling to test real P2P without backend */}
           <div className="mt-6 rounded-xl border border-border p-4">
             <div className="mb-2 text-sm font-medium">Manual signaling (dev only)</div>
             <div className="grid gap-3 md:grid-cols-2">

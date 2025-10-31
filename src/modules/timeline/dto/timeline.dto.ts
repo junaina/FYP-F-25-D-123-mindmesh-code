@@ -122,14 +122,11 @@ export const TimelineEventParamsDto = z.object({
 });
 export type TimelineEventParams = z.infer<typeof TimelineEventParamsDto>;
 
-//moving ad resizing events
-/** MOVE: set a new start; keep duration. */
 export const MoveTimelineEventBodyDto = z.object({
   to: z.string().datetime(), // ISO string for new start
 });
 export type MoveTimelineEventBody = z.infer<typeof MoveTimelineEventBodyDto>;
 
-/** RESIZE: drag start or end to a new instant. */
 export const ResizeTimelineEventBodyDto = z.object({
   edge: z.enum(["start", "end"]),
   to: z.string().datetime(), // ISO string for new edge value
@@ -138,7 +135,6 @@ export type ResizeTimelineEventBody = z.infer<
   typeof ResizeTimelineEventBodyDto
 >;
 
-/** Simple success response */
 export const OkResponseDto = z.object({ success: z.literal(true) });
 export type OkResponse = z.infer<typeof OkResponseDto>;
 

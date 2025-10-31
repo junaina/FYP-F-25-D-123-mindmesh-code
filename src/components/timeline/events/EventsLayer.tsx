@@ -208,7 +208,6 @@ export default function EventsLayer({
       className="absolute inset-0 pointer-events-auto overflow-y-auto"
       style={{ overflowX: "hidden" }}
     >
-      {/* This inner container is as tall as the stacked lanes */}
       <div className="relative" style={{ height: contentHeight }}>
         {placed.map((p) => {
           const vv = visibleValues(p);

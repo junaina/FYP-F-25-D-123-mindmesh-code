@@ -63,7 +63,6 @@ export default function SiteNavbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
-      {/* Desktop grid (md+) — 3 columns: left logo, center links, right controls */}
       <nav className="mx-auto hidden max-w-7xl grid-cols-3 items-center px-4 py-3 md:grid">
         {/* Left: Logo */}
         <div className="flex items-center gap-2 font-bold text-lg">
