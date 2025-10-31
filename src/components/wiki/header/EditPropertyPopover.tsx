@@ -437,7 +437,6 @@ export default function EditPropertyPopover({
                       })),
                     });
                   }}
-                  /* 👇 NEW: make the chips clickable and highlight selection */
                   clickable
                   selectionKind={type === "multi_select" ? "multi" : "single"}
                   selectedId={

@@ -23,7 +23,6 @@ type Props = {
   allUsers: Assignee[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
-  /** Optional label for the trigger. Defaults to "Assign". */
   label?: string;
 };
 

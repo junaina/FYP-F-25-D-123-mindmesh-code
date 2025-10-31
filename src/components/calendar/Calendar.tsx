@@ -79,19 +79,16 @@ function skeletonPresetForDay(dayKey: string) {
   return { lines: 1, pills: 1 };
 }
 
-/** A single shimmering line (title-like) with optional width % */
 function SkelLine({ w = 100 }: { w?: number }) {
   return <div className="mm-skeleton h-4" style={{ width: `${w}%` }} />;
 }
 
-/** A small rounded “pill” chip skeleton (property/status look) */
 function SkelPill({ w = 56 }: { w?: number }) {
   return (
     <div className="mm-skeleton h-5 rounded-full" style={{ width: `${w}px` }} />
   );
 }
 
-/** A richer cluster for one day: title + pills group, nice spacing */
 function SkeletonDay({ dayKey }: { dayKey: string }) {
   const preset = skeletonPresetForDay(dayKey);
 
@@ -108,12 +105,12 @@ function SkeletonDay({ dayKey }: { dayKey: string }) {
 
   return (
     <div className="mt-1 space-y-1.5">
-      {/* Title-ish lines */}
+
       {preset.lines >= 1 && <SkelLine w={h1} />}
       {preset.lines >= 2 && <SkelLine w={h2} />}
       {preset.lines >= 3 && <SkelLine w={h3} />}
 
-      {/* Chip row */}
+
       {preset.pills > 0 && (
         <div className="flex flex-wrap gap-1 mt-0.5">
           {Array.from({ length: preset.pills }).map((_, i) => (
@@ -125,7 +122,6 @@ function SkeletonDay({ dayKey }: { dayKey: string }) {
   );
 }
 
-/** Render exactly what the calendar service returns (toPropertyValueDto). */
 function displayPropValue(
   v: PropertyValueDto,
   propId: string,
@@ -173,7 +169,6 @@ function displayPropValue(
   }
 }
 
-/* Optional IDs for backend wiring */
 type Props = {
   projectId?: string;
   docId?: string; // host doc (calendar page)
@@ -196,7 +191,6 @@ type WeekSegment = {
 export function Calendar(props: Props) {
   const { projectId, docId, collectionId } = props;
 
-  /* -------- Title (persist) -------- */
   const LS_TITLE = "mindmesh:calendar:title";
   const [calendarTitle, setCalendarTitle] = React.useState<string>(() => {
     if (typeof window === "undefined") return "MindMesh Calendar";
@@ -207,7 +201,6 @@ export function Calendar(props: Props) {
       localStorage.setItem(LS_TITLE, calendarTitle);
   }, [calendarTitle]);
 
-  /* -------- View month (UTC) — now optionally host-controlled -------- */
   // 1) seed from prop (if provided), else current month
   const initialFromProp = React.useMemo(
     () => parseIsoToMonthStartUTC(props.initialAnchor ?? null),
@@ -250,7 +243,6 @@ export function Calendar(props: Props) {
 
   const goToday = () => setViewAnchor(monthStartUTC(new Date()));
 
-  /*----------------------- */
   const qc = useQueryClient();
   const { from, to } = monthRangeUTC(viewAnchor);
   const instancesKey = ["cal", collectionId, from, to];
@@ -302,7 +294,6 @@ export function Calendar(props: Props) {
     },
   });
 
-  /* -------- Add dialog placeholder (no local create) -------- */
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
 
@@ -310,7 +301,6 @@ export function Calendar(props: Props) {
     if (!selectedDate) return;
     setDialogOpen(true);
     await createEvent({ title, date: selectedDate });
-    // Dialog auto-closes in AddItemDialog, but we keep state clean anyway
     setDialogOpen(false);
     setSelectedDate(null);
   }
@@ -339,7 +329,6 @@ export function Calendar(props: Props) {
   const { instances, properties, settings, showSkeleton, isFetchingAny } =
     useCalendarData(projectId!, docId!, collectionId!, viewAnchor);
 
-  // Map backend propertyId → human name (for badges & visibility menu)
   const propIdToName = React.useMemo(() => {
     const map = new Map<string, string>();
     const rows = properties.data?.properties ?? [];
@@ -359,7 +348,6 @@ export function Calendar(props: Props) {
     return rows
       .map((p) => ({
         name: p.name,
-        // normalize to your UI's PropKind expectations (fallback to "text")
         kind: (p.kind as any) ?? "text",
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -608,7 +596,6 @@ export function Calendar(props: Props) {
               // expose a CSS var so children stay in sync
               style={{ ["--lane-space" as any]: `${laneSpace}px` }}
             >
-              {/* === CHIP LANES (auto-height) — rendered INSIDE the week === */}
               {!showSkeleton && (
                 <div
                   ref={lanesRef}
@@ -706,7 +693,7 @@ export function Calendar(props: Props) {
                 </div>
               )}
 
-              {/* === DAY GRID — padded top by the measured lane height === */}
+              {/* === DAY GRID  === */}
               <div
                 className="grid grid-cols-7 gap-px bg-border"
                 style={{ paddingTop: "var(--lane-space)" }} // room for chips inside the cells
@@ -764,8 +751,6 @@ export function Calendar(props: Props) {
         })}
       </div>
 
-      {/* Add dialog – currently no local create; wire to POST later */}
-      {/* Keep UI, but do not insert local items anymore */}
       <AddItemDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}

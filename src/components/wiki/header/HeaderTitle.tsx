@@ -70,18 +70,7 @@ export default function HeaderTitle({ projectId, docId, title }: Props) {
             <PencilLine className="size-4" />
           </button>
 
-          {/* Optional tooltip (uncomment imports above)
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button ...same classes as above...>
-                  <PencilLine className="size-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Rename</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          */}
+          
         </>
       )}
     </header>

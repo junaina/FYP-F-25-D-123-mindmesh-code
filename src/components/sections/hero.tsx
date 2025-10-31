@@ -202,9 +202,7 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Preview wrapped in laptop — nudged left on md+ */}
         <div className="relative md:-ml-12 lg:-ml-20 xl:-ml-28">
-          {/* light-only soft background so white doesn't look empty */}
           <div className="pointer-events-none absolute inset-0 -z-10 hidden bg-[radial-gradient(1100px_520px_at_70%_15%,_rgba(241,68,145,0.10),_transparent_60%)] md:block dark:hidden" />
 
           <DeviceLaptop label="MindMesh Preview">

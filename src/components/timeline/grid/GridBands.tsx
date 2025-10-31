@@ -43,7 +43,6 @@ export default function GridBands({
           }}
         />
 
-        {/* ===== NEW: per-column background (no grouping) ===== */}
         {columns.map((c, i) => {
           // prefer a standard 'band' property if you have it; else derive:
           const band =
