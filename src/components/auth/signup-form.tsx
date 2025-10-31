@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AuthAPI } from "@/modules/auth/client/auth.api";
-// optional banner for non-field errors
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const SignupSchema = z

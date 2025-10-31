@@ -566,7 +566,6 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        {/* Columns list — horizontal scroll & snap on mobile */}
         <SortableContext
           items={cols.map((c) => c.id)}
           strategy={horizontalListSortingStrategy}
@@ -617,7 +616,6 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
               <span className="text-sm font-medium">Add Column</span>
             </button>
 
-            {/* Fades on the edges (mobile hint) */}
             <div className="pointer-events-none absolute inset-y-0 left-0 w-6 z-0 bg-gradient-to-r from-background/95 to-transparent sm:hidden" />
             <div className="pointer-events-none absolute inset-y-0 right-0 w-6 z-0 bg-gradient-to-l from-background/95 to-transparent sm:hidden" />
           </div>

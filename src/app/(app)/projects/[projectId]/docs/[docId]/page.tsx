@@ -9,7 +9,7 @@ export default async function Page({ params }: { params: Promise<Params> }) {
   console.log("[page] params:", { projectId, docId });
   return (
     <main className="mx-auto max-w-6xl px-6 pt-10 pb-8 space-y-9">
-      {/*sidebar goes here*/}
+
       <HeaderWrapper projectId={projectId} docId={docId} />
       {/*wiki editor goes here*/}
 
