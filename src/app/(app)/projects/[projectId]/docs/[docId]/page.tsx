@@ -1,19 +1,16 @@
-import HeaderWrapper from "@/components/wiki/header/HeaderWrapper";
-import EditorWrapper from "@/components/wiki/editor/EditorWrapper";
+// app/(app)/projects/[projectId]/docs/[docId]/page.tsx
+import { DocumentScreen } from "@/components/wiki/screens/DocumentScreen";
+
 export const dynamic = "force-dynamic";
 
 type Params = { projectId: string; docId: string };
 
-export default async function Page({ params }: { params: Promise<Params> }) {
-  const { projectId, docId } = await params;
-  console.log("[page] params:", { projectId, docId });
+export default function Page({ params }: { params: Params }) {
+  const { projectId, docId } = params;
+
   return (
-    <main className="mx-auto max-w-6xl px-6 pt-10 pb-8 space-y-9">
-
-      <HeaderWrapper projectId={projectId} docId={docId} />
-      {/*wiki editor goes here*/}
-
-      <EditorWrapper projectId={projectId} docId={docId}></EditorWrapper>
-    </main>
+    <div className="h-[calc(100vh-3rem)] -mx-4 px-4 pt-10 pb-8">
+      <DocumentScreen projectId={projectId} docId={docId} />
+    </div>
   );
 }
