@@ -1,6 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import "flexlayout-react/style/dark.css";
 /* globals.css */
 :root {
   --sb-w: 0px;
