@@ -2,6 +2,180 @@
 @tailwind components;
 @tailwind utilities;
 @import "flexlayout-react/style/dark.css";
+/* ===== FlexLayout: make it follow app theme ===== */
+
+/* Overall layout + content panes */
+.flexlayout__layout,
+.flexlayout__layout_main,
+.flexlayout__tabset,
+.flexlayout__tab,
+.flexlayout__tab_container,
+.flexlayout__tab_moveable {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+/* Tab strip background (top bar) */
+.flexlayout__tabset_tabbar_inner,
+.flexlayout__border {
+  background-color: var(--background) !important;
+}
+
+/* Splitters between panes */
+.flexlayout__splitter {
+  background-color: color-mix(
+    in oklab,
+    var(--border) 70%,
+    transparent
+  ) !important;
+}
+
+/* --- Tabs as nice pills --- */
+
+/* Base tab button (unselected) */
+.flexlayout__tab_button,
+.flexlayout__border_button {
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  margin: 0.25rem 0.25rem 0.25rem 0;
+  background: transparent !important;
+  border: 0;
+  color: var(--muted-foreground) !important;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* Selected tab */
+.flexlayout__tab_button.flexlayout__tab_button--selected,
+.flexlayout__border_button.flexlayout__border_button--selected {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 85%,
+    transparent
+  ) !important;
+  color: var(--foreground) !important;
+}
+
+/* Hover (non-selected) */
+.flexlayout__tab_button:hover:not(.flexlayout__tab_button--selected),
+.flexlayout__border_button:hover:not(.flexlayout__border_button--selected) {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 65%,
+    transparent
+  ) !important;
+  color: var(--foreground) !important;
+}
+
+/* Close icon / toolbar icons on tabs */
+.flexlayout__tab_button_trailing {
+  /*gonna style the little x here in a bit*/
+}
+/* ===== FlexLayout toolbar (maximize icon etc.) ===== */
+
+.flexlayout__tab_toolbar {
+  background-color: transparent !important;
+  padding: 0 0.25rem;
+}
+
+/* The little icon button(s) on the right */
+.flexlayout__tab_toolbar_button {
+  background-color: transparent !important;
+  border-radius: 9999px;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  color: var(--muted-foreground) !important;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.flexlayout__tab_toolbar_button:hover {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 70%,
+    transparent
+  ) !important;
+  color: var(--foreground) !important;
+}
+
+/* Optional: a tiny bit of spacing from the tab text */
+.flexlayout__tab_toolbar > * + * {
+  margin-left: 0.25rem;
+}
+
+/* ===== FlexLayout splitters (pane resizers) ===== */
+
+.flexlayout__splitter {
+  background-color: transparent !important; /* kill the solid dark bar */
+  border-left: 1px solid color-mix(in oklab, var(--border) 80%, transparent) !important;
+  border-right: 0;
+}
+
+/* When actually dragging, FlexLayout adds a special class */
+.flexlayout__splitter_drag,
+.flexlayout__splitter_drag_horz,
+.flexlayout__splitter_drag_vert {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 80%,
+    transparent
+  ) !important;
+}
+
+/* Hover affordance so it still feels draggable */
+.flexlayout__splitter:hover {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 70%,
+    transparent
+  ) !important;
+}
+
+/* Pane border + rounding (card-ish look) */
+.flexlayout__tab {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* Remove extra hard borders that fight with ours */
+.flexlayout__tabset_tabbar_outer_top {
+  border-bottom: 0 !important;
+}
+/* Top/bottom tab bar wrapper background (the bit that's still dark) */
+.flexlayout__tabset_tabbar_outer,
+.flexlayout__tabset_tabbar_outer_top,
+.flexlayout__tabset_tabbar_outer_bottom,
+.flexlayout__tabset_tabbar_outer.flexlayout__tabset-selected,
+.flexlayout__tabset_tabbar_outer_top.flexlayout__tabset-selected {
+  background-color: var(--background) !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+}
+
+/* Selected tabset should NOT go dark */
+.flexlayout__tabset-selected {
+  background-color: var(--background) !important;
+}
+
+/* And its header + toolbar should stay on theme too */
+.flexlayout__tabset-selected .flexlayout__tabset_tabbar_outer,
+.flexlayout__tabset-selected .flexlayout__tab_toolbar,
+.flexlayout__tabset-selected .flexlayout__tab_toolbar_button {
+  background-color: var(--background) !important;
+  /* toolbar button itself we keep visually minimal */
+}
+
+/* Make sure the toolbar button never picks up a dark bg from dark.css */
+.flexlayout__tab_toolbar_button {
+  background-color: transparent !important;
+}
+
 /* globals.css */
 :root {
   --sb-w: 0px;
