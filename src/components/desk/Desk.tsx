@@ -12,7 +12,6 @@ import {
   type IJsonTabNode,
   type IJsonTabSetNode,
 } from "flexlayout-react";
-import "flexlayout-react/style/dark.css";
 import { viewRegistry } from "./view-registry";
 
 export type ViewKind = "document" | "thread" | "meeting" | "taskboard";
