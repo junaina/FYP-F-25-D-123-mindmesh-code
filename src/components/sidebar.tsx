@@ -61,6 +61,10 @@ export default function Sidebar() {
   const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(
     null
   );
+  // controls whether the Documents sub-list is expanded for each project
+  const [openDocsByProject, setOpenDocsByProject] = useState<
+    Record<string, boolean>
+  >({});
   // inside component state
   const [docsByProject, setDocsByProject] = useState<Record<string, DocLite[]>>(
     {}
@@ -439,38 +443,58 @@ export default function Sidebar() {
                             href={`/projects/${p.id}/discussions`}
                           />
 
-                          {/* Documents section header */}
-                          <div className="mt-2 text-xs uppercase text-muted-foreground px-2">
-                            Documents
+                          {/* Documents “parent” row (collapsible) */}
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenDocsByProject((prev) => ({
+                                  ...prev,
+                                  [p.id]: !prev[p.id],
+                                }))
+                              }
+                              className="w-full flex items-center justify-between px-4 py-2 rounded-md text-sm hover:bg-muted transition"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Type className="h-5 w-5 shrink-0" />
+                                <span className="truncate">Documents</span>
+                              </div>
+                              <ChevronDown
+                                className={`h-4 w-4 text-muted-foreground transition-transform ${
+                                  openDocsByProject[p.id] ? "rotate-180" : ""
+                                }`}
+                              />
+                            </button>
                           </div>
 
-                          {/* Scrollable docs list */}
-                          <div className="max-h-60 overflow-y-auto pr-1">
-                            {(docsByProject[p.id] ?? []).map((d) => (
-                              <SidebarItem
-                                key={d.id}
-                                icon={Type}
-                                label={d.title || "Untitled"}
-                                href={`/projects/${p.id}/docs/${d.id}`}
-                                // this is the important part: enables drag + Alt/Middle click to Desk
-                                viewConfig={{
-                                  kind: "document",
-                                  id: d.id,
-                                  title: d.title || "Untitled",
-                                  params: { projectId: p.id },
-                                }}
-                                title="Drag to Desk or Alt-click to open in a tab"
-                              />
-                            ))}
-                            {/* Optional: empty state */}
-                            {docsByProject[p.id] &&
-                              (docsByProject[p.id] as DocLite[]).length ===
-                                0 && (
-                                <div className="px-4 py-2 text-xs text-muted-foreground">
-                                  No documents
-                                </div>
-                              )}
-                          </div>
+                          {/* Scrollable docs list – only when Documents is open */}
+                          {openDocsByProject[p.id] && (
+                            <div className="max-h-60 overflow-y-auto pr-1">
+                              {(docsByProject[p.id] ?? []).map((d) => (
+                                <SidebarItem
+                                  key={d.id}
+                                  icon={Type}
+                                  label={d.title || "Untitled"}
+                                  href={`/projects/${p.id}/docs/${d.id}`}
+                                  viewConfig={{
+                                    kind: "document",
+                                    id: d.id,
+                                    title: d.title || "Untitled",
+                                    params: { projectId: p.id },
+                                  }}
+                                  title="Drag to Desk or Alt-click to open in a tab"
+                                />
+                              ))}
+
+                              {docsByProject[p.id] &&
+                                (docsByProject[p.id] as DocLite[]).length ===
+                                  0 && (
+                                  <div className="px-4 py-2 text-xs text-muted-foreground">
+                                    No documents
+                                  </div>
+                                )}
+                            </div>
+                          )}
 
                           <SidebarItem
                             icon={Video}
