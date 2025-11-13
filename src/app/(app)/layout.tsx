@@ -5,7 +5,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <SidebarPortal />
-      <div className="contents">{children}</div>
+      <main>
+        <div className="contents">{children}</div>
+      </main>
     </>
   );
 }

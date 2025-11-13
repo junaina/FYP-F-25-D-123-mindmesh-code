@@ -47,22 +47,43 @@ export default function Desk() {
   const [model, setModel] = useState(() => Model.fromJson(DEFAULT_JSON));
 
   const factory = useCallback((node: TabNode) => {
-    const cfg = node.getConfig() as ViewConfig;
-    const Comp = viewRegistry[cfg.kind];
+    const cfg = node.getConfig() as ViewConfig | undefined;
+
+    if (!cfg) {
+      return (
+        <div className="p-3 text-sm text-red-500">
+          This tab is missing its view config.
+        </div>
+      );
+    }
+
+    const Comp = viewRegistry[cfg.kind as keyof typeof viewRegistry];
+    if (!Comp) {
+      return (
+        <div className="p-3 text-sm text-red-500">
+          Unknown view kind: <code>{String(cfg.kind)}</code>
+        </div>
+      );
+    }
+
     return <Comp id={cfg.id} params={cfg.params} />;
   }, []);
 
   // expose a simple global for now so Sidebar can start a drag
+  (globalThis as any).openDeskDirect = openDirect;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (globalThis as any).beginDeskDrag = (ev: DragEvent, payload: ViewConfig) => {
+    // Start the UX of dragging…
     layoutRef.current?.addTabWithDragAndDrop(
-      ev, // ← pass the DOM Drag/Mouse event here
+      ev,
       {
         component: "view",
         name: payload.title,
+        // (this config here is not reliably preserved by the callback)
         config: payload,
       } as IJsonTabNode,
-      (tabJson) => {
+      () => {
+        // …then manually create the node with our real config
         const rootChildren = model.getRoot().getChildren();
         const fallbackTabsetId =
           rootChildren.length > 0
@@ -70,8 +91,14 @@ export default function Desk() {
             : "";
         const target = model.getActiveTabset()?.getId() ?? fallbackTabsetId;
 
+        const nodeWithConfig: IJsonTabNode = {
+          component: "view",
+          name: payload.title,
+          config: payload, // <-- critical
+        };
+
         model.doAction(
-          Actions.addNode(tabJson, target, DockLocation.CENTER, 0, true)
+          Actions.addNode(nodeWithConfig, target, DockLocation.CENTER, 0, true)
         );
         setModel(Model.fromJson(model.toJson()));
       }
@@ -98,28 +125,14 @@ export default function Desk() {
     );
     setModel(Model.fromJson(model.toJson()));
   }
+  (globalThis as any).openDeskTab = openDirect;
 
   return (
-    <div className="flex h-full">
-      <div className="absolute left-4 top-4 z-10">
-        <button
-          className="rounded border px-2 py-1 text-sm"
-          onClick={() =>
-            openDirect({
-              kind: "document",
-              id: "<REAL_DOC_ID>",
-              title: "Sample Doc",
-              params: { projectId: "<REAL_PROJECT_ID>" },
-            })
-          }
-        >
-          Open directly
-        </button>
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <Layout ref={layoutRef} model={model} factory={factory} />
-      </div>
+    <div
+      className="fixed top-0 right-0 bottom-0 z-0"
+      style={{ left: "var(--sb-w, 72px)" }} // <-- respect sidebar width
+    >
+      <Layout ref={layoutRef} model={model} factory={factory} />
     </div>
   );
 }
