@@ -9,7 +9,7 @@ export default function DeskPage() {
   if (!DESK_ENABLED) return null;
   // if your root layout adds vertical padding, subtract it here
   return (
-    <div className="h-[calc(100vh-3rem)] -mx-4">
+    <div className="h-[100dvh] overflow-hidden">
       <Desk />
     </div>
   );

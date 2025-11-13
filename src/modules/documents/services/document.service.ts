@@ -14,6 +14,7 @@ import {
   PROPERTY_TYPES,
   type PropertyType,
 } from "@/modules/documents/domain/types";
+import type { DocLite } from "../repo/document.repo";
 
 //wen updating a property definition
 type UpdatePropertyArgs = {
@@ -65,7 +66,7 @@ type RepoPropertyOption = {
 type RepoPropertyDefinition = {
   id: string;
   name: string;
-  type: string; 
+  type: string;
   options: RepoPropertyOption[];
 };
 
@@ -87,8 +88,8 @@ type DbValueUpdate = {
   valueNumber: number | null;
   valueBool: boolean | null;
   valueDate: Date | null;
-  valueJson: string[] | null; 
-  optionId: string | null; 
+  valueJson: string[] | null;
+  optionId: string | null;
 };
 export type SaveOptionInput = {
   id?: string;
@@ -114,13 +115,13 @@ export type UpdateContentArgs = {
   projectId: string;
   docId: string;
   userId: string;
-  content: DocContent; 
-  lastKnownUpdatedAt?: Date; 
+  content: DocContent;
+  lastKnownUpdatedAt?: Date;
 };
 
 export type UpdateContentResult =
   | { mutated: true; updatedAt: Date }
-  | { mutated: false; currentUpdatedAt: Date }; 
+  | { mutated: false; currentUpdatedAt: Date };
 ////////////////////////////////////////////////////////////////////////////////
 function dbValueToDto(
   propType: PropertyType,
@@ -219,6 +220,26 @@ function valueDtoToDb(p: PropertyValueDto): DbValueUpdate {
 }
 
 export const DocumentService = {
+  /**
+   * Lite list for sidebar/desk: id + title only.
+   * Enforces the same read access policy as content.
+   */
+  async listLiteByProject(
+    projectId: string,
+    userId: string
+  ): Promise<DocLite[]> {
+    // mirror your read check: project membership OR collab on any doc
+    // For now we use the same “project member OR auth disabled” gate.
+    if (
+      !(await accessRepo.isProjectMember(projectId, userId)) &&
+      !isAuthDisabled()
+    ) {
+      // If you’d rather return an empty list instead of 403, do it here.
+      throw new Error("Forbidden");
+    }
+    return DocumentRepo.findLiteByProject(projectId);
+    // if you imported function form: return findLiteByProject(projectId);
+  },
   async updatePropertyDefinition({
     projectId,
     docId,
@@ -327,33 +348,40 @@ export const DocumentService = {
       )) as RepoDocumentHeader | null;
       if (!current) throw new Error("Document not found");
 
-      const incoming = Object.entries(payload.properties); 
+      const incoming = Object.entries(payload.properties);
       const incomingNames = incoming.map(([n]) => n);
 
-      const existingDefs = await DocumentRepo.defsByNames(projectId, incomingNames);
-const byName = new Map(existingDefs.map((d) => [d.name, d]));
+      const existingDefs = await DocumentRepo.defsByNames(
+        projectId,
+        incomingNames
+      );
+      const byName = new Map(existingDefs.map((d) => [d.name, d]));
 
-for (const [name, pv] of incoming) {
-  const existing = byName.get(name);
+      for (const [name, pv] of incoming) {
+        const existing = byName.get(name);
 
-  if (!existing) {
-    const created = await DocumentRepo.createDef(projectId, name, pv.type);
-    byName.set(name, created);
-    continue;
-  }
+        if (!existing) {
+          const created = await DocumentRepo.createDef(
+            projectId,
+            name,
+            pv.type
+          );
+          byName.set(name, created);
+          continue;
+        }
 
-  if (existing.type !== pv.type) {
-    const updated = await DocumentRepo.txUpdatePropertyDefinition({
-      projectId,
-      propertyId: existing.id,
-      updateBasics: { name, type: pv.type },
-      fromType: existing.type as PropertyType,
-      toType: pv.type as PropertyType,
-      keepField: TARGET_FIELD[pv.type],
-    });
-    byName.set(name, updated);
-  }
-}
+        if (existing.type !== pv.type) {
+          const updated = await DocumentRepo.txUpdatePropertyDefinition({
+            projectId,
+            propertyId: existing.id,
+            updateBasics: { name, type: pv.type },
+            fromType: existing.type as PropertyType,
+            toType: pv.type as PropertyType,
+            keepField: TARGET_FIELD[pv.type],
+          });
+          byName.set(name, updated);
+        }
+      }
 
       for (const [name] of incoming) {
         const def = byName.get(name)!;

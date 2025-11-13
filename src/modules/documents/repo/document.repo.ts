@@ -49,6 +49,8 @@ export type DbValueUpdate = {
   valueJson: string[] | null; // multi_select/person/file store string IDs
   optionId: string | null;
 };
+export type DocLite = { id: string; title: string | null };
+
 export async function listForProject(projectId: string, userId: string) {
   return prisma.document.findMany({
     where: {
@@ -78,7 +80,7 @@ export async function createInProject(
       projectId,
       createdById: userId,
       title: title?.trim() || "Untitled",
-      content: {}, 
+      content: {},
     },
     select: { id: true },
   });
@@ -116,7 +118,6 @@ async function txDeleteOptionSafe(args: {
   const { propertyId, optionId } = args;
 
   return prisma.$transaction(async (tx) => {
-   
     const exists = await tx.propertyOption.findFirst({
       where: { id: optionId, propertyId },
       select: { id: true },
@@ -137,7 +138,6 @@ async function txDeleteOptionSafe(args: {
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === "P2003"
       ) {
-       
         throw Object.assign(new Error("Option is still referenced elsewhere"), {
           code: "OPTION_IN_USE",
         });
@@ -247,6 +247,14 @@ export const DocumentRepo = {
   txDeleteOptionSafe,
   assertDocAndPropertySameProject,
   assertDocInProject,
+  async findLiteByProject(projectId: string): Promise<DocLite[]> {
+    return prisma.document.findMany({
+      where: { projectId },
+      select: { id: true, title: true },
+      orderBy: { updatedAt: "desc" },
+      take: 200, // sidebar-friendly cap
+    });
+  },
   async findHeaderById(projectId: string, docId: string) {
     const doc = await prisma.document.findUnique({
       where: { id: docId, projectId },
@@ -291,13 +299,11 @@ export const DocumentRepo = {
     const { propertyId, updateBasics, fromType, toType, keepField } = args;
 
     return prisma.$transaction(async (tx) => {
-   
       await tx.propertyDefinition.update({
         where: { id: propertyId },
         data: { name: updateBasics.name, type: updateBasics.type },
       });
 
-     
       if (fromType !== toType) {
         await tx.documentPropertyValue.updateMany({
           where: { propertyId },
@@ -311,7 +317,6 @@ export const DocumentRepo = {
           },
         });
 
-       
         await tx.propertyOption.deleteMany({ where: { propertyId } });
       }
 
@@ -542,7 +547,7 @@ export const DocumentRepo = {
       const remaining = await tx.documentProperty.count({
         where: { propertyId },
       });
-      if (remaining > 0) return; 
+      if (remaining > 0) return;
 
       await tx.documentPropertyValue.deleteMany({ where: { propertyId } });
 

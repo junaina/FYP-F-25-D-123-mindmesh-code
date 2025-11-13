@@ -40,6 +40,12 @@ import {
   type ProjectLite,
 } from "@/modules/projects/client/project.api";
 import Link from "next/link";
+import { useMemo } from "react";
+// add types for a tiny doc record
+import { makeDocView } from "./desk/utils/view-utils";
+const COLLAPSED_W = 72; // px — what your collapsed state looks like
+const EXPANDED_W = 256; // px — your `w-64` expanded width
+type DocLite = { id: string; title: string | null };
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [me, setMe] = useState<MeForSidebar | null>(null);
@@ -55,6 +61,29 @@ export default function Sidebar() {
   const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(
     null
   );
+  // inside component state
+  const [docsByProject, setDocsByProject] = useState<Record<string, DocLite[]>>(
+    {}
+  );
+  useEffect(() => {
+    // mark that the layout has an app sidebar
+    document.body.classList.add("has-app-sb");
+
+    // set the CSS variable to match the current sidebar width
+    const w = collapsed ? COLLAPSED_W : EXPANDED_W;
+    document.body.style.setProperty("--sb-w", `${w}px`);
+
+    // optional: set a default on mount if nothing has set it yet
+    if (!getComputedStyle(document.body).getPropertyValue("--sb-w").trim()) {
+      document.body.style.setProperty("--sb-w", `${COLLAPSED_W}px`);
+    }
+
+    return () => {
+      // if this sidebar unmounts (rare), keep the var but you could also clean it:
+      // document.body.style.removeProperty('--sb-w');
+    };
+  }, [collapsed]);
+
   const [searchOpen, setSearchOpen] = useState(false);
   useEffect(() => {
     userApi
@@ -68,10 +97,31 @@ export default function Sidebar() {
       .then(setProjects)
       .catch((e) => setPErr(e?.message ?? "Failed to load projects"));
   }, []);
-
-  function toggleProject(id: string) {
-    setOpenProjects((prev) => ({ ...prev, [id]: !prev[id] }));
+  // helper to lazy-load docs for a project (adjust API to your actual client)
+  async function loadDocs(projectId: string) {
+    if (docsByProject[projectId]) return;
+    try {
+      const r = await fetch(`/api/projects/${projectId}/docs?lite=1`, {
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("Failed to load docs");
+      const docs = (await r.json()) as DocLite[];
+      setDocsByProject((m) => ({ ...m, [projectId]: docs }));
+    } catch (e) {
+      console.error(e);
+      setDocsByProject((m) => ({ ...m, [projectId]: [] }));
+    }
   }
+
+  // change toggleProject to also lazy load docs when opening
+  function toggleProject(id: string) {
+    setOpenProjects((prev) => {
+      const next = !prev[id];
+      if (next) loadDocs(id);
+      return { ...prev, [id]: next };
+    });
+  }
+
   function startRename(p: ProjectLite) {
     setEditingId(p.id);
     setEditingName(p.name);
@@ -142,7 +192,7 @@ export default function Sidebar() {
     <aside
       data-app-sidebar
       className={`fixed left-0 top-0 h-screen bg-background border-r flex flex-col overflow-y-auto transition-all duration-300
-        ${collapsed ? "w-30" : "w-64"}`}
+        ${collapsed ? "w-30" : "w-64"} z-50`}
     >
       {/* User branding */}
       <div className="flex items-center justify-between p-4 border-b">
@@ -367,6 +417,7 @@ export default function Sidebar() {
                       </div>
 
                       {/* submenu — your same 5 items, but project-scoped */}
+                      {/* submenu — project-scoped items */}
                       {isOpen && (
                         <div
                           id={`proj-${p.id}-menu`}
@@ -387,11 +438,40 @@ export default function Sidebar() {
                             label="Discussions"
                             href={`/projects/${p.id}/discussions`}
                           />
-                          <SidebarItem
-                            icon={Type}
-                            label="Documents"
-                            href={`/projects/${p.id}/documents`}
-                          />
+
+                          {/* Documents section header */}
+                          <div className="mt-2 text-xs uppercase text-muted-foreground px-2">
+                            Documents
+                          </div>
+
+                          {/* Scrollable docs list */}
+                          <div className="max-h-60 overflow-y-auto pr-1">
+                            {(docsByProject[p.id] ?? []).map((d) => (
+                              <SidebarItem
+                                key={d.id}
+                                icon={Type}
+                                label={d.title || "Untitled"}
+                                href={`/projects/${p.id}/docs/${d.id}`}
+                                // this is the important part: enables drag + Alt/Middle click to Desk
+                                viewConfig={{
+                                  kind: "document",
+                                  id: d.id,
+                                  title: d.title || "Untitled",
+                                  params: { projectId: p.id },
+                                }}
+                                title="Drag to Desk or Alt-click to open in a tab"
+                              />
+                            ))}
+                            {/* Optional: empty state */}
+                            {docsByProject[p.id] &&
+                              (docsByProject[p.id] as DocLite[]).length ===
+                                0 && (
+                                <div className="px-4 py-2 text-xs text-muted-foreground">
+                                  No documents
+                                </div>
+                              )}
+                          </div>
+
                           <SidebarItem
                             icon={Video}
                             label="Mesh Meet"
