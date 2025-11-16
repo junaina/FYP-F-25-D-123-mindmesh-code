@@ -1,7 +1,9 @@
+// src/components/meeting/JoinMeetingClient.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
+import RecordingControls from "./RecordingControls";
 
 type Props = {
   joinCode: string;
@@ -38,9 +40,11 @@ export default function JoinMeetingClient({ joinCode }: Props) {
         const json = (await res.json()) as TokenResponse;
         setData(json);
         setState("ready");
-      } catch (err: any) {
+      } catch (err) {
         console.error(err);
-        setError(err?.message ?? "Failed to join meeting");
+        const message =
+          err instanceof Error ? err.message : "Failed to join meeting";
+        setError(message);
         setState("error");
       }
     }
@@ -77,7 +81,7 @@ export default function JoinMeetingClient({ joinCode }: Props) {
     );
   }
 
-  // ✅ Actual LiveKit call UI
+  // ✅ Actual LiveKit call UI with recording controls overlay
   return (
     <div className="h-screen w-full">
       <LiveKitRoom
@@ -86,8 +90,17 @@ export default function JoinMeetingClient({ joinCode }: Props) {
         connect={true}
         data-lk-theme="default"
       >
-        {/* Built-in "Google Meet style" UI */}
-        <VideoConference />
+        <div className="relative h-full w-full">
+          {/* Overlay for recording controls */}
+          <div className="pointer-events-none absolute inset-0 z-20">
+            <div className="pointer-events-auto absolute right-4 top-4">
+              <RecordingControls joinCode={joinCode} />
+            </div>
+          </div>
+
+          {/* Built-in "Google Meet style" UI */}
+          <VideoConference />
+        </div>
       </LiveKitRoom>
     </div>
   );
