@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-
 export type MeetingRow = {
   id: string;
   projectId: string;
@@ -69,6 +68,22 @@ export const MeetingRepo = {
           },
         },
       },
+    });
+  },
+  async updateMeetingStatus(
+    meetingId: string,
+    status: "SCHEDULED" | "LIVE" | "ENDED"
+  ) {
+    return prisma.meeting.update({
+      where: { id: meetingId },
+      data: { status },
+    });
+  },
+
+  async setMeetingHasRecording(meetingId: string, hasRecording: boolean) {
+    return prisma.meeting.update({
+      where: { id: meetingId },
+      data: { hasRecording },
     });
   },
 };
