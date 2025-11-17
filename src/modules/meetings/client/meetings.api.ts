@@ -30,6 +30,73 @@ export type StartStopRecordingResponse = {
 export type RecordingStatusResponse = {
   recording: MeetingRecordingSummary | null;
 };
+// below MeetingRecap types
+
+export type MeetingSegmentDto = {
+  startMs: number;
+  endMs: number;
+  speakerIndex: number;
+  text: string;
+};
+
+export type TranscriptionResponse = {
+  transcript: string;
+  segments: MeetingSegmentDto[];
+};
+// Add this type somewhere with your other meeting types:
+
+export type MeetingTranscription = {
+  transcript: string;
+  segments: {
+    startMs: number;
+    endMs: number;
+    speakerIndex: number;
+    text: string;
+  }[];
+};
+
+export type MeetingTranscriptSegment = {
+  startMs: number;
+  endMs: number;
+  speakerIndex: number;
+  text: string;
+};
+
+export type MeetingTranscriptResponse = {
+  transcript: string;
+  segments: MeetingTranscriptSegment[];
+};
+
+/**
+ * Trigger server-side transcription + diarization for a meeting recording.
+ * POST /api/meet/:joinCode/transcribe
+ */
+export async function transcribeMeeting(
+  joinCode: string
+): Promise<MeetingTranscriptResponse> {
+  if (!joinCode) {
+    throw new Error("transcribeMeeting: missing joinCode");
+  }
+
+  const url = `/api/meet/${encodeURIComponent(joinCode)}/transcribe`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to transcribe meeting (${res.status}): ${
+        text || res.statusText || "Unknown error"
+      }`
+    );
+  }
+
+  const json = (await res.json()) as MeetingTranscriptResponse;
+  return json;
+}
 
 /**
  * Create a meeting inside a project.
