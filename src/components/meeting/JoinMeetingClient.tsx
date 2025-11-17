@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import RecordingControls from "./RecordingControls";
 
@@ -21,6 +22,7 @@ type TokenResponse = {
 const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_WS_URL;
 
 export default function JoinMeetingClient({ joinCode }: Props) {
+  const router = useRouter();
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [data, setData] = useState<TokenResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +83,10 @@ export default function JoinMeetingClient({ joinCode }: Props) {
     );
   }
 
+  const handleDisconnected = () => {
+    // When the user hits "Leave" in the LiveKit UI, redirect to recap screen
+    router.replace(`/mesh-meet/${joinCode}/ended`);
+  };
   // ✅ Actual LiveKit call UI with recording controls overlay
   return (
     <div className="h-screen w-full">
@@ -89,6 +95,7 @@ export default function JoinMeetingClient({ joinCode }: Props) {
         serverUrl={LIVEKIT_URL}
         connect={true}
         data-lk-theme="default"
+        onDisconnected={handleDisconnected}
       >
         <div className="relative h-full w-full">
           {/* Overlay for recording controls */}
