@@ -1,5 +1,5 @@
 "use client";
-
+import InviteTeammateModal from "./sidebar/InviteTeammateModel";
 import {
   Home,
   Search,
@@ -30,7 +30,12 @@ import {
 import { useState } from "react";
 import { useEffect } from "react";
 import { userApi, type MeForSidebar } from "@/modules/user/client/user.api";
-
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
 import CreateProjectModal from "@/components/sidebar/CreateProjectModal";
 import SidebarItem from "./sidebar-item";
 import ProjectSearchModal from "@/components/search/ProjectSearchModal";
@@ -50,6 +55,8 @@ export default function Sidebar() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>("");
   const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
+  const [inviteProject, setInviteProject] = useState<ProjectLite | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
   // delete confirmation state
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(
@@ -287,123 +294,144 @@ export default function Sidebar() {
               </div>
             )}
 
-            {/* list of projects with the 5 static sub-items each */}
-            {projects && projects.length > 0 && (
-              <div className="mt-2">
-                {projects.map((p) => {
-                  const isOpen = !!openProjects[p.id];
-                  return (
-                    <div key={p.id} className="mb-1 group">
-                      {/* project row */}
-                      <div className="w-full flex items-center justify-between px-2 py-1 rounded-md hover:bg-muted transition">
-                        {/* LEFT: name (button toggles open unless editing) */}
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {editingId === p.id ? (
-                            <input
-                              autoFocus
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") commitRename();
-                                if (e.key === "Escape") cancelRename();
-                              }}
-                              onBlur={commitRename}
-                              className="h-6 w-full rounded-md border px-2 text-sm font-medium bg-background
-                   focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                            />
-                          ) : (
-                            <button
-                              onClick={() => toggleProject(p.id)}
-                              onDoubleClick={() => startRename(p)}
-                              className="text-left flex-1 min-w-0"
-                              aria-expanded={isOpen}
-                              aria-controls={`proj-${p.id}-menu`}
-                            >
-                              <span className="text-sm font-medium truncate">
-                                {p.name}
-                              </span>
-                            </button>
-                          )}
-                        </div>
+           {projects && projects.length > 0 && (
+  <div className="mt-2">
+    {projects.map((p) => {
+      const isOpen = !!openProjects[p.id];
+      return (
+        <ContextMenu key={p.id}>
+          <ContextMenuTrigger asChild>
+            <div className="mb-1 group">
+              {/* project row */}
+              <div className="w-full flex items-center justify-between px-2 py-1 rounded-md hover:bg-muted transition">
+                {/* LEFT: name (button toggles open unless editing) */}
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {editingId === p.id ? (
+                    <input
+                      autoFocus
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRename();
+                        if (e.key === "Escape") cancelRename();
+                      }}
+                      onBlur={commitRename}
+                      className="h-6 w-full rounded-md border px-2 text-sm font-medium bg-background
+                      focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => toggleProject(p.id)}
+                      onDoubleClick={() => startRename(p)}
+                      className="text-left flex-1 min-w-0"
+                      aria-expanded={isOpen}
+                      aria-controls={`proj-${p.id}-menu`}
+                    >
+                      <span className="text-sm font-medium truncate">
+                        {p.name}
+                      </span>
+                    </button>
+                  )}
+                </div>
 
-                        {/* RIGHT: chevron + rename + delete (rename/delete appear on hover) */}
-                        <div className="flex items-center gap-1">
-                          {editingId !== p.id && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => startRename(p)}
-                                title="Rename"
-                                className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
-                   h-6 w-6 rounded hover:bg-muted/60 text-muted-foreground transition"
-                              >
-                                <Type className="h-3.5 w-3.5" />
-                              </button>
+                {/* RIGHT BUTTONS */}
+                <div className="flex items-center gap-1">
+                  {editingId !== p.id && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => startRename(p)}
+                        title="Rename"
+                        className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
+                        h-6 w-6 rounded hover:bg-muted/60 text-muted-foreground transition"
+                      >
+                        <Type className="h-3.5 w-3.5" />
+                      </button>
 
-                              <button
-                                type="button"
-                                onClick={() => askDelete(p)}
-                                title="Delete"
-                                className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
-                   h-6 w-6 rounded hover:bg-red-500/10 text-red-500 transition"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => toggleProject(p.id)}
-                            aria-expanded={isOpen}
-                            aria-controls={`proj-${p.id}-menu`}
-                            className="h-6 w-6 grid place-items-center rounded hover:bg-muted/60"
-                          >
-                            {isOpen ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => askDelete(p)}
+                        title="Delete"
+                        className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
+                        h-6 w-6 rounded hover:bg-red-500/10 text-red-500 transition"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
 
-                      {/* submenu — your same 5 items, but project-scoped */}
-                      {isOpen && (
-                        <div
-                          id={`proj-${p.id}-menu`}
-                          className="ml-4 space-y-1"
-                        >
-                          <SidebarItem
-                            icon={FileText}
-                            label="Task Board"
-                            href={`/projects/${p.id}/task-board`}
-                          />
-                          <SidebarItem
-                            icon={MessageCircle}
-                            label="Ask Mindy"
-                            href={`/projects/${p.id}/ask-mindy`}
-                          />
-                          <SidebarItem
-                            icon={MessageSquare}
-                            label="Discussions"
-                            href={`/projects/${p.id}/discussions`}
-                          />
-                          <SidebarItem
-                            icon={Type}
-                            label="Documents"
-                            href={`/projects/${p.id}/documents`}
-                          />
-                          <SidebarItem
-                            icon={Video}
-                            label="Mesh Meet"
-                            href={`/projects/${p.id}/mesh-meet`}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                  <button
+                    onClick={() => toggleProject(p.id)}
+                    aria-expanded={isOpen}
+                    aria-controls={`proj-${p.id}-menu`}
+                    className="h-6 w-6 grid place-items-center rounded hover:bg-muted/60"
+                  >
+                    {isOpen ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                </div>
               </div>
-            )}
+
+              {/* SUBMENU */}
+              {isOpen && (
+                <div id={`proj-${p.id}-menu`} className="ml-4 space-y-1">
+                  <SidebarItem
+                    icon={FileText}
+                    label="Task Board"
+                    href={`/projects/${p.id}/task-board`}
+                  />
+                  <SidebarItem
+                    icon={MessageCircle}
+                    label="Ask Mindy"
+                    href={`/projects/${p.id}/ask-mindy`}
+                  />
+                  <SidebarItem
+                    icon={MessageSquare}
+                    label="Discussions"
+                    href={`/projects/${p.id}/discussions`}
+                  />
+                  <SidebarItem
+                    icon={Type}
+                    label="Documents"
+                    href={`/projects/${p.id}/documents`}
+                  />
+                  <SidebarItem
+                    icon={Video}
+                    label="Mesh Meet"
+                    href={`/projects/${p.id}/mesh-meet`}
+                  />
+                </div>
+              )}
+            </div>
+          </ContextMenuTrigger>
+
+          <ContextMenuContent>
+            <ContextMenuItem onClick={() => startRename(p)}>
+              Rename
+            </ContextMenuItem>
+
+            <ContextMenuItem onClick={() => askDelete(p)}>
+              Delete
+            </ContextMenuItem>
+
+            <ContextMenuItem
+              onClick={() => {
+                setInviteProject(p);
+                setInviteOpen(true);
+              }}
+            >
+              Invite teammate
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      );
+    })}
+  </div>
+)}
+
           </>
         )}
       </nav>
@@ -460,6 +488,17 @@ export default function Sidebar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {inviteProject && (
+  <InviteTeammateModal
+    open={inviteOpen}
+    onOpenChange={(open) => {
+      setInviteOpen(open);
+      if (!open) setInviteProject(null);
+    }}
+    project={inviteProject}
+  />
+)}
     </aside>
+    
   );
 }
