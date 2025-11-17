@@ -6,7 +6,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <>
        <SocketInitializer />
       <SidebarPortal />
-      <div className="contents">{children}</div>
+      <main>
+        <div className="contents">{children}</div>
+      </main>
     </>
   );
 }
