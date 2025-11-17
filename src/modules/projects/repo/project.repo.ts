@@ -1,5 +1,7 @@
 import { Args } from "@/generated/prisma/runtime/library";
 import { prisma } from "@/lib/prisma";
+import { ProjectRole } from "@/generated/prisma"; //FIXED
+
 export type ProjectLite = {
   id: string;
   name: string;
@@ -15,6 +17,7 @@ export const projectRepo = {
     });
     return rows;
   },
+
   createProjectWithOwner: async (args: {
     name: string;
     visibility: "PRIVATE" | "LINK" | "ORG";
@@ -24,11 +27,11 @@ export const projectRepo = {
       const project = await tx.project.create({
         data: {
           name: args.name,
-          slug: null, // explicitly null so uniqueness isn't involved
+          slug: null,
           visibility: args.visibility,
           createdById: args.createdById,
         },
-        select: { id: true, name: true, visibility: true }, // removed slug
+        select: { id: true, name: true, visibility: true },
       });
 
       await tx.projectMember.create({
@@ -42,7 +45,7 @@ export const projectRepo = {
       return project;
     });
   },
-  //get member role
+
   getMemberRole: async (
     projectId: string,
     userId: string
@@ -53,23 +56,22 @@ export const projectRepo = {
     });
     return row?.role ?? null;
   },
-  //updating only the project name
+
   rename: async (args: { projectId: string; name: string }) => {
-    const updated = await prisma.project.update({
+    return prisma.project.update({
       where: { id: args.projectId },
       data: { name: args.name },
       select: { id: true, name: true, visibility: true },
     });
-    return updated;
   },
-  deleteById: async (projectId: string): Promise<{ id: string }> => {
-    const deleted = await prisma.project.delete({
+
+  deleteById: async (projectId: string) => {
+    return prisma.project.delete({
       where: { id: projectId },
       select: { id: true },
     });
-    return deleted;
   },
-  //helper to check memebership/ownership
+
   getByIdForUser: async (projectId: string, userId: string) => {
     return prisma.project.findFirst({
       where: {
@@ -77,6 +79,76 @@ export const projectRepo = {
         OR: [{ createdById: userId }, { members: { some: { userId } } }],
       },
       select: { id: true, name: true, slug: true, visibility: true },
+    });
+  },
+
+  // -------------------------------
+  // INVITE SYSTEM METHODS
+  // -------------------------------
+  createInvite: async (args: {
+    projectId: string;
+    email: string;
+    role: ProjectRole;
+    token: string;
+    expiresAt?: Date | null;
+  }) => {
+    return prisma.invite.upsert({
+      where: {
+        projectId_email: {
+          projectId: args.projectId,
+          email: args.email,
+        },
+      },
+      update: {
+        role: args.role,
+        token: args.token,
+        expiresAt: args.expiresAt ?? null,
+        acceptedAt: null,
+      },
+      create: {
+        projectId: args.projectId,
+        email: args.email,
+        role: args.role,
+        token: args.token,
+        expiresAt: args.expiresAt ?? null,
+      },
+    });
+  },
+
+  getInviteByToken: async (token: string) => {
+    return prisma.invite.findUnique({
+      where: { token },
+      include: { project: true },
+    });
+  },
+
+  markInviteAccepted: async (inviteId: string) => {
+    return prisma.invite.update({
+      where: { id: inviteId },
+      data: { acceptedAt: new Date() },
+    });
+  },
+
+  addMemberToProject: async (args: {
+    projectId: string;
+    userId: string;
+    role: ProjectRole;
+  }) => {
+    return prisma.projectMember.upsert({
+      where: {
+        projectId_userId: {
+          projectId: args.projectId,
+          userId: args.userId,
+        },
+      },
+      update: {
+        role: args.role,
+      },
+      create: {
+        projectId: args.projectId,
+        userId: args.userId,
+        role: args.role,
+      },
     });
   },
 };

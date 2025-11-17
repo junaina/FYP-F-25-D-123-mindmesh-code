@@ -51,4 +51,21 @@ export const projectsApi = {
     }
     return res.json();
   },
+   async invite(
+    projectId: string,
+    email: string,
+    role: "OWNER" | "ADMIN" | "MEMBER" = "MEMBER"
+  ): Promise<{ id: string }> {
+    const res = await fetch(`/api/projects/${projectId}/invites`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role }),
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || "Failed to send invite");
+    }
+    return res.json();
+  },
 };
