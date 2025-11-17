@@ -26,9 +26,11 @@ export type MeetingRecordingSummary = {
 export type StartStopRecordingResponse = {
   recording: MeetingRecordingSummary;
 };
+
 export type RecordingStatusResponse = {
   recording: MeetingRecordingSummary | null;
 };
+
 /**
  * Create a meeting inside a project.
  * Calls POST /api/projects/:projectId/meetings
@@ -130,6 +132,7 @@ export async function stopMeetingRecording(
   const json = (await res.json()) as StartStopRecordingResponse;
   return json;
 }
+
 /**
  * Get the latest recording status for a meeting by joinCode.
  * GET /api/meet/:joinCode/recording/status
@@ -158,5 +161,56 @@ export async function getMeetingRecordingStatus(
   }
 
   const json = (await res.json()) as RecordingStatusResponse;
+  return json;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Meeting recap (Phase 1)                                           */
+/* ------------------------------------------------------------------ */
+
+export type MeetingRecap = {
+  meeting: {
+    id: string;
+    projectId: string;
+    createdById: string;
+    title: string;
+    joinCode: string;
+    livekitRoomName: string;
+    status: MeetingStatus;
+    hasRecording: boolean;
+    hasTranscript: boolean;
+    transcriptCreatedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  latestRecording: MeetingRecordingSummary | null;
+};
+
+/**
+ * Fetch recap metadata for a meeting after it ends.
+ * GET /api/meet/:joinCode/recap
+ */
+export async function getMeetingRecap(joinCode: string): Promise<MeetingRecap> {
+  if (!joinCode) {
+    throw new Error("getMeetingRecap: missing joinCode");
+  }
+
+  const url = `/api/meet/${encodeURIComponent(joinCode)}/recap`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to fetch meeting recap (${res.status}): ${
+        text || res.statusText || "Unknown error"
+      }`
+    );
+  }
+
+  const json = (await res.json()) as MeetingRecap;
   return json;
 }
