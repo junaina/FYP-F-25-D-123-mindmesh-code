@@ -86,4 +86,14 @@ export const MeetingRepo = {
       data: { hasRecording },
     });
   },
+  async updateMeetingTranscript(meetingId: string, transcript: string) {
+    return prisma.meeting.update({
+      where: { id: meetingId },
+      data: {
+        transcript,
+        hasTranscript: true,
+        transcriptCreatedAt: new Date(),
+      },
+    });
+  },
 };
