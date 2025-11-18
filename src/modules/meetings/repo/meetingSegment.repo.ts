@@ -33,4 +33,10 @@ export const MeetingSegmentRepo = {
       orderBy: { startMs: "asc" },
     });
   },
+  async getSegmentsForMeeting(meetingId: string) {
+    return prisma.meetingSegment.findMany({
+      where: { meetingId },
+      orderBy: { startMs: "asc" },
+    });
+  },
 };

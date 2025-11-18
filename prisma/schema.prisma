@@ -549,10 +549,24 @@ model Meeting {
   createdBy           User                   @relation("MeetingCreator", fields: [createdById], references: [id])
   recordings          MeetingRecording[]
   segments            MeetingSegment[]       // diarized chunks: speaker + timestamps
-
+  speakers            MeetingSpeaker[]      
   @@index([projectId])
   @@index([createdById])
   @@index([projectId, createdAt])
+
+ 
+}
+
+model MeetingSpeaker {
+  id           String  @id @default(uuid()) @db.Uuid
+  meetingId    String  @db.Uuid
+  speakerIndex Int
+  label        String
+
+  meeting      Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, speakerIndex])
+  @@index([meetingId])
 }
 
 model MeetingRecording {
