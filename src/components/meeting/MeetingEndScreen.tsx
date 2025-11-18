@@ -1,44 +1,99 @@
 // src/components/meeting/MeetingEndScreen.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  getMeetingRecap,
-  MeetingRecap,
-  transcribeMeeting,
-  MeetingTranscriptResponse,
-} from "@/modules/meetings/client/meetings.api";
-import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from "react";
+
+type Segment = {
+  id?: string; // present from GET, ignored on save
+  startMs: number;
+  endMs: number;
+  speakerIndex: number;
+  text: string;
+};
+
+type Speaker = {
+  speakerIndex: number;
+  label: string;
+};
+
+type TranscriptResponse = {
+  transcript: string;
+  segments: Segment[];
+  speakers: Speaker[];
+  transcriptUpdatedAt: string | null;
+};
 
 type Props = {
   joinCode: string;
 };
 
-export default function MeetingEndScreen({ joinCode }: Props) {
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  const [recap, setRecap] = useState<MeetingRecap | null>(null);
+function formatMs(ms: number) {
+  const sec = Math.floor(ms / 1000);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
-  const [transcript, setTranscript] =
-    useState<MeetingTranscriptResponse | null>(null);
-  const [isTranscribing, setIsTranscribing] = useState(false);
+function formatTimestamp(iso: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString();
+}
+
+export default function MeetingEndScreen({ joinCode }: Props) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load recap info when the page mounts
+  const [transcript, setTranscript] = useState("");
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  // initial fetch
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      setLoading(true);
+      setError(null);
       try {
-        const data = await getMeetingRecap(joinCode);
-        if (!cancelled) {
-          setRecap(data);
-          setState("ready");
+        const res = await fetch(`/api/meet/${joinCode}/transcript`);
+        if (!res.ok) {
+          throw new Error(`Failed to load transcript (${res.status})`);
         }
-      } catch (err) {
-        console.error("Failed to load meeting recap", err);
+
+        const data: TranscriptResponse = await res.json();
+        if (cancelled) return;
+
+        setTranscript(data.transcript ?? "");
+        setSegments(data.segments ?? []);
+
+        let speakersFromApi = data.speakers ?? [];
+
+        // if backend sent none, derive speakers from segments
+        if (!speakersFromApi.length && data.segments?.length) {
+          const uniqueIdx = Array.from(
+            new Set(data.segments.map((s) => s.speakerIndex))
+          ).sort((a, b) => a - b);
+
+          speakersFromApi = uniqueIdx.map((idx) => ({
+            speakerIndex: idx,
+            label: `Speaker ${idx + 1}`,
+          }));
+        }
+
+        setSpeakers(speakersFromApi);
+        setLastUpdated(data.transcriptUpdatedAt ?? null);
+      } catch (err: any) {
+        console.error(err);
         if (!cancelled) {
-          setState("error");
-          setError("Couldn't load meeting details.");
+          setError(err.message ?? "Failed to load transcript");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
         }
       }
     }
@@ -49,186 +104,222 @@ export default function MeetingEndScreen({ joinCode }: Props) {
     };
   }, [joinCode]);
 
-  const handleTranscribeClick = async () => {
-    if (!joinCode || isTranscribing) return;
-
-    setIsTranscribing(true);
+  async function handleSave() {
+    setSaving(true);
     setError(null);
-
     try {
-      const result = await transcribeMeeting(joinCode);
-      setTranscript(result);
+      // Only send the fields the PUT route expects (no id)
+      const segmentsForSave = segments.map((s) => ({
+        startMs: s.startMs,
+        endMs: s.endMs,
+        speakerIndex: s.speakerIndex,
+        text: s.text,
+      }));
 
-      // Optimistically update recap flags
-      setRecap((prev) =>
-        prev
-          ? {
-              ...prev,
-              meeting: {
-                ...prev.meeting,
-                hasTranscript: true,
-                transcriptCreatedAt: new Date().toISOString(),
-              },
-            }
-          : prev
-      );
+      const res = await fetch(`/api/meet/${joinCode}/transcript`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcript,
+          segments: segmentsForSave,
+          speakers,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to save transcript (${res.status})`);
+      }
+
+      // Update lastUpdated to "now" on successful save
+      setLastUpdated(new Date().toISOString());
     } catch (err: any) {
-      console.error("Failed to transcribe meeting", err);
-      setError(
-        err?.message ?? "We couldn't transcribe this meeting. Please try again."
-      );
+      console.error(err);
+      setError(err.message ?? "Failed to save transcript");
     } finally {
-      setIsTranscribing(false);
+      setSaving(false);
     }
-  };
+  }
 
-  const canTranscribe =
-    !!recap &&
-    !!recap.latestRecording &&
-    recap.latestRecording.status === "COMPLETED" &&
-    !isTranscribing;
-
-  const transcriptToShow = useMemo(() => transcript, [transcript]);
-
-  const formatMs = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  };
-
-  if (state === "loading") {
-    return (
-      <div className="flex h-full flex-1 items-center justify-center">
-        <div className="flex items-center gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-300">
-          <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
-          <span>Loading meeting summary…</span>
-        </div>
-      </div>
+  function handleSpeakerLabelChange(index: number, label: string) {
+    setSpeakers((prev) =>
+      prev.map((s) => (s.speakerIndex === index ? { ...s, label } : s))
     );
   }
 
-  if (state === "error" || !recap) {
-    return (
-      <div className="flex h-full flex-1 items-center justify-center">
-        <div className="flex items-center gap-3 rounded-xl border border-red-900/60 bg-red-950/60 px-4 py-3 text-sm text-red-100">
-          <AlertCircle className="h-4 w-4" />
-          <span>{error ?? "Something went wrong loading this meeting."}</span>
-        </div>
-      </div>
+  function handleAddSpeaker() {
+    setSpeakers((prev) => {
+      const maxIndex =
+        prev.length > 0 ? Math.max(...prev.map((s) => s.speakerIndex)) : -1;
+      const nextIndex = maxIndex + 1;
+
+      return [
+        ...prev,
+        {
+          speakerIndex: nextIndex,
+          label: `Speaker ${nextIndex + 1}`,
+        },
+      ];
+    });
+  }
+
+  function handleSegmentSpeakerChange(segIdx: number, newSpeakerIndex: number) {
+    setSegments((prev) =>
+      prev.map((seg, i) =>
+        i === segIdx ? { ...seg, speakerIndex: newSpeakerIndex } : seg
+      )
     );
   }
 
-  const { meeting, latestRecording } = recap;
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center text-neutral-400">
+        Loading transcript…
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full flex-1 items-center justify-center px-4 py-10">
-      <div className="w-full max-w-3xl rounded-2xl border border-zinc-800/80 bg-zinc-950/80 p-6 shadow-xl shadow-black/60">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-              Meeting ended
-            </div>
-            <h1 className="mt-1 text-xl font-semibold text-zinc-50">
-              {meeting.title}
-            </h1>
-            <p className="mt-1 text-xs text-zinc-500">
-              Join code{" "}
-              <span className="font-mono text-zinc-300">
-                {meeting.joinCode}
-              </span>
-            </p>
-          </div>
-
-          <div className="flex flex-col items-end gap-2">
-            <div className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
-              <CheckCircle2 className="h-3 w-3" />
-              <span>
-                {meeting.hasTranscript ? "Transcript ready" : "Recording ready"}
-              </span>
-            </div>
-
-            {canTranscribe && (
-              <button
-                type="button"
-                onClick={handleTranscribeClick}
-                className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-50 shadow-sm hover:border-zinc-500 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={!canTranscribe}
-              >
-                {isTranscribing && (
-                  <Loader2 className="h-3 w-3 animate-spin text-zinc-300" />
-                )}
-                <span>
-                  {isTranscribing ? "Transcribing…" : "Transcribe meeting"}
-                </span>
-              </button>
-            )}
-          </div>
+    <div className="h-full w-full px-8 py-6 text-sm text-neutral-100">
+      {error && (
+        <div className="mb-4 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+          {error}
         </div>
+      )}
 
-        {/* Body */}
-        <div className="mt-6 rounded-xl border border-dashed border-zinc-800/80 bg-zinc-900/40 p-4">
-          {!latestRecording && (
-            <p className="text-sm text-zinc-400">
-              This meeting doesn&apos;t have a recording attached yet, so
-              there&apos;s nothing to transcribe.
-            </p>
-          )}
-
-          {latestRecording && !meeting.hasTranscript && !transcriptToShow && (
-            <p className="text-sm text-zinc-400">
-              A recording exists for this meeting, but the transcript isn&apos;t
-              ready yet.{" "}
-              {canTranscribe && (
-                <span className="font-medium text-zinc-200">
-                  Click &ldquo;Transcribe meeting&rdquo; to generate it.
+      <div className="mx-auto flex max-w-6xl gap-6">
+        {/* LEFT: Transcript */}
+        <div className="flex-1 rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex flex-col gap-1">
+              <h2 className="font-medium tracking-tight">Transcript</h2>
+              {lastUpdated && (
+                <span className="text-[11px] text-neutral-500">
+                  Last updated: {formatTimestamp(lastUpdated)}
                 </span>
               )}
+            </div>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
+            >
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+
+          <textarea
+            className="h-[360px] w-full resize-none rounded-xl border border-neutral-800 bg-neutral-900/80 p-3 text-sm text-neutral-100 outline-none focus:border-neutral-600"
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+          />
+
+          {!transcript && !segments.length && (
+            <p className="mt-3 text-xs text-neutral-500">
+              No transcript yet. Use the <strong>Transcribe</strong> button
+              above to generate one from the recording.
             </p>
           )}
+        </div>
 
-          {error && (
-            <div className="mt-2 flex items-center gap-2 rounded-md border border-red-900/60 bg-red-950/60 px-3 py-2 text-xs text-red-100">
-              <AlertCircle className="h-3 w-3" />
-              <span>{error}</span>
+        {/* RIGHT: Speakers + Segments */}
+        <div className="w-[360px] space-y-4">
+          {/* Speakers */}
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                Speakers
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddSpeaker}
+                className="rounded-full border border-neutral-700 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-neutral-300 hover:border-neutral-500"
+              >
+                Add
+              </button>
             </div>
-          )}
 
-          {transcriptToShow && (
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-zinc-100">
-                  Transcript
-                </h2>
-                <p className="text-[11px] uppercase tracking-wide text-zinc-500">
-                  {transcriptToShow.segments.length} segments ·{" "}
-                  {transcriptToShow.transcript.length} chars
+            <div className="space-y-2">
+              {speakers.map((sp) => (
+                <div
+                  key={sp.speakerIndex}
+                  className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2"
+                >
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-neutral-800 text-[10px] text-neutral-300">
+                    {sp.speakerIndex + 1}
+                  </span>
+                  <input
+                    className="flex-1 bg-transparent text-xs text-neutral-100 outline-none"
+                    value={sp.label}
+                    onChange={(e) =>
+                      handleSpeakerLabelChange(sp.speakerIndex, e.target.value)
+                    }
+                    placeholder={`Speaker ${sp.speakerIndex + 1}`}
+                  />
+                </div>
+              ))}
+
+              {!speakers.length && (
+                <p className="text-xs text-neutral-500">
+                  No speakers yet. Use &ldquo;Add&rdquo; to create one.
                 </p>
-              </div>
-
-              <div className="max-h-80 space-y-2 overflow-y-auto rounded-lg border border-zinc-800/80 bg-zinc-950/80 px-3 py-2">
-                {transcriptToShow.segments.map((seg, idx) => (
-                  <div
-                    key={`${seg.startMs}-${seg.endMs}-${idx}`}
-                    className="flex gap-3 border-b border-zinc-800/70 pb-2 last:border-b-0 last:pb-0"
-                  >
-                    <div className="w-28 shrink-0 text-[11px] text-zinc-500">
-                      <div className="font-medium text-zinc-300">
-                        Speaker {seg.speakerIndex + 1}
-                      </div>
-                      <div className="mt-0.5 font-mono">
-                        {formatMs(seg.startMs)} – {formatMs(seg.endMs)}
-                      </div>
-                    </div>
-                    <p className="flex-1 text-sm leading-relaxed text-zinc-100">
-                      {seg.text}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Segments */}
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-neutral-400">
+              Diarized segments
+            </h3>
+
+            <div className="max-h-[340px] space-y-3 overflow-y-auto pr-1 text-xs">
+              {segments.map((seg, idx) => (
+                <div
+                  key={seg.id ?? idx}
+                  className="space-y-1 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between text-[10px] text-neutral-500">
+                    <span>
+                      {formatMs(seg.startMs)} — {formatMs(seg.endMs)}
+                    </span>
+                    <select
+                      className="rounded-full border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-[10px] text-neutral-100 outline-none"
+                      value={seg.speakerIndex}
+                      onChange={(e) =>
+                        handleSegmentSpeakerChange(idx, Number(e.target.value))
+                      }
+                    >
+                      {speakers.map((sp) => (
+                        <option key={sp.speakerIndex} value={sp.speakerIndex}>
+                          {sp.label || `Speaker ${sp.speakerIndex + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <textarea
+                    className="w-full resize-none bg-transparent text-xs text-neutral-100 outline-none"
+                    rows={2}
+                    value={seg.text}
+                    onChange={(e) =>
+                      setSegments((prev) =>
+                        prev.map((s, i) =>
+                          i === idx ? { ...s, text: e.target.value } : s
+                        )
+                      )
+                    }
+                  />
+                </div>
+              ))}
+
+              {!segments.length && (
+                <p className="text-xs text-neutral-500">
+                  No diarized segments available for this meeting.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

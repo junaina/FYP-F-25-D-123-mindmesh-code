@@ -67,6 +67,17 @@ export type MeetingTranscriptResponse = {
   segments: MeetingTranscriptSegment[];
 };
 
+export type MeetingSpeakerLabel = {
+  speakerIndex: number;
+  label: string;
+};
+
+export type MeetingTranscript = {
+  transcript: string;
+  segments: MeetingSegment[];
+  speakers: MeetingSpeakerLabel[];
+};
+
 /**
  * Trigger server-side transcription + diarization for a meeting recording.
  * POST /api/meet/:joinCode/transcribe
@@ -280,4 +291,52 @@ export async function getMeetingRecap(joinCode: string): Promise<MeetingRecap> {
 
   const json = (await res.json()) as MeetingRecap;
   return json;
+}
+export async function fetchMeetingTranscript(
+  joinCode: string
+): Promise<MeetingTranscript> {
+  const res = await fetch(
+    `/api/meet/${encodeURIComponent(joinCode)}/transcript`,
+    {
+      method: "GET",
+      credentials: "include",
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to fetch meeting transcript (${res.status}): ${
+        text || res.statusText || "Unknown error"
+      }`
+    );
+  }
+
+  return (await res.json()) as MeetingTranscript;
+}
+
+export async function saveMeetingTranscript(
+  joinCode: string,
+  payload: MeetingTranscript
+): Promise<MeetingTranscript> {
+  const res = await fetch(
+    `/api/meet/${encodeURIComponent(joinCode)}/transcript`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Failed to save meeting transcript (${res.status}): ${
+        text || res.statusText || "Unknown error"
+      }`
+    );
+  }
+
+  return (await res.json()) as MeetingTranscript;
 }
