@@ -26,6 +26,9 @@ import { TableViewExtension } from "@/components/wiki/extensions/kov/TableView/T
 import { TimelineViewExtension } from "@/components/wiki/extensions/kov/TimelineView/TimelineViewExtension";
 import { CalendarViewExtension } from "../extensions/kov/CalendarView/CalendarViewExtension";
 import { SlashIcons } from "@/components/wiki/extensions/slashIcons";
+import { GoogleDriveEmbed } from "@/components/wiki/extensions/GoogleDriveEmbed";
+import { createGoogleDriveEmbed } from "@/modules/documents/client/embeds.api";
+
 type Props = { projectId: string; docId: string };
 
 const EMPTY_DOC: JSONContent = {
@@ -120,6 +123,57 @@ export default function EditorWrapper({ projectId, docId }: Props) {
           });
         } catch (e) {
           console.error("[/calendar] unexpected error", e);
+        }
+      },
+    }),
+    [projectId, docId]
+  );
+  const googleDriveSlashItem = useMemo(
+    () => ({
+      title: "Google Drive PDF",
+      description: "Embed a PDF from Google Drive",
+      icon: SlashIcons.googleDrive,
+      command: async ({ editor }: { editor: any }) => {
+        try {
+          const url = window.prompt("Paste Google Drive PDF URL");
+          if (!url) return;
+          const nameInput =
+            window.prompt("Display name (optional)") ?? undefined;
+
+          const embed = await createGoogleDriveEmbed({
+            projectId,
+            docId,
+            url,
+            name: nameInput,
+          });
+
+          const meta = embed.meta ?? {
+            previewLink: url,
+            webViewLink: url,
+            name: nameInput ?? "Google Drive file",
+          };
+
+          const pos = editor.state.selection.to;
+
+          editor
+            .chain()
+            .focus()
+            .insertContentAt({ from: pos, to: pos }, [
+              {
+                type: "googleDriveEmbed",
+                attrs: {
+                  embedId: embed.id,
+                  name: meta.name,
+                  previewLink: meta.previewLink,
+                  webViewLink: meta.webViewLink,
+                },
+              },
+              { type: "paragraph" },
+            ])
+            .run();
+        } catch (e) {
+          console.error("[slash:google-drive] failed", e);
+          window.alert("Failed to create Google Drive embed");
         }
       },
     }),
@@ -239,11 +293,24 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       TableViewExtension({ projectId, docId }),
       TimelineViewExtension({ projectId, docId }),
       CalendarViewExtension({ projectId, docId }),
+      GoogleDriveEmbed,
       SlashMenuExtension({
-        extraItems: [tableSlashItem, timelineSlashItem, calendarSlashItem],
+        extraItems: [
+          tableSlashItem,
+          timelineSlashItem,
+          calendarSlashItem,
+          googleDriveSlashItem,
+        ],
       }),
     ],
-    [projectId, docId, tableSlashItem, timelineSlashItem, calendarSlashItem]
+    [
+      projectId,
+      docId,
+      tableSlashItem,
+      timelineSlashItem,
+      calendarSlashItem,
+      googleDriveSlashItem,
+    ]
   );
 
   // Build the editor options (optionally memoize this object too)
