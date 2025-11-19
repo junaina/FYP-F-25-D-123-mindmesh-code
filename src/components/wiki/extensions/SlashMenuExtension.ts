@@ -68,14 +68,14 @@ const SLASH_ITEMS: SlashItem[] = [
     icon: SlashIcons.toggleList,
     command: ({ editor }) => editor.chain().focus().insertToggle().run(),
   },
-  {
-    title: "Google Drive",
-    description: "Embed a doc from Google Drive",
-    icon: SlashIcons.googleDrive,
-    command: ({ editor }) => {
-      // TODO: your integration
-    },
-  },
+  // {
+  //   title: "Google Drive",
+  //   description: "Embed a doc from Google Drive",
+  //   icon: SlashIcons.googleDrive,
+  //   command: ({ editor }) => {
+  //     // TODO: your integration
+  //   },
+  // },
   {
     title: "GitHub",
     description: "Embed PR or issue",
