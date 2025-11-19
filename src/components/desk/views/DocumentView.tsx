@@ -25,6 +25,7 @@ export default function DocumentView({ id, params, className }: Props) {
       projectId={params.projectId}
       docId={id}
       className={className}
+      scrollInside={true}
       // headerRightSlot={...} // optional: pass desk-specific actions if you add them later
     />
   );

@@ -9,7 +9,8 @@ export default function Page({ params }: { params: Params }) {
   const { projectId, docId } = params;
 
   return (
-    <div className="h-[calc(100vh-3rem)] -mx-4 px-4 pt-10 pb-8">
+    <div className="-mx-4 px-4 pt-10 pb-8">
+      {/* full-page wiki: no internal scroll */}
       <DocumentScreen projectId={projectId} docId={docId} />
     </div>
   );
