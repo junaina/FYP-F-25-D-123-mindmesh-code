@@ -1,6 +1,7 @@
 // /app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
+import "@livekit/components-styles";
 import { ThemeProvider } from "@/components/theme-provider";
 import { cookies } from "next/headers";
 import QueryProvider from "@/components/providers/QueryProvider";
