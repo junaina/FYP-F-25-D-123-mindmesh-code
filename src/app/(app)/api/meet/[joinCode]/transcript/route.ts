@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-
+//THIS IS MEET CODE 2
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { getMeFromSessionId } from "@/modules/auth/service/auth.service";
 

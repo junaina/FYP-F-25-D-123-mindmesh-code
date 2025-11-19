@@ -1,4 +1,5 @@
 // src/app/(app)/api/meet/[joinCode]/recording/status/route.ts
+//THIS IS MEET CODE 2
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE } from "@/lib/auth/session";
