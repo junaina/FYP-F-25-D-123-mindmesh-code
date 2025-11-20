@@ -21,7 +21,10 @@ import React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { SlashIcons } from "./slashIcons";
 import { LucideIcon } from "lucide-react";
-
+import type {
+  EmbedRow,
+  GoogleDriveEmbedMeta,
+} from "@/modules/documents/domain/embed.types";
 const SLASH_ITEMS: SlashItem[] = [
   {
     title: "Heading 1",

@@ -171,6 +171,9 @@ export default function EditorWrapper({ projectId, docId }: Props) {
               { type: "paragraph" },
             ])
             .run();
+          await patchDocContent(projectId, docId, {
+            content: editor.getJSON(),
+          });
         } catch (e) {
           console.error("[slash:google-drive] failed", e);
           window.alert("Failed to create Google Drive embed");
@@ -395,5 +398,9 @@ export default function EditorWrapper({ projectId, docId }: Props) {
   }, [editor, projectId, docId, serverUpdatedAt]);
 
   if (!editor) return null;
-  return <EditorContent editor={editor} />;
+  return (
+    <div data-project-id={projectId} data-doc-id={docId} className="h-full">
+      <EditorContent editor={editor} />
+    </div>
+  );
 }
