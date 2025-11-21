@@ -24,6 +24,9 @@ export class NotFoundError extends Error {
 export class ForbiddenError extends Error {
   override name = "ForbiddenError";
 }
+export class RecordingFileMissingError extends Error {
+  override name = "RecordingFileMissingError";
+}
 
 type TranscribeArgs = {
   joinCode: string;
@@ -73,11 +76,37 @@ export const MeetingTranscriptionService = {
       throw new Error("Recording is not yet completed");
 
     // --- S3 download ---
-    const s3Obj = await s3Client.send(
-      new GetObjectCommand({ Bucket: S3_BUCKET, Key: rec.s3Key })
-    );
-    const bytes = await s3Obj.Body?.transformToByteArray();
-    if (!bytes) throw new Error("Failed to read audio from S3");
+    // --- S3 download ---
+    let bytes: Uint8Array | undefined;
+
+    try {
+      const s3Obj = await s3Client.send(
+        new GetObjectCommand({ Bucket: S3_BUCKET, Key: rec.s3Key })
+      );
+      bytes = await s3Obj.Body?.transformToByteArray();
+    } catch (err: any) {
+      // This is the case you are currently hitting: the key simply doesn't exist
+      const code = err?.Code || err?.code || err?.name;
+
+      if (code === "NoSuchKey") {
+        console.error("Recording file missing in S3", {
+          bucket: S3_BUCKET,
+          key: rec.s3Key,
+          err,
+        });
+
+        throw new RecordingFileMissingError(
+          `Recording file not found in S3 (key: ${rec.s3Key})`
+        );
+      }
+
+      console.error("Unexpected S3 error while downloading recording", err);
+      throw err;
+    }
+
+    if (!bytes) {
+      throw new Error("Failed to read audio from S3");
+    }
 
     const buffer = Buffer.from(bytes);
     console.log("Downloaded audio length:", buffer.length);

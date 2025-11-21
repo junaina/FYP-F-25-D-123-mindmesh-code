@@ -1,7 +1,11 @@
 // src/components/meeting/MeetingEndScreen.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import {
+  getMeetingRecap,
+  transcribeMeeting,
+} from "@/modules/meetings/client/meetings.api";
 
 type Segment = {
   id?: string; // present from GET, ignored on save
@@ -44,6 +48,7 @@ function formatTimestamp(iso: string | null) {
 export default function MeetingEndScreen({ joinCode }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [transcript, setTranscript] = useState("");
@@ -51,58 +56,75 @@ export default function MeetingEndScreen({ joinCode }: Props) {
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  // initial fetch
-  useEffect(() => {
-    let cancelled = false;
+  // business-rule flags
+  const [hasAnyRecording, setHasAnyRecording] = useState(false); // any recording exists
+  const [canTranscribe, setCanTranscribe] = useState(false); // latest recording COMPLETED
+  const [hasTranscript, setHasTranscript] = useState(false);
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`/api/meet/${joinCode}/transcript`);
-        if (!res.ok) {
-          throw new Error(`Failed to load transcript (${res.status})`);
-        }
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1) Load current transcript from your /transcript route
+      const transcriptRes = await fetch(
+        `/api/meet/${encodeURIComponent(joinCode)}/transcript`,
+        { method: "GET", credentials: "include" }
+      );
 
-        const data: TranscriptResponse = await res.json();
-        if (cancelled) return;
-
-        setTranscript(data.transcript ?? "");
-        setSegments(data.segments ?? []);
-
-        let speakersFromApi = data.speakers ?? [];
-
-        // if backend sent none, derive speakers from segments
-        if (!speakersFromApi.length && data.segments?.length) {
-          const uniqueIdx = Array.from(
-            new Set(data.segments.map((s) => s.speakerIndex))
-          ).sort((a, b) => a - b);
-
-          speakersFromApi = uniqueIdx.map((idx) => ({
-            speakerIndex: idx,
-            label: `Speaker ${idx + 1}`,
-          }));
-        }
-
-        setSpeakers(speakersFromApi);
-        setLastUpdated(data.transcriptUpdatedAt ?? null);
-      } catch (err: any) {
-        console.error(err);
-        if (!cancelled) {
-          setError(err.message ?? "Failed to load transcript");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      if (!transcriptRes.ok) {
+        throw new Error(`Failed to load transcript (${transcriptRes.status})`);
       }
-    }
 
-    load();
-    return () => {
-      cancelled = true;
-    };
+      const data = (await transcriptRes.json()) as TranscriptResponse;
+
+      // 2) Load recap to know about recordings + status
+      const recap = await getMeetingRecap(joinCode);
+
+      setTranscript(data.transcript ?? "");
+      setSegments(data.segments ?? []);
+
+      let speakersFromApi = data.speakers ?? [];
+
+      // If backend sent no speakers but we have segments, derive them
+      if (!speakersFromApi.length && data.segments?.length) {
+        const uniqueIdx = Array.from(
+          new Set(data.segments.map((s) => s.speakerIndex))
+        ).sort((a, b) => a - b);
+
+        speakersFromApi = uniqueIdx.map((idx) => ({
+          speakerIndex: idx,
+          label: `Speaker ${idx + 1}`,
+        }));
+      }
+
+      setSpeakers(speakersFromApi);
+      setLastUpdated(data.transcriptUpdatedAt ?? null);
+
+      // ---- derive flags from recap ----
+      const anyTranscript =
+        !!data.transcript || (data.segments && data.segments.length > 0);
+      setHasTranscript(recap.meeting.hasTranscript || anyTranscript);
+
+      // "any recording exists" (even if still IN_PROGRESS)
+      const anyRecording =
+        recap.meeting.hasRecording || !!recap.latestRecording;
+      setHasAnyRecording(anyRecording);
+
+      // "can transcribe" only when latest recording is COMPLETED
+      const latestCompleted =
+        !!recap.latestRecording && recap.latestRecording.status === "COMPLETED";
+      setCanTranscribe(latestCompleted);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? "Failed to load transcript");
+    } finally {
+      setLoading(false);
+    }
   }, [joinCode]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   async function handleSave() {
     setSaving(true);
@@ -116,27 +138,45 @@ export default function MeetingEndScreen({ joinCode }: Props) {
         text: s.text,
       }));
 
-      const res = await fetch(`/api/meet/${joinCode}/transcript`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transcript,
-          segments: segmentsForSave,
-          speakers,
-        }),
-      });
+      const res = await fetch(
+        `/api/meet/${encodeURIComponent(joinCode)}/transcript`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            transcript,
+            segments: segmentsForSave,
+            speakers,
+          }),
+        }
+      );
 
       if (!res.ok) {
         throw new Error(`Failed to save transcript (${res.status})`);
       }
 
-      // Update lastUpdated to "now" on successful save
       setLastUpdated(new Date().toISOString());
+      setHasTranscript(Boolean(transcript || segmentsForSave.length));
     } catch (err: any) {
       console.error(err);
       setError(err.message ?? "Failed to save transcript");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleTranscribe() {
+    setTranscribing(true);
+    setError(null);
+    try {
+      await transcribeMeeting(joinCode); // kicks off server pipeline
+      await loadData(); // reload from DB (/transcript + /recap)
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? "Failed to transcribe meeting");
+    } finally {
+      setTranscribing(false);
     }
   }
 
@@ -178,6 +218,21 @@ export default function MeetingEndScreen({ joinCode }: Props) {
     );
   }
 
+  const showTranscribeButton = canTranscribe && !hasTranscript;
+
+  // Helper text under the textarea depending on state
+  let transcriptHelper: string | null = null;
+  if (!hasAnyRecording) {
+    transcriptHelper =
+      "This meeting has no recording yet, so a transcript can't be generated.";
+  } else if (hasAnyRecording && !canTranscribe && !hasTranscript) {
+    transcriptHelper =
+      "A recording exists for this meeting, but it's still processing. Once it's finished you'll be able to generate a transcript.";
+  } else if (canTranscribe && !transcript && !segments.length) {
+    transcriptHelper =
+      "No transcript yet. Use the Transcribe button above to generate one from the recording.";
+  }
+
   return (
     <div className="h-full w-full px-8 py-6 text-sm text-neutral-100">
       {error && (
@@ -198,14 +253,27 @@ export default function MeetingEndScreen({ joinCode }: Props) {
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
-            >
-              {saving ? "Saving…" : "Save changes"}
-            </button>
+
+            <div className="flex items-center gap-2">
+              {showTranscribeButton && (
+                <button
+                  type="button"
+                  onClick={handleTranscribe}
+                  disabled={transcribing}
+                  className="rounded-full border border-sky-500/60 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-200 hover:bg-sky-500/20 disabled:opacity-60"
+                >
+                  {transcribing ? "Transcribing…" : "Transcribe"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
+              >
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+            </div>
           </div>
 
           <textarea
@@ -214,11 +282,8 @@ export default function MeetingEndScreen({ joinCode }: Props) {
             onChange={(e) => setTranscript(e.target.value)}
           />
 
-          {!transcript && !segments.length && (
-            <p className="mt-3 text-xs text-neutral-500">
-              No transcript yet. Use the <strong>Transcribe</strong> button
-              above to generate one from the recording.
-            </p>
+          {transcriptHelper && (
+            <p className="mt-3 text-xs text-neutral-500">{transcriptHelper}</p>
           )}
         </div>
 
