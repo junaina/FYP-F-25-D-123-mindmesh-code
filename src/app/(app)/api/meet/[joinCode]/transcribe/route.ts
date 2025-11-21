@@ -6,6 +6,7 @@ import {
   MeetingTranscriptionService,
   NotFoundError,
   ForbiddenError,
+  RecordingFileMissingError,
 } from "@/modules/meetings/services/meetingTranscription.service";
 
 type RouteContext = {
@@ -43,6 +44,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }
     if (err instanceof NotFoundError) {
       return new NextResponse(err.message, { status: 404 });
+    }
+    if (err instanceof RecordingFileMissingError) {
+      // Key difference: this tells you the recording file doesn't exist,
+      // instead of a generic 500.
+      return NextResponse.json({ error: err.message }, { status: 404 });
     }
 
     return new NextResponse("Failed to transcribe meeting", { status: 500 });
