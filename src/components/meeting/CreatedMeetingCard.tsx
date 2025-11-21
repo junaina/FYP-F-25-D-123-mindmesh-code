@@ -57,8 +57,7 @@ export default function CreatedMeetingCard({ meeting }: Props) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Share this link with anyone you want in the call. They don’t need a
-        Mindmesh account to join.
+        Share this link with anyone you want in the call.
       </p>
     </div>
   );
