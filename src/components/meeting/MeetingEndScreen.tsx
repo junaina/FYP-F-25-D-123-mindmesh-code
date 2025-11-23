@@ -6,6 +6,7 @@ import {
   getMeetingRecap,
   transcribeMeeting,
 } from "@/modules/meetings/client/meetings.api";
+import { useSearchParams, useRouter } from "next/navigation";
 
 type Segment = {
   id?: string; // present from GET, ignored on save
@@ -46,11 +47,14 @@ function formatTimestamp(iso: string | null) {
 }
 
 export default function MeetingEndScreen({ joinCode }: Props) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingToDrive, setSavingToDrive] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [transcript, setTranscript] = useState("");
   const [segments, setSegments] = useState<Segment[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -125,6 +129,21 @@ export default function MeetingEndScreen({ joinCode }: Props) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  // When coming back from Google OAuth with ?driveExport=resume,
+  // automatically attempt the export again (now we have tokens).
+  useEffect(() => {
+    if (!searchParams) return;
+    const flag = searchParams.get("driveExport");
+    if (flag === "resume") {
+      // remove the flag from URL so it doesn't run twice
+      const url = new URL(window.location.href);
+      url.searchParams.delete("driveExport");
+      router.replace(url.pathname + url.search);
+
+      // fire and forget; 'auto = true' to avoid double alerts
+      handleSaveToDrive(true);
+    }
+  }, [searchParams, router]);
 
   async function handleSave() {
     setSaving(true);
@@ -177,6 +196,49 @@ export default function MeetingEndScreen({ joinCode }: Props) {
       setError(err.message ?? "Failed to transcribe meeting");
     } finally {
       setTranscribing(false);
+    }
+  }
+  type ExportDriveResponse =
+    | { kind: "needs_oauth"; redirectUrl: string }
+    | { kind: "uploaded"; driveFileUrl?: string | null };
+
+  async function handleSaveToDrive(auto = false) {
+    setSavingToDrive(true);
+    setError(null);
+    try {
+      // Make sure transcript + segments/speakers are up to date in DB
+      await handleSave();
+
+      const res = await fetch(
+        `/api/meet/${encodeURIComponent(joinCode)}/export/drive`,
+        { method: "POST", credentials: "include" }
+      );
+
+      if (!res.ok) {
+        throw new Error(`Failed to export to Drive (${res.status})`);
+      }
+
+      const data = (await res.json()) as ExportDriveResponse;
+
+      if (data.kind === "needs_oauth") {
+        // Go to Google OAuth
+        window.location.href = data.redirectUrl;
+        return;
+      }
+
+      if (data.kind === "uploaded") {
+        // Replace with your toast UI if you like
+        if (!auto) {
+          alert("Transcript uploaded to Google Drive");
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (!auto) {
+        setError(err.message ?? "Failed to save transcript to Google Drive");
+      }
+    } finally {
+      setSavingToDrive(false);
     }
   }
 
@@ -272,6 +334,14 @@ export default function MeetingEndScreen({ joinCode }: Props) {
                 className="rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
               >
                 {saving ? "Saving…" : "Save changes"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveToDrive(false)}
+                disabled={savingToDrive}
+                className="rounded-full border border-indigo-500/60 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-200 hover:bg-indigo-500/20 disabled:opacity-60"
+              >
+                {savingToDrive ? "Saving to Drive…" : "Save to Drive"}
               </button>
             </div>
           </div>
