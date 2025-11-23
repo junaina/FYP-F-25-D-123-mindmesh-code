@@ -16,12 +16,14 @@ import {
   getBoardsForDocument,
   createBoardInDocument,
 } from "@/modules/board/service/board.service";
+type Params = {
+  projectId: string;
+  docId: string;
+};
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { projectId: string; docId: string } }
-) {
+export async function POST(req: NextRequest, ctx: { params: Promise<Params> }) {
   try {
+    const { projectId, docId } = await ctx.params;
     const cookieStore = await cookies();
     const sid = cookieStore.get(SESSION_COOKIE)?.value;
 
@@ -33,8 +35,6 @@ export async function POST(
     if (!me) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
-
-    const { docId } = params;
 
     const rawBody = await req.json().catch(() => ({}));
     const { name, allowExisting } = createBoardForDocDto.parse(rawBody);
