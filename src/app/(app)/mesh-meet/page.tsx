@@ -11,8 +11,8 @@ export default function MeshMeetPage({ params }: MeshMeetPageProps) {
     <div className="px-6 py-8 max-w-2xl">
       <h1 className="text-2xl font-semibold mb-4">Mesh Meet</h1>
       <p className="text-sm text-muted-foreground mb-8">
-        Create a shareable video meeting link for this project. Anyone with the
-        link can join the room, even if they’re outside your organization.
+        Create a shareable video meeting link for this project. People within
+        the project can join the meeting using this link.
       </p>
 
       <CreateMeetingForm projectId={projectId} />

@@ -297,6 +297,7 @@ export default function Sidebar() {
           href="/home"
           collapsed={collapsed}
         />
+
         <button
           onClick={() => setSearchOpen(true)}
           className="w-full"
@@ -348,230 +349,201 @@ export default function Sidebar() {
               </div>
             )}
 
-           {projects && projects.length > 0 && (
-  <div className="mt-2">
-    {projects.map((p) => {
-      const isOpen = !!openProjects[p.id];
-      return (
-        <ContextMenu key={p.id}>
-          <ContextMenuTrigger asChild>
-            <div className="mb-1 group">
-              {/* project row */}
-              <div className="w-full flex items-center justify-between px-2 py-1 rounded-md hover:bg-muted transition">
-                {/* LEFT: name (button toggles open unless editing) */}
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  {editingId === p.id ? (
-                    <input
-                      autoFocus
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitRename();
-                        if (e.key === "Escape") cancelRename();
-                      }}
-                      onBlur={commitRename}
-                      className="h-6 w-full rounded-md border px-2 text-sm font-medium bg-background
-                      focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                  ) : (
-                    <button
-                      onClick={() => toggleProject(p.id)}
-                      onDoubleClick={() => startRename(p)}
-                      className="text-left flex-1 min-w-0"
-                      aria-expanded={isOpen}
-                      aria-controls={`proj-${p.id}-menu`}
-                    >
-                      <span className="text-sm font-medium truncate">
-                        {p.name}
-                      </span>
-                    </button>
-                  )}
-                </div>
+            {/* projects list */}
+            {projects && projects.length > 0 && (
+              <div className="mt-2">
+                {projects.map((p) => {
+                  const isOpen = !!openProjects[p.id];
 
-                {/* RIGHT BUTTONS */}
-                <div className="flex items-center gap-1">
-                  {editingId !== p.id && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => startRename(p)}
-                        title="Rename"
-                        className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
-                        h-6 w-6 rounded hover:bg-muted/60 text-muted-foreground transition"
-                      >
-                        <Type className="h-3.5 w-3.5" />
-                      </button>
+                  return (
+                    <ContextMenu key={p.id}>
+                      <ContextMenuTrigger asChild>
+                        <div className="mb-1 group">
+                          {/* project row */}
+                          <div className="w-full flex items-center justify-between px-2 py-1 rounded-md hover:bg-muted transition">
+                            {/* LEFT: name (button toggles open unless editing) */}
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {editingId === p.id ? (
+                                <input
+                                  autoFocus
+                                  value={editingName}
+                                  onChange={(e) =>
+                                    setEditingName(e.target.value)
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") commitRename();
+                                    if (e.key === "Escape") cancelRename();
+                                  }}
+                                  onBlur={commitRename}
+                                  className="h-6 w-full rounded-md border px-2 text-sm font-medium bg-background
+                                    focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => toggleProject(p.id)}
+                                  onDoubleClick={() => startRename(p)}
+                                  className="text-left flex-1 min-w-0"
+                                  aria-expanded={isOpen}
+                                  aria-controls={`proj-${p.id}-menu`}
+                                >
+                                  <span className="text-sm font-medium truncate">
+                                    {p.name}
+                                  </span>
+                                </button>
+                              )}
+                            </div>
 
-                      <button
-                        type="button"
-                        onClick={() => askDelete(p)}
-                        title="Delete"
-                        className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
-                        h-6 w-6 rounded hover:bg-red-500/10 text-red-500 transition"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  )}
+                            {/* RIGHT BUTTONS */}
+                            <div className="flex items-center gap-1">
+                              {editingId !== p.id && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startRename(p)}
+                                    title="Rename"
+                                    className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
+                                      h-6 w-6 rounded hover:bg-muted/60 text-muted-foreground transition"
+                                  >
+                                    <Type className="h-3.5 w-3.5" />
+                                  </button>
 
-                  <button
-                    onClick={() => toggleProject(p.id)}
-                    aria-expanded={isOpen}
-                    aria-controls={`proj-${p.id}-menu`}
-                    className="h-6 w-6 grid place-items-center rounded hover:bg-muted/60"
-                  >
-                    {isOpen ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </button>
-                </div>
-                      {/* submenu — your same 5 items, but project-scoped */}
-                      {/* submenu — project-scoped items */}
-                      {isOpen && (
-                        <div
-                          id={`proj-${p.id}-menu`}
-                          className="ml-4 space-y-1"
-                        >
-                          <SidebarItem
-                            icon={FileText}
-                            label="Task Board"
-                            href={`/projects/${p.id}/task-board`}
-                          />
-                          <SidebarItem
-                            icon={MessageCircle}
-                            label="Ask Mindy"
-                            href={`/projects/${p.id}/ask-mindy`}
-                          />
-                          <SidebarItem
-                            icon={MessageSquare}
-                            label="Discussions"
-                            href={`/projects/${p.id}/discussions`}
-                          />
+                                  <button
+                                    type="button"
+                                    onClick={() => askDelete(p)}
+                                    title="Delete"
+                                    className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center
+                                      h-6 w-6 rounded hover:bg-red-500/10 text-red-500 transition"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              )}
 
-                          {/* Documents “parent” row (collapsible) */}
-                          <div className="mt-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setOpenDocsByProject((prev) => ({
-                                  ...prev,
-                                  [p.id]: !prev[p.id],
-                                }))
-                              }
-                              className="w-full flex items-center justify-between px-4 py-2 rounded-md text-sm hover:bg-muted transition"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Type className="h-5 w-5 shrink-0" />
-                                <span className="truncate">Documents</span>
-                              </div>
-                              <ChevronDown
-                                className={`h-4 w-4 text-muted-foreground transition-transform ${
-                                  openDocsByProject[p.id] ? "rotate-180" : ""
-                                }`}
-                              />
-                            </button>
+                              <button
+                                onClick={() => toggleProject(p.id)}
+                                aria-expanded={isOpen}
+                                aria-controls={`proj-${p.id}-menu`}
+                                className="h-6 w-6 grid place-items-center rounded hover:bg-muted/60"
+                              >
+                                {isOpen ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </button>
+                            </div>
                           </div>
 
-                          {/* Scrollable docs list – only when Documents is open */}
-                          {openDocsByProject[p.id] && (
-                            <div className="max-h-60 overflow-y-auto pr-1">
-                              {(docsByProject[p.id] ?? []).map((d) => (
-                                <SidebarItem
-                                  key={d.id}
-                                  icon={Type}
-                                  label={d.title || "Untitled"}
-                                  href={`/projects/${p.id}/docs/${d.id}`}
-                                  viewConfig={{
-                                    kind: "document",
-                                    id: d.id,
-                                    title: d.title || "Untitled",
-                                    params: { projectId: p.id },
-                                  }}
-                                  title="Drag to Desk or Alt-click to open in a tab"
-                                />
-                              ))}
+                          {/* SUBMENU: only when project row is open */}
+                          {isOpen && (
+                            <div
+                              id={`proj-${p.id}-menu`}
+                              className="ml-4 space-y-1"
+                            >
+                              <SidebarItem
+                                icon={FileText}
+                                label="Task Board"
+                                href={`/projects/${p.id}/task-board`}
+                              />
+                              <SidebarItem
+                                icon={MessageCircle}
+                                label="Ask Mindy"
+                                href={`/projects/${p.id}/ask-mindy`}
+                              />
+                              <SidebarItem
+                                icon={MessageSquare}
+                                label="Discussions"
+                                href={`/projects/${p.id}/discussions`}
+                              />
 
-                              {docsByProject[p.id] &&
-                                (docsByProject[p.id] as DocLite[]).length ===
-                                  0 && (
-                                  <div className="px-4 py-2 text-xs text-muted-foreground">
-                                    No documents
+                              {/* Documents parent row (collapsible) */}
+                              <div className="mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setOpenDocsByProject((prev) => ({
+                                      ...prev,
+                                      [p.id]: !prev[p.id],
+                                    }))
+                                  }
+                                  className="w-full flex items-center justify-between px-4 py-2 rounded-md text-sm hover:bg-muted transition"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Type className="h-5 w-5 shrink-0" />
+                                    <span className="truncate">Documents</span>
                                   </div>
-                                )}
+                                  <ChevronDown
+                                    className={`h-4 w-4 text-muted-foreground transition-transform ${
+                                      openDocsByProject[p.id]
+                                        ? "rotate-180"
+                                        : ""
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+
+                              {/* scrollable docs list when Documents is open */}
+                              {openDocsByProject[p.id] && (
+                                <div className="max-h-60 overflow-y-auto pr-1">
+                                  {(docsByProject[p.id] ?? []).map((d) => (
+                                    <SidebarItem
+                                      key={d.id}
+                                      icon={Type}
+                                      label={d.title || "Untitled"}
+                                      href={`/projects/${p.id}/docs/${d.id}`}
+                                      viewConfig={{
+                                        kind: "document",
+                                        id: d.id,
+                                        title: d.title || "Untitled",
+                                        params: { projectId: p.id },
+                                      }}
+                                      title="Drag to Desk or Alt-click to open in a tab"
+                                    />
+                                  ))}
+
+                                  {docsByProject[p.id] &&
+                                    (docsByProject[p.id] as DocLite[])
+                                      .length === 0 && (
+                                      <div className="px-4 py-2 text-xs text-muted-foreground">
+                                        No documents
+                                      </div>
+                                    )}
+                                </div>
+                              )}
+
+                              <SidebarItem
+                                icon={Video}
+                                label="Mesh Meet"
+                                href={`/projects/${p.id}/mesh-meet`}
+                              />
                             </div>
                           )}
-
-                          <SidebarItem
-                            icon={Video}
-                            label="Mesh Meet"
-                            href={`/projects/${p.id}/mesh-meet`}
-                          />
                         </div>
-                      )}
-                    </div>
+                      </ContextMenuTrigger>
+
+                      <ContextMenuContent>
+                        <ContextMenuItem onClick={() => startRename(p)}>
+                          Rename
+                        </ContextMenuItem>
+
+                        <ContextMenuItem onClick={() => askDelete(p)}>
+                          Delete
+                        </ContextMenuItem>
+
+                        <ContextMenuItem
+                          onClick={() => {
+                            setInviteProject(p);
+                            setInviteOpen(true);
+                          }}
+                        >
+                          Invite teammate
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })}
               </div>
-
-              {/* SUBMENU */}
-              {isOpen && (
-                <div id={`proj-${p.id}-menu`} className="ml-4 space-y-1">
-                  <SidebarItem
-                    icon={FileText}
-                    label="Task Board"
-                    href={`/projects/${p.id}/task-board`}
-                  />
-                  <SidebarItem
-                    icon={MessageCircle}
-                    label="Ask Mindy"
-                    href={`/projects/${p.id}/ask-mindy`}
-                  />
-                  <SidebarItem
-                    icon={MessageSquare}
-                    label="Discussions"
-                    href={`/projects/${p.id}/discussions`}
-                  />
-                  <SidebarItem
-                    icon={Type}
-                    label="Documents"
-                    href={`/projects/${p.id}/documents`}
-                  />
-                  <SidebarItem
-                    icon={Video}
-                    label="Mesh Meet"
-                    href={`/projects/${p.id}/mesh-meet`}
-                  />
-                </div>
-              )}
-            </div>
-          </ContextMenuTrigger>
-
-          <ContextMenuContent>
-            <ContextMenuItem onClick={() => startRename(p)}>
-              Rename
-            </ContextMenuItem>
-
-            <ContextMenuItem onClick={() => askDelete(p)}>
-              Delete
-            </ContextMenuItem>
-
-            <ContextMenuItem
-              onClick={() => {
-                setInviteProject(p);
-                setInviteOpen(true);
-              }}
-            >
-              Invite teammate
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      );
-    })}
-  </div>
-)}
-
+            )}
           </>
         )}
       </nav>
@@ -591,6 +563,7 @@ export default function Sidebar() {
           collapsed={collapsed}
         /> */}
       </div>
+
       <CreateProjectModal
         open={createOpen}
         onOpenChange={setCreateOpen}
@@ -599,14 +572,15 @@ export default function Sidebar() {
           setOpenProjects((prev) => ({ ...prev, [project.id]: true })); // auto-expand
         }}
       />
+
       {projects && (
         <ProjectSearchModal
           open={searchOpen}
           onOpenChange={setSearchOpen}
           projects={projects}
-          // onServerSearch={projectsApi.search} // optional: when you add backend
         />
       )}
+
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -628,17 +602,17 @@ export default function Sidebar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       {inviteProject && (
-  <InviteTeammateModal
-    open={inviteOpen}
-    onOpenChange={(open) => {
-      setInviteOpen(open);
-      if (!open) setInviteProject(null);
-    }}
-    project={inviteProject}
-  />
-)}
+        <InviteTeammateModal
+          open={inviteOpen}
+          onOpenChange={(open) => {
+            setInviteOpen(open);
+            if (!open) setInviteProject(null);
+          }}
+          project={inviteProject}
+        />
+      )}
     </aside>
-    
   );
 }
