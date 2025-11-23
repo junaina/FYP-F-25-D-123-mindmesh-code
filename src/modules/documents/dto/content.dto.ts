@@ -31,6 +31,17 @@ const HeadingNode: z.ZodType<JC> = z.object({
   content: NodeArray(),
   marks: z.array(MarkSchema).optional(),
 });
+const GoogleDriveEmbedNode: z.ZodType<JSONContent> = z.object({
+  type: z.literal("googleDriveEmbed"),
+  attrs: z
+    .object({
+      embedId: z.string().uuid(), // the Embed.id from DB
+      name: z.string().max(500).optional(), // display name
+      previewLink: z.string().url(), // /file/d/<id>/preview
+      webViewLink: z.string().url(), // /file/.../view
+    })
+    .strict(),
+});
 
 const ImageNode: z.ZodType<JC> = z.object({
   type: z.literal("image"),
@@ -96,6 +107,15 @@ const CalendarViewNode: z.ZodType<JSONContent> = z.object({
     })
     .strict(),
 });
+const BoardViewNode: z.ZodType<JSONContent> = z.object({
+  type: z.literal("boardView"),
+  attrs: z
+    .object({
+      collectionId: z.string().uuid(),
+    })
+    .strict(),
+});
+
 NodeSchema = z.union([
   TextNode,
   HeadingNode,
@@ -114,6 +134,8 @@ NodeSchema = z.union([
   TableViewNode,
   TimelineViewNode,
   CalendarViewNode,
+  BoardViewNode,
+  GoogleDriveEmbedNode,
   z.object({ type: z.literal("horizontalRule") }) as z.ZodType<JC>,
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
 ]);
@@ -139,6 +161,6 @@ export type PatchDocContentRequest = z.infer<
 export const GetDocContentResponseSchema = z.object({
   id: z.string().uuid(),
   content: DocContentSchema,
-  updatedAt: z.string().datetime(), 
+  updatedAt: z.string().datetime(),
 });
 export type GetDocContentResponse = z.infer<typeof GetDocContentResponseSchema>;

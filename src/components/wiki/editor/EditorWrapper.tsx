@@ -10,6 +10,9 @@ import {
   ToggleSummary,
   ToggleBody,
 } from "@/components/wiki/extensions/ToggleExtension";
+import { BoardViewExtension } from "../extensions/kov/BoardView/BoardViewExtension";
+import { createBoardForDoc } from "@/modules/board/client/board.api";
+
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -26,6 +29,12 @@ import { TableViewExtension } from "@/components/wiki/extensions/kov/TableView/T
 import { TimelineViewExtension } from "@/components/wiki/extensions/kov/TimelineView/TimelineViewExtension";
 import { CalendarViewExtension } from "../extensions/kov/CalendarView/CalendarViewExtension";
 import { SlashIcons } from "@/components/wiki/extensions/slashIcons";
+import { GoogleDriveEmbed } from "@/components/wiki/extensions/GoogleDriveEmbed";
+import { createGoogleDriveEmbed } from "@/modules/documents/client/embeds.api";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 type Props = { projectId: string; docId: string };
 
 const EMPTY_DOC: JSONContent = {
@@ -35,11 +44,60 @@ const EMPTY_DOC: JSONContent = {
 // helper
 const monthStartIsoUtc = (d = new Date()) =>
   new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+function deriveDriveLinks(rawUrl: string) {
+  try {
+    const u = new URL(rawUrl);
+    if (
+      u.hostname.includes("drive.google.com") &&
+      u.pathname.includes("/file/d/")
+    ) {
+      const parts = u.pathname.split("/");
+      const dIndex = parts.indexOf("d");
+      const fileId = dIndex >= 0 ? parts[dIndex + 1] : null;
 
+      if (fileId) {
+        return {
+          previewLink: `https://drive.google.com/file/d/${fileId}/preview`,
+          webViewLink: `https://drive.google.com/file/d/${fileId}/view`,
+        };
+      }
+    }
+  } catch {
+    // ignore and fall back
+  }
+  return { previewLink: rawUrl, webViewLink: rawUrl };
+}
 export default function EditorWrapper({ projectId, docId }: Props) {
   const idsReady = Boolean(projectId && docId);
   const [initial, setInitial] = useState<JSONContent | undefined>();
   const [serverUpdatedAt, setServerUpdatedAt] = useState<string | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  type DrivePromptState = {
+    from: number;
+    to: number;
+    top: number;
+    left: number;
+  };
+  const [drivePrompt, setDrivePrompt] = useState<DrivePromptState | null>(null);
+
+  const openDrivePrompt = (editor: any) => {
+    const wrap = wrapperRef.current;
+    if (!wrap || !editor || editor.isDestroyed) return;
+
+    const { state, view } = editor;
+    if (!view) return;
+
+    const { from, to } = state.selection;
+    const caretRect = view.coordsAtPos(from);
+    const wrapperRect = wrap.getBoundingClientRect();
+
+    setDrivePrompt({
+      from,
+      to,
+      top: caretRect.bottom - wrapperRect.top + 8, // 8px below caret
+      left: caretRect.left - wrapperRect.left, // aligned with caret x
+    });
+  };
 
   // Load initial content
   useEffect(() => {
@@ -124,6 +182,18 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       },
     }),
     [projectId, docId]
+  );
+  const googleDriveSlashItem = useMemo(
+    () => ({
+      title: "Google Drive PDF",
+      description: "Embed a PDF from Google Drive",
+      icon: SlashIcons.googleDrive,
+      command: ({ editor }: { editor: any }) => {
+        // just open the inline form at the cursor
+        openDrivePrompt(editor);
+      },
+    }),
+    [projectId, docId] // openDrivePrompt is stable in this component
   );
 
   // Memoize the “Table” slash item so it captures projectId/docId
@@ -223,6 +293,69 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     }),
     [projectId, docId]
   );
+  // Memoize the “Board” slash item so it captures projectId/docId
+  const boardSlashItem = useMemo(
+    () => ({
+      title: "Board",
+      description: "Insert a kanban board",
+      icon: SlashIcons.board ?? SlashIcons.table, // reuse an icon if you don’t have one yet
+      command: async ({ editor }: { editor: any }) => {
+        try {
+          // 1) create the board collection on the backend
+          const res = await fetch(
+            `/api/projects/${projectId}/docs/${docId}/collections/board`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: "Untitled board" }),
+            }
+          );
+
+          if (!res.ok) {
+            console.error(
+              "[/board] create failed",
+              res.status,
+              await res.text().catch(() => "")
+            );
+            return;
+          }
+
+          const { id: collectionId } = await res.json();
+
+          // 2) defer the ProseMirror insert to the next frame (same trick as calendar)
+          requestAnimationFrame(() => {
+            if (!editor || editor.isDestroyed) return;
+
+            const pos = editor.state.selection.from;
+
+            const inserted =
+              typeof editor.commands.insertBoardView === "function"
+                ? editor.chain().focus().insertBoardView({ collectionId }).run()
+                : editor
+                    .chain()
+                    .focus()
+                    .insertContentAt({ from: pos, to: pos }, [
+                      { type: "boardView", attrs: { collectionId } },
+                      { type: "paragraph" },
+                    ])
+                    .run();
+
+            if (!inserted) return;
+
+            // 3) persist immediately (optional; autosave will also do this later)
+            patchDocContent(projectId, docId, {
+              content: editor.getJSON(),
+            }).catch((e: any) => {
+              console.warn("[/board] patch after insert failed", e);
+            });
+          });
+        } catch (e) {
+          console.error("[/board] unexpected error", e);
+        }
+      },
+    }),
+    [projectId, docId]
+  );
 
   // Memoize the extensions array
   const extensions = useMemo(
@@ -239,11 +372,27 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       TableViewExtension({ projectId, docId }),
       TimelineViewExtension({ projectId, docId }),
       CalendarViewExtension({ projectId, docId }),
+      BoardViewExtension({ projectId, docId }),
+      GoogleDriveEmbed,
       SlashMenuExtension({
-        extraItems: [tableSlashItem, timelineSlashItem, calendarSlashItem],
+        extraItems: [
+          tableSlashItem,
+          timelineSlashItem,
+          boardSlashItem,
+          calendarSlashItem,
+          googleDriveSlashItem,
+        ],
       }),
     ],
-    [projectId, docId, tableSlashItem, timelineSlashItem, calendarSlashItem]
+    [
+      projectId,
+      docId,
+      tableSlashItem,
+      timelineSlashItem,
+      boardSlashItem,
+      calendarSlashItem,
+      googleDriveSlashItem,
+    ]
   );
 
   // Build the editor options (optionally memoize this object too)
@@ -327,6 +476,172 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     };
   }, [editor, projectId, docId, serverUpdatedAt]);
 
+  // ...
+
   if (!editor) return null;
-  return <EditorContent editor={editor} />;
+  return (
+    <div
+      ref={wrapperRef}
+      data-project-id={projectId}
+      data-doc-id={docId}
+      className="h-full relative"
+    >
+      <EditorContent editor={editor} />
+
+      {drivePrompt && (
+        <DriveEmbedInlineForm
+          top={drivePrompt.top}
+          left={drivePrompt.left}
+          onClose={() => setDrivePrompt(null)}
+          onSubmit={async (url, name) => {
+            if (!url || !drivePrompt) return;
+
+            // Use the latest editor from useEditor()
+            if (!editor || editor.isDestroyed || !editor.view) {
+              setDrivePrompt(null);
+              return;
+            }
+
+            const embed = await createGoogleDriveEmbed({
+              projectId,
+              docId,
+              url,
+              name: name || undefined,
+            });
+
+            const { previewLink, webViewLink } = deriveDriveLinks(url);
+            const displayName = name || "Google Drive file";
+
+            const { from, to } = drivePrompt;
+
+            editor
+              .chain()
+              .focus()
+              .insertContentAt({ from, to }, [
+                {
+                  type: "googleDriveEmbed",
+                  attrs: {
+                    embedId: embed.id,
+                    name: displayName,
+                    previewLink,
+                    webViewLink,
+                  },
+                },
+                { type: "paragraph" },
+              ])
+              .run();
+
+            await patchDocContent(projectId, docId, {
+              content: editor.getJSON(),
+            });
+
+            setDrivePrompt(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+type DriveEmbedInlineFormProps = {
+  top: number;
+  left: number;
+  onClose: () => void;
+  onSubmit: (url: string, name: string) => void | Promise<void>;
+};
+
+function DriveEmbedInlineForm({
+  top,
+  left,
+  onClose,
+  onSubmit,
+}: DriveEmbedInlineFormProps) {
+  const [url, setUrl] = useState("");
+  const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleKeyDown: React.KeyboardEventHandler<HTMLFormElement> = async (
+    e
+  ) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (!submitting) onClose();
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (submitting) return;
+      await doSubmit();
+    }
+  };
+
+  const doSubmit = async () => {
+    const trimmedUrl = url.trim();
+    const trimmedName = name.trim();
+    if (!trimmedUrl) return;
+
+    try {
+      setSubmitting(true);
+      await onSubmit(trimmedUrl, trimmedName);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit: React.FormEventHandler = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    await doSubmit();
+  };
+
+  return (
+    <div className="absolute z-50" style={{ top, left }}>
+      <Card className="p-3 shadow-lg border bg-popover">
+        <form
+          className="space-y-2 min-w-[260px]"
+          onSubmit={handleSubmit}
+          onKeyDown={handleKeyDown}
+        >
+          <div className="space-y-1">
+            <Label htmlFor="gdrive-url">Google Drive URL</Label>
+            <Input
+              id="gdrive-url"
+              autoFocus
+              placeholder="https://drive.google.com/file/d/..."
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              disabled={submitting}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="gdrive-name">Display name (optional)</Label>
+            <Input
+              id="gdrive-name"
+              placeholder="Security Slides, Sprint Plan..."
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={submitting}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={submitting || !url.trim()}
+            >
+              {submitting ? "Embedding..." : "Embed"}
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
 }

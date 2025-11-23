@@ -21,7 +21,10 @@ import React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { SlashIcons } from "./slashIcons";
 import { LucideIcon } from "lucide-react";
-
+import type {
+  EmbedRow,
+  GoogleDriveEmbedMeta,
+} from "@/modules/documents/domain/embed.types";
 const SLASH_ITEMS: SlashItem[] = [
   {
     title: "Heading 1",
@@ -68,14 +71,14 @@ const SLASH_ITEMS: SlashItem[] = [
     icon: SlashIcons.toggleList,
     command: ({ editor }) => editor.chain().focus().insertToggle().run(),
   },
-  {
-    title: "Google Drive",
-    description: "Embed a doc from Google Drive",
-    icon: SlashIcons.googleDrive,
-    command: ({ editor }) => {
-      // TODO: your integration
-    },
-  },
+  // {
+  //   title: "Google Drive",
+  //   description: "Embed a doc from Google Drive",
+  //   icon: SlashIcons.googleDrive,
+  //   command: ({ editor }) => {
+  //     // TODO: your integration
+  //   },
+  // },
   {
     title: "GitHub",
     description: "Embed PR or issue",

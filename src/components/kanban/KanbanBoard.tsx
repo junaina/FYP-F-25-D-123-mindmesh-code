@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { board as mockBoard, initialTasks } from "@/data/kanbanData";
 import { USERS } from "@/data/users";
-import { Board, Column, Task } from "@/types/kanban";
+import { Column, Task } from "@/types/kanban";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +39,29 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
+import {
+  getBoard,
+  updateBoardName,
+  createBoardColumn,
+  renameBoardColumn,
+  deleteBoardColumn,
+  reorderBoardColumns,
+  createBoardItem,
+  updateBoardItem,
+  deleteBoardItem,
+  createStatusPropertyForBoard,
+  updateBoardStatusBinding,
+  type StatusPropertyDto,
+  getBoardStatusProperties,
+} from "@/modules/board/client/board.api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 /* ---------------------------- small utilities ---------------------------- */
 function useMediaQuery(query: string) {
   const [m, setM] = useState(false);
@@ -66,13 +88,93 @@ function buildInitialTaskOrder(cols: Column[], tasks: Task[]): TaskOrder {
 }
 
 /* --------------------------------- main --------------------------------- */
-type Props = { board?: Board };
+type Props = {
+  projectId: string;
+  docId: string;
+  collectionId: string;
+};
 
-export default function KanbanBoard({ board = mockBoard }: Props) {
+export default function KanbanBoard({ projectId, docId, collectionId }: Props) {
+  const router = useRouter();
   const isMobile = useMediaQuery("(max-width: 640px)");
 
-  const [boardName, setBoardName] = useState(board.name);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [boardName, setBoardName] = useState("Untitled Board");
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [cols, setCols] = useState<Column[]>([]);
+  const [taskOrder, setTaskOrder] = useState<TaskOrder>({});
+  const [statusPropertyId, setStatusPropertyId] = useState<string | null>(null);
+  const [statusProperties, setStatusProperties] = useState<StatusPropertyDto[]>(
+    []
+  );
+  const [loadingBoard, setLoadingBoard] = useState(true);
+
+  const [savingName, setSavingName] = useState(false);
+  function openTask(task: Task) {
+    // task.id === underlying Document.id for the card
+    if (!task.id) return; // tiny guardrail
+    router.push(`/projects/${projectId}/docs/${task.id}`);
+  }
+
+  // Load board (name + columns + cards)
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setLoadingBoard(true);
+
+        // 1) load board (name + columns + cards)
+        const board = await getBoard(projectId, docId, collectionId);
+        if (cancelled) return;
+
+        setBoardName(board.name);
+
+        const boundStatusId = board.bindings?.statusPropertyId ?? null;
+        setStatusPropertyId(boundStatusId);
+
+        const apiCols = (board.columns ?? []) as any[];
+        const mappedCols: Column[] = apiCols.map((c) => ({
+          // column id = status option id
+          id: c.optionId ?? c.id,
+          title: c.label ?? c.name ?? c.value ?? "Untitled Column",
+        }));
+        setCols(mappedCols);
+
+        const apiCards = (board.cards ?? []) as any[];
+        const mappedTasks: Task[] = apiCards.map((card) => ({
+          id: card.id ?? card.documentId, // ✅ fix here too
+          title: card.title ?? "Untitled Task",
+          description: card.description ?? "",
+          status: card.columnId ?? card.optionId,
+          assigneeIds: card.assigneeIds ?? [],
+        }));
+        setTasks(mappedTasks);
+        setTaskOrder(buildInitialTaskOrder(mappedCols, mappedTasks));
+        // 2) load available status properties for the dropdown
+        const statusResp = await getBoardStatusProperties(
+          projectId,
+          docId,
+          collectionId
+        );
+        if (cancelled) return;
+
+        setStatusProperties(statusResp.properties);
+
+        // if backend thinks another property is current, trust it
+        if (statusResp.currentPropertyId !== undefined) {
+          setStatusPropertyId(statusResp.currentPropertyId);
+        }
+      } catch (err) {
+        console.error("Failed to load board", err);
+      } finally {
+        if (!cancelled) setLoadingBoard(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, docId, collectionId]);
 
   // Columns (stateful so we can re-order & add/delete)
   const initialCols: Column[] = [
@@ -81,12 +183,6 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     { id: "review", title: "Review" },
     { id: "done", title: "Done" },
   ];
-  const [cols, setCols] = useState<Column[]>(initialCols);
-
-  // Track order of tasks per column for nice reordering
-  const [taskOrder, setTaskOrder] = useState<TaskOrder>(
-    buildInitialTaskOrder(initialCols, initialTasks)
-  );
 
   // Sensors: small movement required before a drag starts (works well on touch)
   const sensors = useSensors(
@@ -102,11 +198,6 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     []
   );
 
-  // stub: wire this to your wiki route later
-  function openTask(task: Task) {
-    console.log("open task", task.id);
-  }
-
   // Softer ghost icon button with good light/dark hover
   const iconBtn =
     "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/70 " +
@@ -114,54 +205,225 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     "transition-colors";
 
   /* ------------------------------- CRUD -------------------------------- */
-  const addColumn = () => {
-    const newCol: Column = {
-      id: crypto.randomUUID(),
-      title: "Untitled Column",
-    };
-    setCols((prev) => [...prev, newCol]);
-    setTaskOrder((prev) => ({ ...prev, [newCol.id]: [] }));
+  const addColumn = async () => {
+    const baseLabel = "Untitled Column";
+    const existingTitles = cols.map((c) => c.title);
+    const uniqueLabel = makeUniqueColumnLabel(baseLabel, existingTitles);
+
+    // CASE 1: we already have a status property bound → just add option to it
+    if (statusPropertyId) {
+      try {
+        const created = await createBoardColumn(
+          projectId,
+          docId,
+          collectionId,
+          statusPropertyId,
+          uniqueLabel
+        );
+
+        const newCol: Column = {
+          id: created.id,
+          title: created.title, // backend-normalised label
+        };
+
+        setCols((prev) => [...prev, newCol]);
+        setTaskOrder((prev) => ({ ...prev, [newCol.id]: [] }));
+      } catch (err) {
+        console.error("Failed to create column", err);
+      }
+      return;
+    }
+
+    // CASE 2: no status property yet → create one + first option, then bind it
+    try {
+      const property = await createStatusPropertyForBoard(
+        projectId,
+        docId,
+        collectionId,
+        {
+          name: "Untitled status",
+          options: [uniqueLabel],
+        }
+      );
+
+      const newStatusPropertyId = property.id;
+      const firstOption = property.options[0];
+
+      if (!firstOption) {
+        throw new Error("Status property created without any options");
+      }
+
+      await updateBoardStatusBinding(
+        projectId,
+        docId,
+        collectionId,
+        newStatusPropertyId
+      );
+
+      const columnId = firstOption.id;
+      const columnTitle = firstOption.value ?? uniqueLabel;
+
+      const newCol: Column = {
+        id: columnId,
+        title: columnTitle,
+      };
+
+      setStatusPropertyId(newStatusPropertyId);
+      setCols((prev) => [...prev, newCol]);
+      setTaskOrder((prev) => ({ ...prev, [newCol.id]: [] }));
+    } catch (err) {
+      console.error("Failed to create status property + first column", err);
+    }
   };
 
-  const deleteColumn = (colId: string) => {
-    setCols((prev) => prev.filter((c) => c.id !== colId));
-    setTasks((prev) => prev.filter((t) => t.status !== colId));
+  const deleteColumn = async (colId: string) => {
+    const prevCols = cols;
+    const prevTasks = tasks;
+    const prevOrder = taskOrder;
+
+    setCols((p) => p.filter((c) => c.id !== colId));
+    setTasks((p) => p.filter((t) => t.status !== colId));
     setTaskOrder((prev) => {
       const copy = { ...prev };
       delete copy[colId];
       return copy;
     });
+
+    if (!statusPropertyId) return;
+
+    try {
+      await deleteBoardColumn(
+        projectId,
+        docId,
+        collectionId,
+        statusPropertyId,
+        colId
+      );
+    } catch (err) {
+      console.error("Failed to delete column", err);
+      // simple rollback on error
+      setCols(prevCols);
+      setTasks(prevTasks);
+      setTaskOrder(prevOrder);
+    }
   };
 
-  const addTask = (status: string) => {
-    const newTask: Task = {
-      id: crypto.randomUUID(),
-      title: "Untitled Task",
-      description: "Short description...",
-      status,
-      assigneeIds: [],
-    };
-    setTasks((prev) => [newTask, ...prev]);
-    setTaskOrder((prev) => ({
-      ...prev,
-      [status]: [newTask.id, ...(prev[status] ?? [])],
-    }));
+  const addTask = async (status: string) => {
+    if (!statusPropertyId) {
+      console.warn("No status property bound for this board");
+      return;
+    }
+
+    try {
+      const card = await createBoardItem(projectId, docId, collectionId, {
+        propertyId: statusPropertyId,
+        optionId: status,
+        title: "Untitled Task",
+      });
+
+      const documentId = (card as any).id; // BoardCardDto.id
+
+      if (!documentId) {
+        console.error("Board card returned without an id/documentId", card);
+        return;
+      }
+
+      const newTask: Task = {
+        id: documentId,
+        title: card.title ?? "Untitled Task",
+        description: card.description ?? "",
+        status: card.columnId ?? status,
+        assigneeIds: card.assigneeIds ?? [],
+      };
+
+      setTasks((prev) => [newTask, ...prev]);
+      setTaskOrder((prev) => ({
+        ...prev,
+        [newTask.status]: [newTask.id, ...(prev[newTask.status] ?? [])],
+      }));
+    } catch (err) {
+      console.error("Failed to create task", err);
+    }
   };
 
   const updateTask = (id: string, patch: Partial<Task>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  };
 
-  const deleteTask = (id: string) => {
-    const found = tasks.find((t) => t.id === id);
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    if (found) {
-      setTaskOrder((prev) => ({
-        ...prev,
-        [found.status]: (prev[found.status] || []).filter((tid) => tid !== id),
-      }));
+    if (patch.title !== undefined) {
+      if (!id || id === "undefined") {
+        console.warn("Skipping title update: missing document id", {
+          id,
+          patch,
+        });
+        return;
+      }
+
+      void updateBoardItem(projectId, docId, collectionId, id, {
+        title: patch.title,
+      });
     }
   };
+
+  const deleteTask = async (id: string) => {
+    const found = tasks.find((t) => t.id === id);
+    if (!found) return;
+
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setTaskOrder((prev) => ({
+      ...prev,
+      [found.status]: (prev[found.status] || []).filter((tid) => tid !== id),
+    }));
+
+    try {
+      await deleteBoardItem(projectId, docId, collectionId, id);
+    } catch (err) {
+      console.error("Failed to delete task", err);
+      // TODO: optional rollback or refetch
+    }
+  };
+  async function handleStatusPropertyChange(newPropertyId: string) {
+    try {
+      setStatusPropertyId(newPropertyId);
+
+      // 1) tell backend this is the new grouping property
+      await updateBoardStatusBinding(
+        projectId,
+        docId,
+        collectionId,
+        newPropertyId
+      );
+
+      // 2) refetch board so we get the correct columns + cards for that property
+      const board = await getBoard(projectId, docId, collectionId);
+
+      setBoardName(board.name);
+      setStatusPropertyId(board.bindings?.statusPropertyId ?? newPropertyId);
+
+      // rebuild column + task state from board
+      const apiCols = (board.columns ?? []) as any[];
+      const mappedCols: Column[] = apiCols.map((c) => ({
+        id: c.optionId ?? c.id,
+        title: c.label ?? c.name ?? c.value ?? "Untitled Column",
+      }));
+      setCols(mappedCols);
+
+      const apiCards = (board.cards ?? []) as any[];
+      const mappedTasks: Task[] = apiCards.map((card) => ({
+        // ✅ use the document id the backend actually sends
+        id: card.id ?? card.documentId, // fallback just in case
+
+        title: card.title ?? "Untitled Task",
+        description: card.description ?? "",
+        status: card.columnId ?? card.optionId, // safer: columnId first
+        assigneeIds: card.assigneeIds ?? [],
+      }));
+      setTasks(mappedTasks);
+      setTaskOrder(buildInitialTaskOrder(mappedCols, mappedTasks));
+    } catch (err) {
+      console.error("Failed to change status property", err);
+      // optional: rollback selection or refetch
+    }
+  }
 
   /* ---------------------------- DND handlers ---------------------------- */
 
@@ -217,7 +479,19 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
       const oldIndex = cols.findIndex((c) => c.id === active.id);
       const newIndex = cols.findIndex((c) => c.id === over.id);
       if (oldIndex < 0 || newIndex < 0) return;
-      setCols((prev) => arrayMove(prev, oldIndex, newIndex));
+
+      const newCols = arrayMove(cols, oldIndex, newIndex);
+      setCols(newCols);
+
+      if (statusPropertyId) {
+        void reorderBoardColumns(
+          projectId,
+          docId,
+          collectionId,
+          statusPropertyId,
+          newCols.map((c) => c.id)
+        );
+      }
       return;
     }
 
@@ -232,30 +506,43 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
 
       const overTaskId = overType === "task" ? String(over.id) : null;
 
-      setTaskOrder((prev) => {
-        const next = { ...prev };
-        const fromArr = (next[fromCol] || []).filter(
-          (id) => id !== activeTaskId
-        );
-        const toArr = [
-          ...(next[toCol] || []).filter((id) => id !== activeTaskId),
-        ];
+      // --- existing local order logic, but in an explicit object ---
 
-        const insertIndex =
-          overTaskId && toArr.includes(overTaskId)
-            ? toArr.indexOf(overTaskId)
-            : toArr.length;
-        toArr.splice(insertIndex, 0, activeTaskId);
+      const fromArr = [...(taskOrder[fromCol] || [])];
+      let toArr = fromCol === toCol ? fromArr : [...(taskOrder[toCol] || [])];
 
-        next[fromCol] = fromArr;
-        next[toCol] = toArr;
-        return next;
-      });
+      const fromIndex = fromArr.indexOf(activeTaskId);
+      if (fromIndex === -1) return;
+      fromArr.splice(fromIndex, 1);
+
+      if (overType === "task" && overTaskId) {
+        const overIndex = toArr.indexOf(overTaskId);
+        const insertAt = overIndex === -1 ? toArr.length : overIndex;
+        toArr.splice(insertAt, 0, activeTaskId);
+      } else {
+        // dropped on column header → put on top
+        toArr.unshift(activeTaskId);
+      }
+
+      const nextOrder: TaskOrder = {
+        ...taskOrder,
+        [fromCol]: fromArr,
+        [toCol]: toArr,
+      };
+      setTaskOrder(nextOrder);
 
       if (toCol !== fromCol) {
         setTasks((prev) =>
           prev.map((t) => (t.id === activeTaskId ? { ...t, status: toCol } : t))
         );
+      }
+
+      const newPos = nextOrder[toCol].indexOf(activeTaskId);
+      if (statusPropertyId) {
+        void updateBoardItem(projectId, docId, collectionId, activeTaskId, {
+          optionId: toCol,
+          position: newPos,
+        });
       }
     }
   }
@@ -303,6 +590,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
               <span
                 {...listeners}
                 {...attributes}
+                data-dnd-handle
                 className="inline-flex h-7 w-7 items-center justify-center rounded-md
                            text-muted-foreground hover:text-foreground
                            hover:bg-neutral-100 dark:hover:bg-neutral-800
@@ -311,19 +599,39 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
               >
                 <GripVertical className="h-5 w-5" />
               </span>
-
               <EditableText
                 value={col.title}
-                onChange={(v) =>
+                onChange={async (v) => {
+                  const prevTitle = col.title;
+                  const nextTitle = v || "Untitled Column";
+
                   setCols((prev) =>
                     prev.map((c) =>
-                      c.id === col.id
-                        ? { ...c, title: v || "Untitled Column" }
-                        : c
+                      c.id === col.id ? { ...c, title: nextTitle } : c
                     )
-                  )
-                }
-                className="text-base font-semibold text-foreground"
+                  );
+
+                  if (!statusPropertyId) return;
+
+                  try {
+                    await renameBoardColumn(
+                      projectId,
+                      docId,
+                      collectionId,
+                      statusPropertyId,
+                      col.id,
+                      nextTitle
+                    );
+                  } catch (err) {
+                    console.error("Failed to rename column", err);
+                    // rollback on failure (e.g. duplicate name)
+                    setCols((prev) =>
+                      prev.map((c) =>
+                        c.id === col.id ? { ...c, title: prevTitle } : c
+                      )
+                    );
+                  }
+                }}
               />
 
               <Badge className="bg-neutral-200/80 text-neutral-700 dark:bg-neutral-800/80 dark:text-neutral-300">
@@ -357,7 +665,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>
-                      Delete “{col.title || "Untitled Column"}”?
+                      Delete "{col.title || "Untitled Column"}"?
                     </AlertDialogTitle>
                   </AlertDialogHeader>
                   <p className="text-sm text-muted-foreground mt-2">
@@ -434,7 +742,21 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
       <Card
         ref={setNodeRef}
         style={style}
-        className="border border-border bg-card text-card-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+
+          // Don't navigate if click was on a button, link, drag handle or editable text
+          if (
+            target.closest("button") ||
+            target.closest("[data-dnd-handle]") ||
+            target.closest("[contenteditable='true']")
+          ) {
+            return;
+          }
+
+          openTask(task);
+        }}
+        className="border border-border bg-card text-card-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/5 cursor-pointer"
       >
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
@@ -442,6 +764,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
               <span
                 {...listeners}
                 {...attributes}
+                data-dnd-handle
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md
                            text-muted-foreground hover:text-foreground
                            hover:bg-neutral-100 dark:hover:bg-neutral-800
@@ -517,7 +840,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
             maxLength={300}
           />
 
-          <div className="flex items-center justify-between">
+          {/* <div className="flex items-center justify-between">
             <div className="flex items-center -space-x-2">
               {assigned.slice(0, 4).map((u) => (
                 <AssigneeAvatar key={u.id} user={u} title={u.name} />
@@ -540,7 +863,7 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
               onChange={(ids) => updateTask(task.id, { assigneeIds: ids })}
               label={isMobile ? "Assign" : "Add Assignees"}
             />
-          </div>
+          </div> */}
         </CardContent>
       </Card>
     );
@@ -551,9 +874,47 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
     <div className="min-h-screen p-4 sm:p-6 bg-background text-foreground">
       {/* Title row */}
       <div className="mb-4 sm:mb-6">
+        {/* Grouping control */}
+        <div className="mb-4 flex items-center gap-2 px-2">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+            Grouped by
+          </span>
+
+          <Select
+            value={statusPropertyId ?? undefined}
+            onValueChange={handleStatusPropertyChange}
+          >
+            <SelectTrigger className="h-8 w-56 text-sm">
+              <SelectValue placeholder="No status property" />
+            </SelectTrigger>
+            <SelectContent>
+              {statusProperties.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <EditableText
           value={boardName}
-          onChange={setBoardName}
+          onChange={async (next) => {
+            setBoardName(next);
+            try {
+              setSavingName(true);
+              await updateBoardName(
+                projectId,
+                docId,
+                collectionId,
+                next || "Untitled Board"
+              );
+            } catch (err) {
+              console.error("Failed to update board name", err);
+            } finally {
+              setSavingName(false);
+            }
+          }}
           placeholder="Untitled Board"
           className="text-2xl sm:text-3xl font-bold px-2 py-2 truncate"
         />
@@ -623,4 +984,13 @@ export default function KanbanBoard({ board = mockBoard }: Props) {
       </DndContext>
     </div>
   );
+}
+function makeUniqueColumnLabel(baseLabel: string, existingTitles: string[]) {
+  let label = baseLabel;
+  let counter = 1;
+  while (existingTitles.includes(label)) {
+    counter += 1;
+    label = `${baseLabel} ${counter}`;
+  }
+  return label;
 }
