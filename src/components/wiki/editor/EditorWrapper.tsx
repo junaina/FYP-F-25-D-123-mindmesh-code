@@ -10,6 +10,9 @@ import {
   ToggleSummary,
   ToggleBody,
 } from "@/components/wiki/extensions/ToggleExtension";
+import { BoardViewExtension } from "../extensions/kov/BoardView/BoardViewExtension";
+import { createBoardForDoc } from "@/modules/board/client/board.api";
+
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -290,6 +293,69 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     }),
     [projectId, docId]
   );
+  // Memoize the “Board” slash item so it captures projectId/docId
+  const boardSlashItem = useMemo(
+    () => ({
+      title: "Board",
+      description: "Insert a kanban board",
+      icon: SlashIcons.board ?? SlashIcons.table, // reuse an icon if you don’t have one yet
+      command: async ({ editor }: { editor: any }) => {
+        try {
+          // 1) create the board collection on the backend
+          const res = await fetch(
+            `/api/projects/${projectId}/docs/${docId}/collections/board`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: "Untitled board" }),
+            }
+          );
+
+          if (!res.ok) {
+            console.error(
+              "[/board] create failed",
+              res.status,
+              await res.text().catch(() => "")
+            );
+            return;
+          }
+
+          const { id: collectionId } = await res.json();
+
+          // 2) defer the ProseMirror insert to the next frame (same trick as calendar)
+          requestAnimationFrame(() => {
+            if (!editor || editor.isDestroyed) return;
+
+            const pos = editor.state.selection.from;
+
+            const inserted =
+              typeof editor.commands.insertBoardView === "function"
+                ? editor.chain().focus().insertBoardView({ collectionId }).run()
+                : editor
+                    .chain()
+                    .focus()
+                    .insertContentAt({ from: pos, to: pos }, [
+                      { type: "boardView", attrs: { collectionId } },
+                      { type: "paragraph" },
+                    ])
+                    .run();
+
+            if (!inserted) return;
+
+            // 3) persist immediately (optional; autosave will also do this later)
+            patchDocContent(projectId, docId, {
+              content: editor.getJSON(),
+            }).catch((e: any) => {
+              console.warn("[/board] patch after insert failed", e);
+            });
+          });
+        } catch (e) {
+          console.error("[/board] unexpected error", e);
+        }
+      },
+    }),
+    [projectId, docId]
+  );
 
   // Memoize the extensions array
   const extensions = useMemo(
@@ -306,11 +372,13 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       TableViewExtension({ projectId, docId }),
       TimelineViewExtension({ projectId, docId }),
       CalendarViewExtension({ projectId, docId }),
+      BoardViewExtension({ projectId, docId }),
       GoogleDriveEmbed,
       SlashMenuExtension({
         extraItems: [
           tableSlashItem,
           timelineSlashItem,
+          boardSlashItem,
           calendarSlashItem,
           googleDriveSlashItem,
         ],
@@ -321,6 +389,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       docId,
       tableSlashItem,
       timelineSlashItem,
+      boardSlashItem,
       calendarSlashItem,
       googleDriveSlashItem,
     ]

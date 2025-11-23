@@ -43,6 +43,7 @@ import {
   Table,
   GanttChart,
   Calendar1Icon,
+  KanbanIcon,
 } from "lucide-react";
 
 // If you want key safety elsewhere:
@@ -97,4 +98,5 @@ export const SlashIcons = {
   table: Table,
   timeline: GanttChart,
   calendar: Calendar,
+  kanban: KanbanIcon,
 } satisfies Record<string, LucideIcon>;

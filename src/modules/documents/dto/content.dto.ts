@@ -107,6 +107,15 @@ const CalendarViewNode: z.ZodType<JSONContent> = z.object({
     })
     .strict(),
 });
+const BoardViewNode: z.ZodType<JSONContent> = z.object({
+  type: z.literal("boardView"),
+  attrs: z
+    .object({
+      collectionId: z.string().uuid(),
+    })
+    .strict(),
+});
+
 NodeSchema = z.union([
   TextNode,
   HeadingNode,
@@ -125,6 +134,7 @@ NodeSchema = z.union([
   TableViewNode,
   TimelineViewNode,
   CalendarViewNode,
+  BoardViewNode,
   GoogleDriveEmbedNode,
   z.object({ type: z.literal("horizontalRule") }) as z.ZodType<JC>,
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
