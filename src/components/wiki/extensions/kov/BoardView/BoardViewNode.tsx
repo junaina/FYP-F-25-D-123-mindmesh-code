@@ -26,7 +26,6 @@ export default function BoardViewNode({
   return (
     <NodeViewWrapper className="my-4">
       <KanbanBoard
-        // we’ll extend this component’s props later
         projectId={projectId}
         docId={docId}
         collectionId={collectionId}
