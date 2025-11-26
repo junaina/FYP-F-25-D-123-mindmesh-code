@@ -12,3 +12,4 @@ set TMP=%cd%\.tmp
 set TEMP=%cd%\.tmp
 ----------------------------------------activation command for the venv
 .\venv\Scripts\activate 
+-------------------------------------------- training commandpython train_t5_ami.py  --max_train_samples 300    --max_eval_samples 80  --num_train_epochs 1  --output_dir models/t5-ami-small 

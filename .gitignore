@@ -99,3 +99,4 @@ build/
 
 # VS Code
 .vscode/
+env-for-local-shell.txt
