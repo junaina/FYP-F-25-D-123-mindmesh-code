@@ -53,8 +53,7 @@ def main():
     print("Loading AMI dataset knkarthick/AMI...")
     dataset = load_dataset("knkarthick/AMI")
 
-    # Many HF dialogue-summary datasets use 'dialogue' + 'summary'.
-    # If this crashes, print(dataset['train'].column_names) and adjust.
+    # if tis  crashes, print(dataset['train'].column_names) and adjust.
     text_column = "dialogue"
     summary_column = "summary"
 
@@ -111,9 +110,9 @@ def main():
         evaluation_strategy="epoch",
         save_strategy="epoch",
         learning_rate=3e-4,
-        per_device_train_batch_size=1,  # CPU-friendly
+        per_device_train_batch_size=1,  #######
         per_device_eval_batch_size=1,
-        gradient_accumulation_steps=8,  # effective batch size 8
+        gradient_accumulation_steps=8,  #####
         weight_decay=0.01,
         save_total_limit=2,
         num_train_epochs=args.num_train_epochs,
