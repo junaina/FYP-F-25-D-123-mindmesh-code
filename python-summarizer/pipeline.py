@@ -27,27 +27,26 @@ def summarize_transcript(
     final_pass_max_tokens: int = 256,
     model_dir: Optional[str] = None,
 ) -> str:
-    """
-    1) Stage A: extract ~40 key sentences (TextRank)
-    2) Stage B:
-       - chunk compressed text if still long
-       - summarize each chunk with T5
-       - summarize combined chunk summaries
-    """
+    #approach:
+    #1) stage a: extract ~40 key sentences (textrank)
+    #2) stage b: abstractive with t5
+    #  - chunk compressed text if still long
+    # - summarize each chunk with t5
+    #- summarize combined chunk summaries
     transcript = (transcript or "").strip()
     if not transcript:
         return ""
 
-    # --- Stage A: extractive ---
+    # --- stage a: extractive ---
     stage_a_sentences = textrank_summarize(
         transcript, max_sentences=max_extractive_sentences
     )
     if not stage_a_sentences:
-        stage_a_text = transcript  # fallback
+        stage_a_text = transcript  # in case textrank fails, fallback to full text
     else:
         stage_a_text = " ".join(stage_a_sentences)
 
-    # --- Stage B: abstractive with chunking ---
+    # --- stage b: abstractive with chunking ---
     _, tokenizer = load_t5_model(model_dir)
 
     chunks = chunk_by_tokens(
@@ -65,7 +64,7 @@ def summarize_transcript(
             max_output_tokens=final_pass_max_tokens,
         )
 
-    # Many chunks: summarize each, then final pass
+    # single chunk summaries for multiple chunks
     intermediate_summaries = [
         summarize_chunk(
             chunk,
@@ -77,7 +76,7 @@ def summarize_transcript(
     ]
 
     combined = " ".join(intermediate_summaries)
-
+#summarizing the combined summaries
     final_summary = summarize_chunk(
         combined,
         model_dir=model_dir,

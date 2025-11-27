@@ -4,18 +4,16 @@ import os
 import torch
 from transformers import T5ForConditionalGeneration, T5TokenizerFast
 
-# Default path to your fine-tuned model
+# path to the fine-tuned modeldir
 _DEFAULT_MODEL_DIR = os.path.join("models", "t5-ami-small")
 
-# Global singletons (loaded once and reused)
+
 _model: Optional[T5ForConditionalGeneration] = None
 _tokenizer: Optional[T5TokenizerFast] = None
 
 
 def load_t5_model(model_dir: Optional[str] = None):
-    """
-    Lazily load the fine-tuned T5 model + tokenizer from disk.
-    """
+    #lazy loading of the t5 model
     global _model, _tokenizer
 
     if model_dir is None:
@@ -35,10 +33,7 @@ def chunk_by_tokens(
     tokenizer: T5TokenizerFast,
     max_tokens: int = 512,
 ) -> List[str]:
-    """
-    Split long text into chunks so each has <= max_tokens tokens.
-    We try to break on sentence boundaries.
-    """
+    # chunk text into pieces each with <= max_tokens tokens, breaking at sentence boundaries.
     import re
 
     sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -73,9 +68,7 @@ def summarize_chunk(
     max_output_tokens: int = 128,
     num_beams: int = 4,
 ) -> str:
-    """
-    Run the fine-tuned T5 model on a single chunk of text and return the summary.
-    """
+   #single chunk summarization with t5
     model, tokenizer = load_t5_model(model_dir)
 
     prefix = "summarize: "
@@ -94,7 +87,7 @@ def summarize_chunk(
             length_penalty=1.0,
             no_repeat_ngram_size=3,
         )
-
+        
     summary = tokenizer.decode(
         output_ids[0],
         skip_special_tokens=True,
