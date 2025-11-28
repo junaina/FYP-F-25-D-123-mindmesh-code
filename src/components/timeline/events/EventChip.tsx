@@ -77,7 +77,7 @@ export default function EventChip({
         </div>
 
         {/* --- Properties below title (only when not compact) --- */}
-        {!compact && entries.length > 0 && (
+        {entries.length > 0 && (
           <div
             className=" mt-1 space-y-1 max-h-[40vh]
       overflow-y-auto overflow-x-auto     
