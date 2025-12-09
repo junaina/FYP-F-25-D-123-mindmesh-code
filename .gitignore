@@ -41,3 +41,62 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+###############################
+# PYTHON SUMMARIZER IGNORE
+###############################
+
+# Virtual environment
+python-summarizer/venv/
+python-summarizer/.venv/
+
+# Python caches
+python-summarizer/__pycache__/
+python-summarizer/**/*.pyc
+
+# HuggingFace / Transformers / Pip Cache
+python-summarizer/.hf-cache/
+python-summarizer/.pip-cache/
+python-summarizer/.tmp/
+python-summarizer/cache/
+python-summarizer/.cache/
+
+# Model weights/checkpoints
+python-summarizer/models/**/*.bin
+python-summarizer/models/**/*.pth
+python-summarizer/models/**/*.pt
+python-summarizer/models/**/*.safetensors
+python-summarizer/models/**/checkpoint-*/
+python-summarizer/models/**/optimizer.pt
+python-summarizer/models/**/rng_state.pth
+
+# Entire trained model outputs (except config)
+python-summarizer/models/t5-ami-small/
+
+# Trainer output directories
+python-summarizer/checkpoints/
+python-summarizer/output/
+python-summarizer/runs/
+python-summarizer/logs/
+
+# Dataset downloads
+python-summarizer/datasets/
+python-summarizer/data/
+
+# Temporary training files
+python-summarizer/*.log
+python-summarizer/*.tmp
+python-summarizer/temp/
+
+###############################
+# OTHER COMMON PYTHON IGNORES
+###############################
+
+*.egg-info/
+*.egg
+dist/
+build/
+
+# VS Code
+.vscode/
+env-for-local-shell.txt

@@ -60,7 +60,7 @@ export default function EventsLayer({
   startMs,
   endMs,
   contentWidth,
-  rowHeight = 36, // base min
+  rowHeight = 50, // base min
   // maxVisibleRows = 6,  // no longer used for sizing
   propertyVisible,
   propertyDefs,
