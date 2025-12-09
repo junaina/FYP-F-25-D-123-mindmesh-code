@@ -1,0 +1,15 @@
+-------------------------------------------------------------PS-------------------------------------
+$env:HF_HOME = "$PWD\.hf-cache"
+$env:TRANSFORMERS_CACHE = "$PWD\.hf-cache"
+$env:PIP_CACHE_DIR = "$PWD\.pip-cache"
+$env:TMP = "$PWD\.tmp"
+$env:TEMP = "$PWD\.tmp"
+--------------------------------------------------------------CMD-----------------------------------
+set HF_HOME=%cd%\.hf-cache
+set TRANSFORMERS_CACHE=%cd%\.hf-cache
+set PIP_CACHE_DIR=%cd%\.pip-cache
+set TMP=%cd%\.tmp
+set TEMP=%cd%\.tmp
+----------------------------------------activation command for the venv
+.\venv\Scripts\activate 
+-------------------------------------------- training commandpython train_t5_ami.py  --max_train_samples 300    --max_eval_samples 80  --num_train_epochs 1  --output_dir models/t5-ami-small 
