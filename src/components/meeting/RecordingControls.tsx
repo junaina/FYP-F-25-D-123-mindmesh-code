@@ -134,12 +134,12 @@ export default function RecordingControls({
             {currentRecording.s3Key && (
               <>
                 {" · "}
-                <span className="font-mono">
+                {/* <span className="font-mono">
                   s3Key:{" "}
                   {currentRecording.s3Key.length > 40
                     ? currentRecording.s3Key.slice(0, 37) + "..."
                     : currentRecording.s3Key}
-                </span>
+                </span> */}
               </>
             )}
           </p>
