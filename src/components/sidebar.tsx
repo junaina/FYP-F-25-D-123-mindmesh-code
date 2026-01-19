@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { NotificationsBell } from "@/components/sidebar/NotificationsBell";
 
 import { useState } from "react";
 import { useEffect } from "react";
@@ -66,7 +67,7 @@ export default function Sidebar() {
   // delete confirmation state
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(
-    null
+    null,
   );
   // controls whether the Documents sub-list is expanded for each project
   const [openDocsByProject, setOpenDocsByProject] = useState<
@@ -74,7 +75,7 @@ export default function Sidebar() {
   >({});
   // inside component state
   const [docsByProject, setDocsByProject] = useState<Record<string, DocLite[]>>(
-    {}
+    {},
   );
   useEffect(() => {
     // mark that the layout has an app sidebar
@@ -145,7 +146,9 @@ export default function Sidebar() {
 
     // optimistic update
     setProjects((prev) =>
-      prev ? prev.map((x) => (x.id === id ? { ...x, name: newName } : x)) : prev
+      prev
+        ? prev.map((x) => (x.id === id ? { ...x, name: newName } : x))
+        : prev,
     );
 
     setEditingId(null);
@@ -162,9 +165,9 @@ export default function Sidebar() {
                     ...x,
                     name: projects?.find((p) => p.id === id)?.name || x.name,
                   }
-                : x
+                : x,
             )
-          : prev
+          : prev,
       );
       console.error(e);
       alert(e?.message ?? "Failed to rename project");
@@ -274,19 +277,21 @@ export default function Sidebar() {
               )}
             </Avatar>
           ))}
-        {/* Collapse toggle (always visible) */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
-          className="relative top-1 ml-2 right-0 z-70 h-8 w-8 rounded-full border bg-background shadow
-             hover:bg-muted grid place-items-center"
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
-        </button>
+        <div className="flex items-center gap-1 ml-2">
+          <NotificationsBell />
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
+            className="relative top-1 right-0 z-70 h-8 w-8 rounded-full border bg-background shadow
+       hover:bg-muted grid place-items-center"
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Main nav */}

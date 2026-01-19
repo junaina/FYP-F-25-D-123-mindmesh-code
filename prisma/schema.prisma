@@ -14,6 +14,13 @@ enum AuthTokenPurpose {
   PASSWORD_RESET
 }
 
+enum FileStatus {
+  PENDING // presigned created, not uploaded yet
+  UPLOADED // upload completed
+  ATTACHED // linked to at least one message/document
+  DELETED
+}
+
 model User {
   id                    String                 @id @default(uuid()) @db.Uuid
   firstName             String
@@ -47,16 +54,18 @@ model User {
   createdThreads        Thread[]               @relation("ThreadCreator")
   threadMembers         ThreadMember[]
   threadPrefs           ThreadUserPrefs[]
+  notifications         Notification[]         @relation("NotificationUser")
+  notificationsFrom     Notification[]         @relation("NotificationActor")
 }
 
 model OauthIdentity {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
   provider       String
   providerUserId String
-  createdAt      DateTime @default(now())
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
- // NEW (all optional → backwards compatible)
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // NEW (all optional → backwards compatible)
   accessToken    String?
   refreshToken   String?
   scope          String?
@@ -114,6 +123,7 @@ model Project {
   propertyDefinitions PropertyDefinition[]
   taskBoards          TaskBoard[]
   meetings            Meeting[]
+  notifications       Notification[]
 
   @@index([createdById])
 }
@@ -229,6 +239,10 @@ model File {
   size               Int
   storageKey         String
   createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  status             FileStatus          @default(PENDING)
+  uploadedAt         DateTime?
+  deletedAt          DateTime?           @default(now())
   documentFiles      DocumentFile[]
   project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploader           User                @relation("FileUploader", fields: [uploaderId], references: [id])
@@ -445,18 +459,19 @@ model Discussion {
 }
 
 model Thread {
-  id           String            @id @default(uuid()) @db.Uuid
-  discussionId String            @db.Uuid
-  topic        String
-  description  String?
-  createdById  String            @db.Uuid
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  messages     Message[]
-  createdBy    User              @relation("ThreadCreator", fields: [createdById], references: [id])
-  discussion   Discussion        @relation(fields: [discussionId], references: [id], onDelete: Cascade)
-  members      ThreadMember[]
-  prefs        ThreadUserPrefs[]
+  id            String            @id @default(uuid()) @db.Uuid
+  discussionId  String            @db.Uuid
+  topic         String
+  description   String?
+  createdById   String            @db.Uuid
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  messages      Message[]
+  createdBy     User              @relation("ThreadCreator", fields: [createdById], references: [id])
+  discussion    Discussion        @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  members       ThreadMember[]
+  prefs         ThreadUserPrefs[]
+  notifications Notification[]
 
   @@index([discussionId])
   @@index([createdById])
@@ -488,19 +503,24 @@ model ThreadUserPrefs {
 }
 
 model Message {
-  id          String              @id @default(uuid()) @db.Uuid
-  threadId    String              @db.Uuid
-  senderId    String              @db.Uuid
-  body        String
-  bodyJson    Json?
-  createdAt   DateTime            @default(now())
-  editedAt    DateTime?
-  deletedAt   DateTime?
-  sender      User                @relation("MessageSender", fields: [senderId], references: [id])
-  thread      Thread              @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  attachments MessageAttachment[]
-  mentions    MessageMention[]
-  reactions   MessageReaction[]
+  id        String    @id @default(uuid()) @db.Uuid
+  threadId  String    @db.Uuid
+  senderId  String    @db.Uuid
+  body      String    @default("")
+  bodyJson  Json?
+  createdAt DateTime  @default(now())
+  editedAt  DateTime?
+  deletedAt DateTime?
+  replyToId String?   @db.Uuid
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
+  sender        User                @relation("MessageSender", fields: [senderId], references: [id])
+  thread        Thread              @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  attachments   MessageAttachment[]
+  mentions      MessageMention[]
+  reactions     MessageReaction[]
+  notifications Notification[]
 
   @@index([threadId])
   @@index([senderId])
@@ -508,10 +528,11 @@ model Message {
 }
 
 model MessageMention {
-  messageId String  @db.Uuid
-  userId    String  @db.Uuid
-  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messageId String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([messageId, userId])
 }
@@ -528,80 +549,123 @@ model MessageReaction {
 }
 
 model MessageAttachment {
-  messageId String  @db.Uuid
-  fileId    String  @db.Uuid
-  file      File    @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String   @db.Uuid
+  fileId    String   @db.Uuid
+  createdAt DateTime @default(now())
+  position  Int?
+  File      File     @relation(fields: [fileId], references: [id])
+  Message   Message  @relation(fields: [messageId], references: [id])
 
   @@id([messageId, fileId])
+  @@index([messageId])
+  @@index([fileId])
 }
+
 model Meeting {
-  id                  String                 @id @default(uuid()) @db.Uuid
-  projectId           String                 @db.Uuid
-  createdById         String                 @db.Uuid
+  id                  String        @id @default(uuid()) @db.Uuid
+  projectId           String        @db.Uuid
+  createdById         String        @db.Uuid
   title               String
-  joinCode            String                 @unique           // used in /meet/[joinCode]
-  livekitRoomName     String                 @unique           // room name for LiveKit
-  status              MeetingStatus          @default(SCHEDULED)
-  hasRecording        Boolean                @default(false)
-  hasTranscript       Boolean                @default(false)
-  transcript          String?                                   // full static transcript text
+  joinCode            String        @unique // used in /meet/[joinCode]
+  livekitRoomName     String        @unique // room name for LiveKit
+  status              MeetingStatus @default(SCHEDULED)
+  hasRecording        Boolean       @default(false)
+  hasTranscript       Boolean       @default(false)
+  transcript          String? // full static transcript text
   transcriptCreatedAt DateTime?
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   // relations
-  project             Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy           User                   @relation("MeetingCreator", fields: [createdById], references: [id])
-  recordings          MeetingRecording[]
-  segments            MeetingSegment[]       // diarized chunks: speaker + timestamps
-  speakers            MeetingSpeaker[]      
+  project    Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User               @relation("MeetingCreator", fields: [createdById], references: [id])
+  recordings MeetingRecording[]
+  segments   MeetingSegment[] // diarized chunks: speaker + timestamps
+  speakers   MeetingSpeaker[]
+
   @@index([projectId])
   @@index([createdById])
   @@index([projectId, createdAt])
-
- 
 }
 
 model MeetingSpeaker {
-  id           String  @id @default(uuid()) @db.Uuid
-  meetingId    String  @db.Uuid
+  id           String @id @default(uuid()) @db.Uuid
+  meetingId    String @db.Uuid
   speakerIndex Int
   label        String
 
-  meeting      Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@unique([meetingId, speakerIndex])
   @@index([meetingId])
 }
 
 model MeetingRecording {
-  id         String                 @id @default(uuid()) @db.Uuid
-  meetingId  String                 @db.Uuid
-  egressId   String                                     // LiveKit egress job ID
-  s3Key      String                                     // e.g. "recordings/<meetingId>-<timestamp>.mp4"
-  status     MeetingRecordingStatus   @default(IN_PROGRESS)
-  createdAt  DateTime               @default(now())
-  updatedAt  DateTime               @updatedAt
+  id        String                 @id @default(uuid()) @db.Uuid
+  meetingId String                 @db.Uuid
+  egressId  String // LiveKit egress job ID
+  s3Key     String // e.g. "recordings/<meetingId>-<timestamp>.mp4"
+  status    MeetingRecordingStatus @default(IN_PROGRESS)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
 
-  meeting    Meeting                @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId])
   @@index([egressId])
 }
 
 model MeetingSegment {
-  id           String   @id @default(uuid()) @db.Uuid
-  meetingId    String   @db.Uuid
-  startMs      Int      // start time in milliseconds
-  endMs        Int      // end time in milliseconds
-  speakerIndex Int      // 0, 1, 2, ... → you'll render as "Speaker {speakerIndex + 1}"
+  id           String @id @default(uuid()) @db.Uuid
+  meetingId    String @db.Uuid
+  startMs      Int // start time in milliseconds
+  endMs        Int // end time in milliseconds
+  speakerIndex Int // 0, 1, 2, ... → you'll render as "Speaker {speakerIndex + 1}"
   text         String
 
-  meeting      Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId])
   @@index([speakerIndex])
+}
+
+enum NotificationType {
+  MENTION
+}
+
+model Notification {
+  id String @id @default(uuid()) @db.Uuid
+
+  // recipient
+  userId String @db.Uuid
+
+  // who triggered it (sender)
+  actorId String? @db.Uuid
+
+  type NotificationType
+
+  // context (so you can link without guessing)
+  projectId String @db.Uuid
+  threadId  String @db.Uuid
+  messageId String @db.Uuid
+
+  title       String
+  bodyPreview String?
+  url         String?
+
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  user    User    @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  actor   User?   @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  thread  Thread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  // prevents duplicates if the same message creation is retried
+  @@unique([userId, type, messageId])
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
 }
 
 enum UserStatus {
@@ -632,6 +696,7 @@ enum ThreadMode {
   MENTIONS
   NONE
 }
+
 enum MeetingStatus {
   SCHEDULED
   LIVE
