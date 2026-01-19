@@ -20,8 +20,8 @@ export function ChatRoom({
   projectId: string;
 }) {
   const { data, mutate } = useSWR<{ messages: MessageDTO[] }>(
-   `/api/projects/${projectId}/discussions/threads/${threadId}/messages?limit=100`,
-    fetcher3
+    `/api/projects/${projectId}/discussions/threads/${threadId}/messages?limit=100`,
+    fetcher3,
   );
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -37,7 +37,7 @@ export function ChatRoom({
       (prev) => ({
         messages: [...(prev?.messages ?? []), msg],
       }),
-      false
+      false,
     );
   });
 
@@ -48,7 +48,7 @@ export function ChatRoom({
       (prev) => ({
         messages: [...(prev?.messages ?? []), newMessage],
       }),
-      false
+      false,
     );
 
     // send to other clients via socket
@@ -100,6 +100,7 @@ export function ChatRoom({
               ) : null}
 
               <ReactionBar
+                projectId={projectId}
                 threadId={threadId}
                 message={m}
                 onChange={() => mutate()}

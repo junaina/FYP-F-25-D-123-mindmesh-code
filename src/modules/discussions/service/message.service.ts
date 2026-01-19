@@ -4,16 +4,23 @@ import { prisma } from "@/lib/prisma";
 class MessageServiceClass {
   private messageRepo = new MessageRepo();
 
-  async createMessage(projectId: string, threadId: string, userId: string, body: string, bodyJson: any) {
-    
+  async createMessage(
+    projectId: string,
+    threadId: string,
+    userId: string,
+    body: string,
+    bodyJson: any,
+  ) {
     // 1. Ensure project exists
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
     if (!project) throw new Error("Project not found");
 
     // 2. Ensure thread belongs to this project
     const thread = await prisma.thread.findUnique({
       where: { id: threadId },
-      include: { discussion: true }
+      include: { discussion: true },
     });
 
     if (!thread) throw new Error("Thread not found");
@@ -30,8 +37,26 @@ class MessageServiceClass {
     return this.messageRepo.createMessage(threadId, userId, body, bodyJson);
   }
 
-  async listMessages(threadId: string) {
-    return this.messageRepo.listMessages(threadId);
+  async listMessages(threadId: string, viewerId: string) {
+    const rows = await this.messageRepo.listMessages(threadId);
+
+    return rows.map((m: any) => {
+      const map = new Map<
+        string,
+        { emoji: string; count: number; reactedByMe: boolean }
+      >();
+      for (const r of m.reactions ?? []) {
+        const cur = map.get(r.emoji) ?? {
+          emoji: r.emoji,
+          count: 0,
+          reactedByMe: false,
+        };
+        cur.count += 1;
+        if (r.userId === viewerId) cur.reactedByMe = true;
+        map.set(r.emoji, cur);
+      }
+      return { ...m, reactions: Array.from(map.values()) };
+    });
   }
 }
 
