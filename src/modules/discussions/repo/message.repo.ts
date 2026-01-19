@@ -6,18 +6,41 @@ export class MessageRepo {
     senderId: string,
     body: string,
     bodyJson: any,
+    mentionUserIds?: string[],
   ) {
+    const mentionUserIdsList = Array.from(new Set(mentionUserIds ?? []));
     return prisma.message.create({
       data: {
         threadId,
         senderId,
         body,
         bodyJson,
+        mentions: mentionUserIdsList.length
+          ? {
+              createMany: {
+                data: mentionUserIdsList.map((userId) => ({ userId })),
+                skipDuplicates: true,
+              },
+            }
+          : undefined,
       },
       include: {
         sender: {
           select: { firstName: true, lastName: true, avatarUrl: true },
         },
+        mentions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+        reactions: { select: { emoji: true, userId: true } },
       },
     });
   }
@@ -29,6 +52,18 @@ export class MessageRepo {
       include: {
         sender: {
           select: { firstName: true, lastName: true, avatarUrl: true },
+        },
+        mentions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatarUrl: true,
+              },
+            },
+          },
         },
         reactions: { select: { emoji: true, userId: true } },
       },
