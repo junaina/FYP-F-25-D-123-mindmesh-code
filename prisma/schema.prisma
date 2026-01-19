@@ -14,6 +14,13 @@ enum AuthTokenPurpose {
   PASSWORD_RESET
 }
 
+enum FileStatus {
+  PENDING // presigned created, not uploaded yet
+  UPLOADED // upload completed
+  ATTACHED // linked to at least one message/document
+  DELETED
+}
+
 model User {
   id                    String                 @id @default(uuid()) @db.Uuid
   firstName             String
@@ -232,6 +239,10 @@ model File {
   size               Int
   storageKey         String
   createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  status             FileStatus          @default(PENDING)
+  uploadedAt         DateTime?
+  deletedAt          DateTime?           @default(now())
   documentFiles      DocumentFile[]
   project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploader           User                @relation("FileUploader", fields: [uploaderId], references: [id])
@@ -495,7 +506,7 @@ model Message {
   id        String    @id @default(uuid()) @db.Uuid
   threadId  String    @db.Uuid
   senderId  String    @db.Uuid
-  body      String
+  body      String    @default("")
   bodyJson  Json?
   createdAt DateTime  @default(now())
   editedAt  DateTime?
@@ -538,12 +549,16 @@ model MessageReaction {
 }
 
 model MessageAttachment {
-  messageId String  @db.Uuid
-  fileId    String  @db.Uuid
-  file      File    @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String   @db.Uuid
+  fileId    String   @db.Uuid
+  createdAt DateTime @default(now())
+  position  Int?
+  File      File     @relation(fields: [fileId], references: [id])
+  Message   Message  @relation(fields: [messageId], references: [id])
 
   @@id([messageId, fileId])
+  @@index([messageId])
+  @@index([fileId])
 }
 
 model Meeting {
