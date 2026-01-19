@@ -17,10 +17,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const messages = await MessageService.listMessages(threadId);
+    const messages = await MessageService.listMessages(threadId, user.id);
     return NextResponse.json({ messages });
-
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
@@ -42,11 +40,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       threadId,
       user.id,
       data.body ?? "",
-      data.bodyJson ?? null
+      data.bodyJson ?? null,
+      data.attachmentIds ?? [],
     );
 
     return NextResponse.json(msg, { status: 201 });
-
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }

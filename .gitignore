@@ -71,7 +71,18 @@ python-summarizer/models/**/optimizer.pt
 python-summarizer/models/**/rng_state.pth
 
 # Entire trained model outputs (except config)
-python-summarizer/models/t5-ami-small/
+# Ignore checkpoints directory entirely
+python-summarizer/models/**/checkpoints/
+
+# Ignore model weights everywhere
+python-summarizer/models/**/*.safetensors
+python-summarizer/models/**/*.pt
+python-summarizer/models/**/*.pth
+python-summarizer/models/**/*.bin
+
+# Ignore trainer artifacts
+python-summarizer/models/**/optimizer.pt
+python-summarizer/models/**/rng_state.pth
 
 # Trainer output directories
 python-summarizer/checkpoints/
