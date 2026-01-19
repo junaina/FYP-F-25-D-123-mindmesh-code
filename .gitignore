@@ -111,3 +111,23 @@ build/
 # VS Code
 .vscode/
 env-for-local-shell.txt
+# python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.dll
+*.exe
+
+# venvs
+venv/
+.venv/
+python-summarizer/venv/
+
+# logs / tmp
+.tmp/
+*.log
+
+# secrets
+.env
+.env.*
