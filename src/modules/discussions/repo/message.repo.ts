@@ -7,8 +7,11 @@ export class MessageRepo {
     body: string,
     bodyJson: any,
     mentionUserIds?: string[],
+    attachmentFileIds?: string[],
   ) {
     const mentionUserIdsList = Array.from(new Set(mentionUserIds ?? []));
+    const fileIds = Array.from(new Set(attachmentFileIds ?? []));
+
     return prisma.message.create({
       data: {
         threadId,
@@ -19,6 +22,14 @@ export class MessageRepo {
           ? {
               createMany: {
                 data: mentionUserIdsList.map((userId) => ({ userId })),
+                skipDuplicates: true,
+              },
+            }
+          : undefined,
+        attachments: fileIds.length
+          ? {
+              createMany: {
+                data: fileIds.map((fileId) => ({ fileId })),
                 skipDuplicates: true,
               },
             }
@@ -41,6 +52,9 @@ export class MessageRepo {
           },
         },
         reactions: { select: { emoji: true, userId: true } },
+        attachments: {
+          include: { File: { select: { id: true, filename: true } } },
+        },
       },
     });
   }
@@ -66,6 +80,9 @@ export class MessageRepo {
           },
         },
         reactions: { select: { emoji: true, userId: true } },
+        attachments: {
+          include: { File: { select: { id: true, filename: true } } },
+        },
       },
     });
   }

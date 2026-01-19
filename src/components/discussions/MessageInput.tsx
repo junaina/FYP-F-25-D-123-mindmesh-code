@@ -147,36 +147,84 @@ export function MessageInput({
   }
   async function send() {
     const text = value.trim();
-    if (!text) return; // no files allowed yet
+    const selected = files ? Array.from(files) : [];
+
+    // allow files-only messages
+    if (!text && selected.length === 0) return;
 
     setBusy(true);
 
     try {
+      let attachmentIds: string[] = [];
+
+      // 1) presign + upload files (if any)
+      if (selected.length) {
+        const pres = await fetch(`/api/projects/${projectId}/files/presign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            files: selected.map((f) => ({
+              filename: f.name,
+              mimeType: f.type || "application/octet-stream",
+              size: f.size,
+            })),
+          }),
+        });
+
+        if (!pres.ok) {
+          const err = await pres.json().catch(() => ({}));
+          throw new Error(err.error || "presign_failed");
+        }
+
+        const presData = await pres.json();
+
+        // PUT each file to S3
+        await Promise.all(
+          presData.files.map(async (p: any, idx: number) => {
+            const f = selected[idx];
+            const up = await fetch(p.uploadUrl, {
+              method: "PUT",
+              headers: { "Content-Type": f.type || "application/octet-stream" },
+              body: f,
+            });
+            if (!up.ok) throw new Error("upload_failed");
+          }),
+        );
+
+        attachmentIds = presData.files.map((p: any) => p.fileId);
+      }
+
+      // 2) send the message with attachmentIds
       const res = await fetch(
         `/api/projects/${projectId}/discussions/threads/${threadId}/messages`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            body: text,
+            body: text || "",
+            bodyJson: null,
+            attachmentIds,
           }),
         },
       );
 
       if (!res.ok) {
-        console.error("Failed to send message");
-        return;
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "send_failed");
       }
 
       const newMessage = await res.json();
-      onSent?.(newMessage); // IMPORTANT: your ChatRoom expects this for socket + optimistic UI
+      onSent?.(newMessage);
+
+      // reset input + file picker
       setValue("");
+      setFiles(null);
+      if (fileRef.current) fileRef.current.value = "";
     } finally {
       setBusy(false);
     }
   }
+
   const showMentionList = mentionOpen && mentionResults.length > 0;
 
   return (
@@ -195,7 +243,7 @@ export function MessageInput({
             ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Message — use @ to mention, : to add emoji"
+            placeholder="Message — use @ to mention, Win + '.' to add emoji"
             onKeyDown={(e) => {
               const el = e.currentTarget;
 
@@ -322,7 +370,12 @@ export function MessageInput({
               </PopoverContent>
             </Popover>
 
-            <Button size="icon" disabled={busy} onClick={send} type="button">
+            <Button
+              size="icon"
+              disabled={busy}
+              onClick={() => void send()}
+              type="button"
+            >
               <Send className="h-5 w-5" />
             </Button>
           </div>

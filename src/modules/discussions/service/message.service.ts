@@ -1,4 +1,5 @@
 import { MessageRepo } from "../repo/message.repo";
+import { FileRepo } from "@/modules/files/repo/file.repo";
 import { prisma } from "@/lib/prisma";
 const MENTION_RE = /@\[[^\]]+\]\(([0-9a-fA-F-]{36})\)/g;
 
@@ -18,6 +19,7 @@ class MessageServiceClass {
     userId: string,
     body: string,
     bodyJson: any,
+    attachmentIds?: string[],
   ) {
     // 1. Ensure project exists
     const project = await prisma.project.findUnique({
@@ -43,6 +45,15 @@ class MessageServiceClass {
 
     // 5. Create message
     const mentionUserIds = extractMentionUserIds(body);
+    const fileRepo = new FileRepo();
+    const uniqueAttachmentIds = Array.from(new Set(attachmentIds ?? []));
+
+    if (uniqueAttachmentIds.length) {
+      const found = await fileRepo.findByIds(projectId, uniqueAttachmentIds);
+      if (found.length !== uniqueAttachmentIds.length) {
+        throw new Error("Invalid attachment(s) for this project");
+      }
+    }
 
     const msg = await this.messageRepo.createMessage(
       threadId,
@@ -50,6 +61,7 @@ class MessageServiceClass {
       body,
       bodyJson,
       mentionUserIds,
+      uniqueAttachmentIds,
     );
     // --- notifications (checkbox-worthy) ---
     const recipientIds = mentionUserIds.filter((id) => id !== userId); // don't notify yourself
@@ -119,7 +131,12 @@ class MessageServiceClass {
       }
     }
 
-    return msg;
+    const shaped = {
+      ...msg,
+      attachments: (msg.attachments ?? []).map((a: any) => a.File),
+    };
+
+    return shaped;
   }
 
   async listMessages(threadId: string, viewerId: string) {
@@ -140,7 +157,11 @@ class MessageServiceClass {
         if (r.userId === viewerId) cur.reactedByMe = true;
         map.set(r.emoji, cur);
       }
-      return { ...m, reactions: Array.from(map.values()) };
+      return {
+        ...m,
+        reactions: Array.from(map.values()),
+        attachments: (m.attachments ?? []).map((a: any) => a.File),
+      };
     });
   }
 }

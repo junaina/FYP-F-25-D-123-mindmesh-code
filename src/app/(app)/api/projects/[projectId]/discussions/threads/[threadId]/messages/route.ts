@@ -41,6 +41,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       user.id,
       data.body ?? "",
       data.bodyJson ?? null,
+      data.attachmentIds ?? [],
     );
 
     return NextResponse.json(msg, { status: 201 });
