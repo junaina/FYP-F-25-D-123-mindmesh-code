@@ -1,5 +1,3 @@
-// src/modules/meetings/services/meetingRecordingDownload.service.ts
-
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { MeetingRecordingRepo } from "@/modules/meetings/repo/meetingRecording.repo";
@@ -38,12 +36,6 @@ const s3Client =
     : null;
 
 type CreateSignedUrlArgs = {
-  /**
-   * This is NOT the DB id; it’s based on the S3 key.
-   * Example: "recordings/<meetingId>-<timestamp>.mp4"
-   *          or "<meetingId>-<timestamp>.mp4"
-   *          or "<meetingId>-<timestamp>"
-   */
   recordingKey: string;
   userId: string;
 };

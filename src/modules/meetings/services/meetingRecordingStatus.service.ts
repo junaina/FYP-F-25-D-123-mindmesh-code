@@ -1,5 +1,3 @@
-// src/modules/meetings/services/meetingRecordingStatus.service.ts
-
 import { MeetingRepo } from "@/modules/meetings/repo/meeting.repo";
 import { MeetingRecordingRepo } from "@/modules/meetings/repo/meetingRecording.repo";
 
@@ -41,13 +39,13 @@ export const MeetingRecordingStatusService = {
   ): Promise<MeetingRecordingRecord | null> {
     const { joinCode, userId } = args;
 
-    // 🔹 1) Look up the meeting by joinCode
+    // 1) Look up the meeting by joinCode
     const meeting = await MeetingRepo.findMeetingByJoinCode(joinCode);
     if (!meeting) {
       throw new NotFoundError("Meeting not found for joinCode");
     }
 
-    // 🔹 2) Ensure the user is a member of the meeting's project
+    //  2) Ensure the user is a member of the meeting's project
     const isMember = await MeetingRepo.isProjectMember(
       meeting.projectId,
       userId
@@ -57,7 +55,7 @@ export const MeetingRecordingStatusService = {
       throw new ForbiddenError("You are not a member of this project");
     }
 
-    // 🔹 3) Fetch the latest recording row for this meeting
+    //  3) Fetch the latest recording row for this meeting
     const latest = await MeetingRecordingRepo.findLatestRecordingForMeeting(
       meeting.id
     );
@@ -66,7 +64,7 @@ export const MeetingRecordingStatusService = {
       return null;
     }
 
-    // 🔹 4) Map to a simple DTO
+    //  4) Map to a simple DTO
     const record: MeetingRecordingRecord = {
       id: latest.id,
       meetingId: latest.meetingId,
