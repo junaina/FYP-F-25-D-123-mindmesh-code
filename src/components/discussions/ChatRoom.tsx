@@ -11,6 +11,46 @@ import { useThreadSocket } from "@/hooks/useThreadSocket";
 import { getSocket } from "@/lib/socket-client";
 
 const fetcher3 = (url: string) => fetch(url).then((r) => r.json());
+function fullName(u: { firstName: string; lastName: string }) {
+  return `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
+}
+
+function renderMentions(
+  body: string,
+  mentions?: { user: { id: string; firstName: string; lastName: string } }[],
+) {
+  // Stored format: @[Display Name](userId)
+  // Accept any id format so UI never leaks ids.
+  const re = /@\[(.*?)\]\(([^)\s]+)\)/g;
+
+  // Prefer DB names when available (in case label is stale)
+  const byId = new Map<string, string>();
+  for (const m of mentions ?? []) byId.set(m.user.id, fullName(m.user));
+
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(body))) {
+    const [raw, fallbackLabel, id] = match;
+    const start = match.index;
+    const end = start + raw.length;
+
+    if (start > last) parts.push(body.slice(last, start));
+
+    const label = byId.get(id) ?? fallbackLabel;
+    parts.push(
+      <span key={`${start}-${end}`} className="mm-mention">
+        @{label}
+      </span>,
+    );
+
+    last = end;
+  }
+
+  if (last < body.length) parts.push(body.slice(last));
+  return parts;
+}
 
 export function ChatRoom({
   threadId,
@@ -80,7 +120,7 @@ export function ChatRoom({
               </div>
 
               <div className="mt-1 rounded-2xl bg-muted p-3 whitespace-pre-wrap break-words">
-                {m.body}
+                {renderMentions(m.body, m.mentions)}
               </div>
 
               {m.attachments?.length ? (

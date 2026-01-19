@@ -47,6 +47,8 @@ model User {
   createdThreads        Thread[]               @relation("ThreadCreator")
   threadMembers         ThreadMember[]
   threadPrefs           ThreadUserPrefs[]
+   notifications     Notification[] @relation("NotificationUser")
+  notificationsFrom Notification[] @relation("NotificationActor")
 }
 
 model OauthIdentity {
@@ -496,6 +498,10 @@ model Message {
   createdAt   DateTime            @default(now())
   editedAt    DateTime?
   deletedAt   DateTime?
+  replyToId String?   @db.Uuid
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
   sender      User                @relation("MessageSender", fields: [senderId], references: [id])
   thread      Thread              @relation(fields: [threadId], references: [id], onDelete: Cascade)
   attachments MessageAttachment[]
@@ -510,6 +516,7 @@ model Message {
 model MessageMention {
   messageId String  @db.Uuid
   userId    String  @db.Uuid
+  createdAt DateTime @default(now())
   message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -602,6 +609,45 @@ model MeetingSegment {
 
   @@index([meetingId])
   @@index([speakerIndex])
+}
+enum NotificationType {
+  MENTION
+}
+
+model Notification {
+  id          String            @id @default(uuid()) @db.Uuid
+
+  // recipient
+  userId      String            @db.Uuid
+
+  // who triggered it (sender)
+  actorId     String?           @db.Uuid
+
+  type        NotificationType
+
+  // context (so you can link without guessing)
+  projectId   String            @db.Uuid
+  threadId    String            @db.Uuid
+  messageId   String            @db.Uuid
+
+  title       String
+  bodyPreview String?
+  url         String?
+
+  createdAt   DateTime          @default(now())
+  readAt      DateTime?
+
+  user        User              @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  actor       User?             @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  thread      Thread            @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  message     Message           @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  // prevents duplicates if the same message creation is retried
+  @@unique([userId, type, messageId])
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
 }
 
 enum UserStatus {

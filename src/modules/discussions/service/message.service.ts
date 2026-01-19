@@ -1,5 +1,13 @@
 import { MessageRepo } from "../repo/message.repo";
 import { prisma } from "@/lib/prisma";
+const MENTION_RE = /@\[[^\]]+\]\(([0-9a-fA-F-]{36})\)/g;
+
+function extractMentionUserIds(body: string): string[] {
+  const ids = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = MENTION_RE.exec(body))) ids.add(m[1]);
+  return [...ids];
+}
 
 class MessageServiceClass {
   private messageRepo = new MessageRepo();
@@ -34,7 +42,17 @@ class MessageServiceClass {
     await this.messageRepo.ensureThreadMember(threadId, userId);
 
     // 5. Create message
-    return this.messageRepo.createMessage(threadId, userId, body, bodyJson);
+    const mentionUserIds = extractMentionUserIds(body);
+
+    const msg = await this.messageRepo.createMessage(
+      threadId,
+      userId,
+      body,
+      bodyJson,
+      mentionUserIds,
+    );
+
+    return msg;
   }
 
   async listMessages(threadId: string, viewerId: string) {
