@@ -51,6 +51,73 @@ class MessageServiceClass {
       bodyJson,
       mentionUserIds,
     );
+    // --- notifications (checkbox-worthy) ---
+    const recipientIds = mentionUserIds.filter((id) => id !== userId); // don't notify yourself
+
+    if (recipientIds.length) {
+      // 1) Only notify real project members (avoids weird/stale ids)
+      const members = await prisma.projectMember.findMany({
+        where: { projectId, userId: { in: recipientIds } },
+        select: { userId: true },
+      });
+      const memberSet = new Set(members.map((m) => m.userId));
+      const candidates = recipientIds.filter((id) => memberSet.has(id));
+
+      if (candidates.length) {
+        // 2) Respect prefs (global + project + thread mute)
+        const prefRows = await prisma.user.findMany({
+          where: { id: { in: candidates } },
+          select: {
+            id: true,
+            globalPrefs: { select: { notificationsEnabled: true } },
+            projectSettings: {
+              where: { projectId },
+              select: { notificationsEnabled: true },
+            },
+            threadPrefs: {
+              where: { threadId },
+              select: { isMuted: true },
+            },
+          },
+        });
+
+        const enabledIds = prefRows
+          .filter((u) => {
+            const globalOk = u.globalPrefs?.notificationsEnabled ?? true;
+            const projectOk =
+              u.projectSettings[0]?.notificationsEnabled ?? true;
+            const muted = u.threadPrefs[0]?.isMuted ?? false;
+            return globalOk && projectOk && !muted;
+          })
+          .map((u) => u.id);
+
+        if (enabledIds.length) {
+          const senderName =
+            `${msg.sender.firstName ?? ""} ${msg.sender.lastName ?? ""}`.trim() ||
+            "Someone";
+
+          // make preview human (strip ids)
+          const preview = msg.body
+            .replace(/@\[(.*?)\]\([^)]+\)/g, "@$1")
+            .slice(0, 140);
+
+          await prisma.notification.createMany({
+            data: enabledIds.map((uid) => ({
+              userId: uid,
+              actorId: userId,
+              type: "MENTION",
+              projectId,
+              threadId,
+              messageId: msg.id,
+              title: `${senderName} mentioned you`,
+              bodyPreview: preview,
+              url: `/projects/${projectId}/discussions/threads/${threadId}`,
+            })),
+            skipDuplicates: true, // backed by @@unique too
+          });
+        }
+      }
+    }
 
     return msg;
   }
