@@ -2,28 +2,74 @@
 
 import * as React from "react";
 import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { AuthAPI } from "@/modules/auth/client/auth.api";
+import { Alert, AlertDescription } from "@/components/ui/alert"; // shadcn
 
 type Values = { email: string; password: string };
 
 export default function LoginForm() {
+  const router = useRouter();
+  const [formError, setFormError] = React.useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
-    formState: { isSubmitting },
+    setError, // map server errors to fields
+    formState: { isSubmitting, errors },
   } = useForm<Values>({
     defaultValues: { email: "", password: "" },
     mode: "onBlur",
   });
 
   const onSubmit = async (values: Values) => {
-    // TODO: call your API here
-    console.log(values);
+    setFormError(null);
+    try {
+      await AuthAPI.login(values);
+      router.push("/home"); // or wherever after login
+    } catch (err: any) {
+      const code = err?.message || "request_failed";
+      const status = err?.status;
+
+      // invalid credentials → show under password (and email for clarity)
+      if (code === "invalid_credentials" || status === 401) {
+        setError("email", {
+          type: "server",
+          message: "incorrect email or password",
+        });
+        setError("password", {
+          type: "server",
+          message: "incorrect email or password",
+        });
+        return;
+      }
+
+      // bad payload, etc. → gentle nudge on email field
+      if (code === "invalid_input" || status === 400) {
+        setError("email", {
+          type: "server",
+          message: "please check your details and try again",
+        });
+        return;
+      }
+
+      // rate-limited or network → top banner
+      if (status === 429 || code === "rate_limited") {
+        setFormError("too many attempts — please try again in a bit");
+        return;
+      }
+
+      // fallback
+      setFormError("something went wrong — please try again");
+      console.error(err);
+    }
   };
+
   const onContinueWithGoogle = () => {
-    console.log("Continue with Google clicked");
+    AuthAPI.startGoogleOAuth("/home");
   };
 
   function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -48,8 +94,16 @@ export default function LoginForm() {
       </svg>
     );
   }
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      {/* top-level banner for non-field errors */}
+      {formError && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -57,7 +111,11 @@ export default function LoginForm() {
           type="email"
           autoComplete="email"
           {...register("email")}
+          aria-invalid={!!errors.email}
         />
+        {errors.email && (
+          <p className="text-sm text-destructive">{errors.email.message}</p>
+        )}
       </div>
 
       <div className="grid gap-2">
@@ -67,12 +125,17 @@ export default function LoginForm() {
           type="password"
           autoComplete="current-password"
           {...register("password")}
+          aria-invalid={!!errors.password}
         />
+        {errors.password && (
+          <p className="text-sm text-destructive">{errors.password.message}</p>
+        )}
       </div>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? "Signing in…" : "Sign in"}
       </Button>
+
       <Button
         type="button"
         variant="outline"

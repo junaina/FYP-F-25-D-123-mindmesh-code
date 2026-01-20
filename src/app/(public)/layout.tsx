@@ -1,3 +1,4 @@
+// /(public)/layout.tsx
 import SiteNavbar from "@/components/site-navbar";
 
 export default function PublicLayout({

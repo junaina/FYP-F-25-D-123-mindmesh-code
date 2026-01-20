@@ -4,11 +4,13 @@ import * as React from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-// removed Eye/EyeOff imports
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { AuthAPI } from "@/modules/auth/client/auth.api";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const SignupSchema = z
   .object({
@@ -54,14 +56,17 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function SignupForm() {
+  const router = useRouter();
   const [showPw, setShowPw] = React.useState(false);
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
+  const [formError, setFormError] = React.useState<string | null>(null); // top-level banner
 
   const {
     register,
     handleSubmit,
-    formState: { isSubmitting }, // no errors used for visual text
+    setError, // to surface server-side field errors
+    formState: { isSubmitting, errors }, // ← pull field errors
     watch,
     reset,
   } = useForm<FormValues>({
@@ -83,7 +88,6 @@ export default function SignupForm() {
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /\d/.test(password);
-
   const strength =
     (hasLen ? 1 : 0) +
     (hasUpper ? 1 : 0) +
@@ -91,23 +95,63 @@ export default function SignupForm() {
     (hasNumber ? 1 : 0);
 
   const onSubmit = async (values: FormValues) => {
-    console.log(values);
-    setSubmitted(true);
-    reset({
-      firstName: "",
-      lastName: "",
-      email: "",
-      password: "",
-      confirm: "",
-    });
+    setFormError(null);
+    try {
+      const { firstName, lastName, email, password } = values;
+      await AuthAPI.signup({ firstName, lastName, email, password });
+
+      setSubmitted(true);
+      reset({
+        firstName: "",
+        lastName: "",
+        email: "",
+        password: "",
+        confirm: "",
+      });
+      router.push("/onboarding"); // or "/home"
+    } catch (err: any) {
+      const code = err?.message || "request_failed";
+      const status = err?.status;
+
+      if (code === "email_taken" || status === 409) {
+        setError("email", {
+          type: "server",
+          message: "this email is already in use",
+        });
+        return;
+      }
+      if (code === "invalid_input" || status === 400) {
+        // zod already validates; still show a gentle nudge if BE rejected
+        setError("email", {
+          type: "server",
+          message: "please check your details and try again",
+        });
+        return;
+      }
+      if (status === 429 || code === "rate_limited") {
+        setFormError("too many attempts — please try again in a bit");
+        return;
+      }
+
+      // generic failure
+      setFormError("something went wrong — please try again");
+      console.error(err);
+    }
   };
 
   const onContinueWithGoogle = () => {
-    console.log("Continue with Google clicked");
+    AuthAPI.startGoogleOAuth("/home");
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+      {/* top-level error banner (non-field errors) */}
+      {formError && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-2 md:grid-cols-2 md:gap-4">
         <div className="grid gap-2">
           <Label htmlFor="firstName">First name</Label>
@@ -115,8 +159,14 @@ export default function SignupForm() {
             id="firstName"
             autoComplete="given-name"
             {...register("firstName")}
+            aria-invalid={!!errors.firstName}
             placeholder="John"
           />
+          {errors.firstName && (
+            <p className="text-sm text-destructive">
+              {errors.firstName.message}
+            </p>
+          )}
         </div>
         <div className="grid gap-2">
           <Label htmlFor="lastName">Last name</Label>
@@ -124,8 +174,14 @@ export default function SignupForm() {
             id="lastName"
             autoComplete="family-name"
             {...register("lastName")}
+            aria-invalid={!!errors.lastName}
             placeholder="Doe"
           />
+          {errors.lastName && (
+            <p className="text-sm text-destructive">
+              {errors.lastName.message}
+            </p>
+          )}
         </div>
       </div>
 
@@ -137,8 +193,12 @@ export default function SignupForm() {
           inputMode="email"
           autoComplete="email"
           {...register("email")}
+          aria-invalid={!!errors.email}
           placeholder="you@example.com"
         />
+        {errors.email && (
+          <p className="text-sm text-destructive">{errors.email.message}</p>
+        )}
       </div>
 
       <div className="grid gap-2">
@@ -158,10 +218,15 @@ export default function SignupForm() {
           type={showPw ? "text" : "password"}
           autoComplete="new-password"
           {...register("password")}
+          aria-invalid={!!errors.password}
           className="pr-10"
         />
+        {/* show password errors (weak/regex/min) */}
+        {errors.password && (
+          <p className="text-sm text-destructive">{errors.password.message}</p>
+        )}
 
-        {/* Strength meter */}
+        {/* Strength meter (unchanged) */}
         <div className="mt-1 grid grid-cols-4 gap-1">
           {Array.from({ length: 4 }).map((_, i) => (
             <div
@@ -217,9 +282,14 @@ export default function SignupForm() {
           type={showConfirm ? "text" : "password"}
           autoComplete="new-password"
           {...register("confirm")}
+          aria-invalid={
+            !!errors.confirm || (Boolean(confirm) && confirm !== password)
+          }
           className="pr-10"
-          aria-invalid={Boolean(confirm) && confirm !== password}
         />
+        {errors.confirm && (
+          <p className="text-sm text-destructive">{errors.confirm.message}</p>
+        )}
       </div>
 
       <Button type="submit" className="w-full my-0" disabled={isSubmitting}>

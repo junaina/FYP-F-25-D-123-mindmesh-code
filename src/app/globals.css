@@ -1,6 +1,198 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import "flexlayout-react/style/dark.css";
+/* ===== FlexLayout: make it follow app theme ===== */
+
+/* Overall layout + content panes */
+.flexlayout__layout,
+.flexlayout__layout_main,
+.flexlayout__tabset,
+.flexlayout__tab,
+.flexlayout__tab_container,
+.flexlayout__tab_moveable {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+/* Tab strip background (top bar) */
+.flexlayout__tabset_tabbar_inner,
+.flexlayout__border {
+  background-color: var(--background) !important;
+}
+
+/* Splitters between panes */
+.flexlayout__splitter {
+  background-color: color-mix(
+    in oklab,
+    var(--border) 70%,
+    transparent
+  ) !important;
+}
+
+/* --- Tabs as nice pills --- */
+
+/* Base tab button (unselected) */
+.flexlayout__tab_button,
+.flexlayout__border_button {
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  margin: 0.25rem 0.25rem 0.25rem 0;
+  background: transparent !important;
+  border: 0;
+  color: var(--muted-foreground) !important;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* Selected tab */
+.flexlayout__tab_button.flexlayout__tab_button--selected,
+.flexlayout__border_button.flexlayout__border_button--selected {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 85%,
+    transparent
+  ) !important;
+  color: var(--foreground) !important;
+}
+
+/* Hover (non-selected) */
+.flexlayout__tab_button:hover:not(.flexlayout__tab_button--selected),
+.flexlayout__border_button:hover:not(.flexlayout__border_button--selected) {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 65%,
+    transparent
+  ) !important;
+  color: var(--foreground) !important;
+}
+
+/* Close icon / toolbar icons on tabs */
+.flexlayout__tab_button_trailing {
+  /*gonna style the little x here in a bit*/
+}
+/* ===== FlexLayout toolbar (maximize icon etc.) ===== */
+
+.flexlayout__tab_toolbar {
+  background-color: transparent !important;
+  padding: 0 0.25rem;
+}
+
+/* The little icon button(s) on the right */
+.flexlayout__tab_toolbar_button {
+  background-color: transparent !important;
+  border-radius: 9999px;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  color: var(--muted-foreground) !important;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.flexlayout__tab_toolbar_button:hover {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 70%,
+    transparent
+  ) !important;
+  color: var(--foreground) !important;
+}
+
+/* Optional: a tiny bit of spacing from the tab text */
+.flexlayout__tab_toolbar > * + * {
+  margin-left: 0.25rem;
+}
+
+/* ===== FlexLayout splitters (pane resizers) ===== */
+
+.flexlayout__splitter {
+  background-color: transparent !important; /* kill the solid dark bar */
+  border-left: 1px solid color-mix(in oklab, var(--border) 80%, transparent) !important;
+  border-right: 0;
+}
+
+/* When actually dragging, FlexLayout adds a special class */
+.flexlayout__splitter_drag,
+.flexlayout__splitter_drag_horz,
+.flexlayout__splitter_drag_vert {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 80%,
+    transparent
+  ) !important;
+}
+
+/* Hover affordance so it still feels draggable */
+.flexlayout__splitter:hover {
+  background-color: color-mix(
+    in oklab,
+    var(--muted) 70%,
+    transparent
+  ) !important;
+}
+
+/* Pane border + rounding (card-ish look) */
+.flexlayout__tab {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* Remove extra hard borders that fight with ours */
+.flexlayout__tabset_tabbar_outer_top {
+  border-bottom: 0 !important;
+}
+/* Top/bottom tab bar wrapper background (the bit that's still dark) */
+.flexlayout__tabset_tabbar_outer,
+.flexlayout__tabset_tabbar_outer_top,
+.flexlayout__tabset_tabbar_outer_bottom,
+.flexlayout__tabset_tabbar_outer.flexlayout__tabset-selected,
+.flexlayout__tabset_tabbar_outer_top.flexlayout__tabset-selected {
+  background-color: var(--background) !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+}
+
+/* Selected tabset should NOT go dark */
+.flexlayout__tabset-selected {
+  background-color: var(--background) !important;
+}
+
+/* And its header + toolbar should stay on theme too */
+.flexlayout__tabset-selected .flexlayout__tabset_tabbar_outer,
+.flexlayout__tabset-selected .flexlayout__tab_toolbar,
+.flexlayout__tabset-selected .flexlayout__tab_toolbar_button {
+  background-color: var(--background) !important;
+  /* toolbar button itself we keep visually minimal */
+}
+
+/* Make sure the toolbar button never picks up a dark bg from dark.css */
+.flexlayout__tab_toolbar_button {
+  background-color: transparent !important;
+}
+
+/* globals.css */
+:root {
+  --sb-w: 0px;
+}
+/* body padding-left is set dynamically by SidebarPortal; no extra rules needed */
+:root {
+  --sb-w: 0px;
+}
+
+@media (max-width: 1024px) {
+  body.has-app-sb {
+    padding-left: 0;
+  } /* drawer behavior on mobile */
+}
 
 :root {
   --radius: 0.625rem;
@@ -27,7 +219,7 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: oklch(48.645% 0.1924 26.998);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -89,7 +281,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --accent: oklch(63.522% 0.21117 356.75); /* #F14491 */
+  --accent: oklch(63.004% 0.16338 353.903); /* #F14491 */
   --accent-foreground: oklch(0.98 0 0);
   --primary: oklch(0.985 0 0);
   --primary-foreground: oklch(0.145 0 0);
@@ -227,14 +419,18 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.125rem 0.375rem; /* px-1.5 py-0.5 */
-  font-size: 10px;
+  padding: 0.3rem 0.4rem; /* px-1.5 py-0.5 */
+  font-size: 14px;
   line-height: 1rem;
-  border-radius: 0.375rem; /* rounded-md */
+  border-radius: 0.3rem; /* rounded-md */
   border: 1px solid var(--mm-chip-br, var(--border));
   background-color: var(--mm-chip-bg, var(--muted));
   color: var(--mm-chip-fg, var(--muted-foreground));
   white-space: nowrap;
+  white-space: normal; /* allow wrapping */
+  flex-wrap: wrap; /* <-- key: let content wrap inside the chip */
+  max-width: 100%; /* don’t exceed the parent width */
+  min-width: 0; /* allow shrinking inside flex containers */
 }
 
 .mm-chip--gray {
@@ -291,4 +487,580 @@
   --mm-chip-bg: var(--mm-chip-purple-bg);
   --mm-chip-fg: var(--mm-chip-purple-fg);
   --mm-chip-br: var(--mm-chip-purple-br);
+}
+/* === Settings accent (soft, theme-aware) === */
+:root {
+  /* A subtle highlight over the sidebar bg in light mode */
+  --settings-accent: color-mix(
+    in oklab,
+    var(--sidebar) 86%,
+    var(--sidebar-primary) 14%
+  );
+  --settings-accent-strong: color-mix(
+    in oklab,
+    var(--sidebar) 78%,
+    var(--sidebar-primary) 22%
+  );
+  --settings-accent-foreground: color-mix(
+    in oklab,
+    var(--sidebar-foreground) 92%,
+    var(--foreground) 8%
+  );
+  --settings-accent-border: color-mix(
+    in oklab,
+    var(--sidebar-border) 70%,
+    var(--sidebar-primary) 30%
+  );
+  --settings-accent-ring: color-mix(
+    in oklab,
+    var(--ring) 65%,
+    var(--sidebar-primary) 35%
+  );
+}
+
+.dark {
+  /* Slightly higher chroma in dark, still soft */
+  --settings-accent: color-mix(
+    in oklab,
+    var(--sidebar) 82%,
+    var(--sidebar-primary) 18%
+  );
+  --settings-accent-strong: color-mix(
+    in oklab,
+    var(--sidebar) 72%,
+    var(--sidebar-primary) 28%
+  );
+  --settings-accent-foreground: color-mix(
+    in oklab,
+    var(--sidebar-foreground) 95%,
+    var(--foreground) 5%
+  );
+  --settings-accent-border: color-mix(
+    in oklab,
+    var(--sidebar-border) 65%,
+    var(--sidebar-primary) 35%
+  );
+  --settings-accent-ring: color-mix(
+    in oklab,
+    var(--ring) 60%,
+    var(--sidebar-primary) 40%
+  );
+}
+
+.mm-chip-lg {
+  padding: 0.25rem 0.5rem; /* px-2 py-1 */
+  font-size: 14px; /* text-sm */
+  line-height: 1.25rem; /* leading-5 */
+  border-radius: 0.3rem; /* rounded-full */
+}
+/* compact, text-height-matched icon button used in select menus */
+.mm-icon-btn {
+  height: 1.75rem; /* ~28px, matches h-7 */
+  width: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.375rem; /* rounded-md */
+  border: 1px solid transparent;
+  font-size: 0.875rem; /* text-sm-ish so it matches row text */
+  line-height: 1;
+  color: var(--muted-foreground);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+  opacity: 0.75;
+}
+.mm-icon-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+  opacity: 1;
+}
+/* ----  "ghost" CTA (Add property) ---- */
+:root {
+  --ap-fg: color-mix(in oklab, var(--foreground) 60%, transparent);
+  --ap-icon: color-mix(in oklab, var(--foreground) 55%, transparent);
+  --ap-hover-bg: color-mix(in oklab, var(--muted) 85%, transparent);
+  --ap-hover-fg: var(--foreground);
+}
+
+.dark {
+  /* keep it subtle in dark too */
+  --ap-fg: color-mix(in oklab, var(--foreground) 65%, transparent);
+  --ap-icon: color-mix(in oklab, var(--foreground) 55%, transparent);
+  --ap-hover-bg: color-mix(in oklab, var(--muted) 80%, transparent);
+  --ap-hover-fg: var(--foreground);
+}
+
+/* Base style */
+.mm-ghost-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem; /* icon spacing */
+  padding: 0.375rem 0.5rem; /* comfy but small */
+  border: 0; /* no border */
+  background: transparent;
+  color: var(--ap-fg);
+  border-radius: 0.5rem; /* slight rounding like Notion */
+  font-size: 0.9375rem; /* ~15px; feels like body text */
+  line-height: 1.5rem; /* match row height */
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+/* Hover/active/focus */
+.mm-ghost-cta:hover {
+  background: var(--ap-hover-bg);
+  color: var(--ap-hover-fg);
+}
+.mm-ghost-cta:active {
+  transform: translateY(0.5px);
+}
+.mm-ghost-cta:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* */
+/* highlight the active row */
+.active {
+  background: color-mix(in oklab, var(--muted) 85%, transparent);
+}
+
+.item[aria-selected="true"] {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
+/* Icon tone */
+.mm-ghost-cta .mm-ghost-cta__icon {
+  width: 16px;
+  height: 16px;
+  color: var(--ap-icon);
+}
+
+/* If the popover is open, keep it “active” */
+.mm-ghost-cta[data-state="open"] {
+  background: var(--ap-hover-bg);
+  color: var(--ap-hover-fg);
+}
+/* Force wrapping even for very long tokens (no spaces) */
+.mm-anywhere {
+  overflow-wrap: anywhere; /* modern */
+  word-break: normal; /* prefer normal breaking first */
+}
+
+/* Optional: nicer wrapping balance where supported */
+@supports (text-wrap: balance) {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* ---------- Outline button (theme-aware, subtle) ---------- */
+.mm-btn-outline {
+  /* size */
+  height: 2.25rem; /* h-9 */
+  padding-inline: 0.75rem; /* px-3 */
+  border-radius: var(--radius);
+
+  /* look */
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: color-mix(in oklab, var(--foreground) 80%, transparent);
+
+  /* smoothness */
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.mm-btn-outline:hover {
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: color-mix(in oklab, var(--border) 80%, var(--foreground) 20%);
+}
+
+.mm-btn-outline:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+/* ---- Minimal icon button (theme-aware) ---- */
+.mm-icon-btn {
+  background: transparent;
+  border: 0;
+  padding: 0.25rem; /* ~px-1 */
+  line-height: 1;
+  border-radius: var(--radius);
+  color: color-mix(in oklab, var(--foreground) 65%, transparent);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+.mm-icon-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+/* Show row actions only on hover to keep it tidy */
+.mm-row .mm-row-action {
+  opacity: 0;
+}
+.mm-row:hover .mm-row-action {
+  opacity: 1;
+}
+
+/* ================= Slash Menu (muted, Notion-style) ================ */
+/* Tokens derive from your existing theme vars, not --accent */
+:root {
+  --sm-bg: var(--popover);
+  --sm-fg: var(--popover-foreground);
+  --sm-subfg: color-mix(in oklab, var(--popover-foreground) 65%, transparent);
+  --sm-border: var(--border);
+  --sm-elev: color-mix(in oklab, var(--foreground) 12%, transparent);
+
+  --sm-hover: color-mix(in oklab, var(--muted) 80%, transparent);
+  --sm-active: color-mix(in oklab, var(--muted) 100%, transparent);
+
+  --sm-radius: 12px;
+  --sm-row-h: 36px;
+  --sm-pad: 8px;
+}
+
+.dark {
+  /* keep it subtle in dark as well */
+  --sm-bg: var(--popover);
+  --sm-fg: var(--popover-foreground);
+  --sm-subfg: color-mix(in oklab, var(--popover-foreground) 60%, transparent);
+  --sm-border: var(--border);
+  --sm-elev: color-mix(in oklab, var(--foreground) 18%, transparent);
+
+  --sm-hover: color-mix(in oklab, var(--muted) 80%, transparent);
+  --sm-active: color-mix(in oklab, var(--muted) 100%, transparent);
+}
+
+/* Scope to your editor root */
+.mm-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* Remove bullets at every nesting level */
+.mm-editor ul[data-type="taskList"] ul,
+.mm-editor ul[data-type="taskList"] li {
+  list-style: none;
+}
+.mm-editor ul[data-type="taskList"] li::marker {
+  content: none;
+}
+
+/* Put checkbox and text on the SAME LINE */
+.mm-editor ul[data-type="taskList"] > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  transition: background-color 0.12s ease;
+}
+.mm-editor ul[data-type="taskList"] >
+
+/* Checkbox column */
+.mm-editor ul[data-type="taskList"] > li > label {
+  margin: 0;
+  line-height: 0;
+  cursor: pointer;
+}
+
+/* Bigger, clean checkbox */
+.mm-editor ul[data-type="taskList"] > li > label > input[type="checkbox"] {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px; /* 9999px for fully round */
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  display: grid;
+  place-items: center;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]
+  .mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]
+
+
+/* Checked style + check glyph */
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.mm-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  > input[type="checkbox"]:checked::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')
+    no-repeat center/contain;
+  mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')
+    no-repeat center/contain;
+  background: var(--primary-foreground);
+}
+
+/* Text column (the div after the label). Works whether it has class "content" or not. */
+.mm-editor ul[data-type="taskList"] > li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+/* Kill default prose margins so text doesn’t drop below the checkbox */
+.mm-editor ul[data-type="taskList"] > li > div > p {
+  margin: 0;
+}
+
+/* Completed item (Tiptap sets data-checked on li) */
+.mm-editor ul[data-type="taskList"] > li[data-checked="true"] > div {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  text-decoration-thickness: 0.06em;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--muted-foreground) 70%,
+    transparent
+  );
+}
+
+/* Nested todos: gentle indent + guide */
+.mm-editor ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-top: 4px;
+  margin-left: 1.25rem;
+  padding-left: 1rem;
+  border-left: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
+} /* =========================
+   Toggle list
+   ========================= */
+:global(.mm-editor [data-type="toggle"][data-open="false"] [data-toggle-body]) {
+  display: none;
+}
+:global(.mm-editor [data-action="toggle-open"] svg) {
+  transition: transform 150ms ease;
+}
+:global(
+  .mm-editor
+    [data-type="toggle"][data-open="true"]
+    [data-action="toggle-open"]
+    svg
+) {
+  transform: rotate(90deg);
+}
+
+/* Collapse body when the parent toggle is closed */
+.mm-editor [data-type="toggle"][data-open="false"] [data-toggle-body] {
+  display: none;
+}
+
+/* Rotate chevron when open */
+.mm-editor [data-action="toggle-open"] svg {
+  transition: transform 150ms ease;
+}
+.mm-editor
+  [data-type="toggle"][data-open="true"]
+  [data-action="toggle-open"]
+  svg {
+  transform: rotate(90deg);
+}
+/* ---------- Shimmer animation ---------- */
+@keyframes mm-shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Base tokens for dark/light */
+:root {
+  --mm-skel-base: rgba(255, 255, 255, 0.06); /* track */
+  --mm-skel-sheen: rgba(255, 255, 255, 0.14); /* moving highlight */
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --mm-skel-base: rgba(0, 0, 0, 0.06);
+    --mm-skel-sheen: rgba(0, 0, 0, 0.1);
+  }
+}
+/* thin, muted scrollbars (cross-browser) */
+.mm-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent)
+    transparent;
+}
+.mm-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px; /* in case of horizontal contexts */
+}
+.mm-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mm-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+  border-radius: 6px;
+}
+.mm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+}
+
+/* Subtle calendar skeletons (dark-friendly) */
+.mm-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  /* Base fill: very low-contrast */
+  background: rgba(255, 255, 255, 0.035); /* was ~0.06–0.08 */
+}
+
+/* Softer sheen that’s narrower and lighter */
+.mm-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 35%,
+    /* peak brightness lowered */ rgba(255, 255, 255, 0.08) 48%,
+    /* narrower/softer core */ rgba(255, 255, 255, 0.05) 61%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  /* Keep the motion if you used it, or leave it omitted if you like it static */
+  /* animation: mm-shimmer-slide 1.6s ease-in-out infinite; */
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* If you kept reduced-motion handling, keep it subtle too */
+@media (prefers-reduced-motion: reduce) {
+  .mm-skeleton::after {
+    animation: none;
+    transform: none;
+  }
+}
+/* Settings nav active state  */
+.mm-settings-navitem {
+  border-radius: var(--radius);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.mm-settings-navitem--active {
+  background: var(--settings-accent);
+  color: var(--settings-accent-foreground);
+  border: 1px solid var(--settings-accent-border);
+}
+
+/* Settings “card highlight” (optional) */
+.mm-settings-card {
+  border: 1px solid var(--settings-accent-border);
+}
+.mm-settings-card:focus-within {
+  outline: 2px solid var(--settings-accent-ring);
+  outline-offset: 2px;
+}
+
+/* Subtle ghost button for settings */
+.mm-settings-ghost {
+  background: transparent;
+  color: color-mix(in oklab, var(--foreground) 70%, transparent);
+}
+.mm-settings-ghost:hover {
+  background: var(--settings-accent);
+  color: var(--settings-accent-foreground);
+}
+
+/* Primary action in settings, but toned down vs. app primary */
+.mm-settings-cta {
+  background: var(--settings-accent-strong);
+  color: var(--settings-accent-foreground);
+  border: 1px solid var(--settings-accent-border);
+}
+.mm-settings-cta:hover {
+  background: var(--settings-accent);
+}
+.mm-settings-cta:focus-visible {
+  outline: 2px solid var(--settings-accent-ring);
+  outline-offset: 2px;
+}
+@keyframes mm-mindy-bob {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes mm-pulse-dot {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+}
+
+.mm-mindy-bob {
+  animation: mm-mindy-bob 3s ease-in-out infinite;
+}
+
+.mm-pulse-dot {
+  animation: mm-pulse-dot 1.4s ease-in-out infinite;
+}
+@layer components {
+  .mm-mention {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.375rem;
+    background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: var(--primary);
+    padding-left: 0.375rem;
+    padding-right: 0.375rem;
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+    font-weight: 500;
+  }
 }

@@ -1,40 +1,193 @@
 "use client";
 
 import * as React from "react";
-import { seedItems } from "@/data/calendarData";
-import type { CalendarItem } from "@/types/calendar";
-import { AddItemDialog } from "./AddItemDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PropertyVisibilityMenu } from "./PropertyVisibilityMenu";
-import { ItemProperties } from "@/components/ui/ItemProperties";
 import { Plus } from "lucide-react";
-import type { PropKind } from "@/types/calendar";
-// Editable inline title from your Kanban folder
 import { EditableText } from "@/components/kanban/EditableText";
-
-// dnd-kit (mouse + touch + keyboard)
+import { AddItemDialog } from "./AddItemDialog";
+import { useCalendarData } from "./useCalendarData";
+import type { PropertyValueDto } from "@/modules/documents/dto/doc.dto";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { monthRangeUTC } from "@/components/calendar/useCalendarData";
 import {
-  DndContext,
-  DragEndEvent,
-  MouseSensor,
-  TouchSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-  useDraggable,
-} from "@dnd-kit/core";
+  createEvent as apiCreateEvent,
+  moveEvent as apiMoveEvent,
+  resizeEvent as apiResizeEvent,
+  putSettings as putSettings,
+} from "@/modules/calendar/client/calendar.api";
+import { PropertyChipsById } from "../properties/chips/PropertyChips";
+function useMeasuredHeight<T extends HTMLElement>() {
+  const ref = React.useRef<T | null>(null);
+  const [h, setH] = React.useState(0);
 
-function formatMonthYear(d: Date) {
-  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-}
-function ymd(d: Date) {
-  return d.toISOString().slice(0, 10);
+  React.useLayoutEffect(() => {
+    if (!ref.current) return;
+    const el = ref.current;
+    const obs = new ResizeObserver(() =>
+      setH(el.getBoundingClientRect().height)
+    );
+    obs.observe(el);
+    // initialize
+    setH(el.getBoundingClientRect().height);
+    return () => obs.disconnect();
+  }, []);
+
+  return { ref, height: h };
 }
 
-export function Calendar() {
-  // ---- title with localStorage persistence
+/* ================== UTC helpers ================== */
+const ymdUTC = (d: Date) => d.toISOString().slice(0, 10);
+const fmtMonthYear = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+function formatMonthYearUTC(d: Date) {
+  return fmtMonthYear.format(d);
+}
+const monthStartUTC = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+
+const parseIsoToMonthStartUTC = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : monthStartUTC(d);
+};
+
+const toMonthStartIsoUTC = (d: Date) =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+/* ================== Skeleton helpers ================== */
+
+function hash01(s: string) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 0xffffffff;
+}
+
+function skeletonPresetForDay(dayKey: string) {
+  const r = hash01(dayKey);
+  if (r < 0.33) return { lines: 3, pills: 2 };
+  if (r < 0.66) return { lines: 2, pills: 3 };
+  return { lines: 1, pills: 1 };
+}
+
+function SkelLine({ w = 100 }: { w?: number }) {
+  return <div className="mm-skeleton h-4" style={{ width: `${w}%` }} />;
+}
+
+function SkelPill({ w = 56 }: { w?: number }) {
+  return (
+    <div className="mm-skeleton h-5 rounded-full" style={{ width: `${w}px` }} />
+  );
+}
+
+function SkeletonDay({ dayKey }: { dayKey: string }) {
+  const preset = skeletonPresetForDay(dayKey);
+
+  // deterministically vary widths (no flicker) using more hash slices
+  const h1 = Math.max(60, Math.round(80 + hash01(dayKey + "a") * 20)); // 80–100%
+  const h2 = Math.max(40, Math.round(50 + hash01(dayKey + "b") * 30)); // 50–80%
+  const h3 = Math.max(30, Math.round(40 + hash01(dayKey + "c") * 30)); // 40–70%
+
+  const pillW = [
+    56 + Math.round(hash01(dayKey + "p1") * 28), // 56–84px
+    56 + Math.round(hash01(dayKey + "p2") * 28),
+    56 + Math.round(hash01(dayKey + "p3") * 28),
+  ];
+
+  return (
+    <div className="mt-1 space-y-1.5">
+
+      {preset.lines >= 1 && <SkelLine w={h1} />}
+      {preset.lines >= 2 && <SkelLine w={h2} />}
+      {preset.lines >= 3 && <SkelLine w={h3} />}
+
+
+      {preset.pills > 0 && (
+        <div className="flex flex-wrap gap-1 mt-0.5">
+          {Array.from({ length: preset.pills }).map((_, i) => (
+            <SkelPill key={i} w={pillW[i]} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function displayPropValue(
+  v: PropertyValueDto,
+  propId: string,
+  metaById: Map<
+    string,
+    { options?: { id: string; value: string; color: string | null }[] }
+  >
+): string {
+  switch (v.type) {
+    case "text":
+    case "email":
+    case "url":
+      return v.value ? String(v.value) : "";
+    case "number":
+      return v.value != null ? String(v.value) : "";
+    case "checkbox":
+      return v.value ? "✓" : "";
+    case "date_time":
+      return v.value ? String(v.value).slice(0, 10) : "";
+
+    case "select":
+    case "status": {
+      const id = v.value ? String(v.value) : "";
+      const opt = metaById.get(propId)?.options?.find((o) => o.id === id);
+      return opt?.value ?? id; // fallback to raw id if somehow missing
+    }
+
+    case "multi_select": {
+      const ids = Array.isArray(v.value) ? (v.value as string[]) : [];
+      const names =
+        metaById
+          .get(propId)
+          ?.options?.filter((o) => ids.includes(o.id))
+          .map((o) => o.value) ?? [];
+      return names.join(", ");
+    }
+
+    case "file":
+    case "person": {
+      const arr = Array.isArray(v.value) ? v.value : [];
+      return arr.join(", ");
+    }
+    default:
+      return "";
+  }
+}
+
+type Props = {
+  projectId?: string;
+  docId?: string; // host doc (calendar page)
+  collectionId?: string; // the calendar collection id
+  initialAnchor?: string;
+  onAnchorChange?: (isoMonthStart: string) => void;
+};
+type PropsMap = Record<string, PropertyValueDto>;
+// A segment is a slice of an event across a single week row
+type WeekSegment = {
+  key: string;
+  title: string;
+  docId: string;
+  colStart: number; // 0..6 inside the week
+  colEnd: number; // 0..6 inside the week (inclusive)
+  lane: number; // 0..N, vertical stacking row in that week
+  properties: Record<string, any>;
+};
+
+export function Calendar(props: Props) {
+  const { projectId, docId, collectionId } = props;
+
   const LS_TITLE = "mindmesh:calendar:title";
   const [calendarTitle, setCalendarTitle] = React.useState<string>(() => {
     if (typeof window === "undefined") return "MindMesh Calendar";
@@ -45,170 +198,305 @@ export function Calendar() {
       localStorage.setItem(LS_TITLE, calendarTitle);
   }, [calendarTitle]);
 
-  // items
-  const LS_ITEMS = "mindmesh:calendar:items:v2";
+  // 1) seed from prop (if provided), else current month
+  const initialFromProp = React.useMemo(
+    () => parseIsoToMonthStartUTC(props.initialAnchor ?? null),
+    [props.initialAnchor]
+  );
 
-  const [items, setItems] = React.useState<CalendarItem[]>(() => {
-    if (typeof window === "undefined") return seedItems;
-    try {
-      const raw = window.localStorage.getItem(LS_ITEMS);
-      if (!raw) return seedItems;
-      const parsed = JSON.parse(raw) as CalendarItem[];
-      // if cached items have no properties, treat as stale and use new seed
-      const hasAnyProps = parsed.some(
-        (it) => it.properties && Object.keys(it.properties).length > 0
-      );
-      return hasAnyProps ? parsed : seedItems;
-    } catch {
-      return seedItems;
-    }
+  const [viewAnchor, setViewAnchor] = React.useState<Date>(() => {
+    return initialFromProp ?? monthStartUTC(new Date());
   });
-  const handleToggleCheckbox = React.useCallback(
-    (itemId: string, propName: string, next: boolean) => {
-      setItems((prev) =>
-        prev.map((it) => {
-          if (it.id !== itemId) return it;
-          if (!it.properties) return it;
 
-          const prop = it.properties[propName];
-          if (!prop || prop.value.kind !== "checkbox") return it;
+  // 2) if host changes the prop later (e.g., undo/redo), sync when month differs
+  React.useEffect(() => {
+    if (!initialFromProp) return;
+    const sameMonth =
+      viewAnchor.getUTCFullYear() === initialFromProp.getUTCFullYear() &&
+      viewAnchor.getUTCMonth() === initialFromProp.getUTCMonth();
+    if (!sameMonth) setViewAnchor(initialFromProp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFromProp?.getUTCFullYear(), initialFromProp?.getUTCMonth()]);
 
-          return {
-            ...it,
-            properties: {
-              ...it.properties,
-              [propName]: { ...prop, value: { kind: "checkbox", value: next } },
-            },
-          };
-        })
+  // 3) notify host whenever the visible month changes
+  React.useEffect(() => {
+    props.onAnchorChange?.(toMonthStartIsoUTC(viewAnchor));
+  }, [viewAnchor, props.onAnchorChange]);
+
+  // 4) same nav handlers as before (just using the helper)
+  const goPrev = () =>
+    setViewAnchor((d) =>
+      monthStartUTC(
+        new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1))
+      )
+    );
+
+  const goNext = () =>
+    setViewAnchor((d) =>
+      monthStartUTC(
+        new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))
+      )
+    );
+
+  const goToday = () => setViewAnchor(monthStartUTC(new Date()));
+
+  const qc = useQueryClient();
+  const { from, to } = monthRangeUTC(viewAnchor);
+  const instancesKey = ["cal", collectionId, from, to];
+  // Mutation to create a single-day event
+  const { mutateAsync: createEvent, isPending: isCreating } = useMutation({
+    mutationFn: async ({ title, date }: { title: string; date: Date }) => {
+      return apiCreateEvent(projectId!, docId!, collectionId!, {
+        mode: "single",
+        date: ymdUTC(date),
+        title: title.trim(),
+      }); // returns { documentId }
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: instancesKey });
+    },
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: async (p: { documentId: string; deltaDays: number }) => {
+      await apiMoveEvent(
+        projectId!,
+        docId!,
+        collectionId!,
+        p.documentId,
+        Math.trunc(p.deltaDays)
       );
     },
-    [setItems]
-  );
-  React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LS_ITEMS, JSON.stringify(items));
-    }
-  }, [items]);
-
-  // (optional) clean up the OLD key once so it can't override again
-  React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("mindmesh:calendar:items");
-    }
-  }, []);
-
-  // properties visibility (persisted)
-  const LS_VISIBLE = "mindmesh:calendar:visibleProps:v2";
-
-  const [visibleProps, setVisibleProps] = React.useState<Set<string>>(() => {
-    if (typeof window === "undefined")
-      return new Set(["Status", "Assignee", "Tags", "When"]);
-    try {
-      const raw = localStorage.getItem(LS_VISIBLE);
-      return new Set(
-        raw
-          ? (JSON.parse(raw) as string[])
-          : ["Status", "Assignee", "Tags", "When"]
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: instancesKey });
+    },
+  });
+  const resizeMutation = useMutation({
+    mutationFn: async (p: {
+      documentId: string;
+      edge: "start" | "end";
+      toYmd: string;
+    }) => {
+      await apiResizeEvent(
+        projectId!,
+        docId!,
+        collectionId!,
+        p.documentId,
+        p.edge,
+        p.toYmd
       );
-    } catch {
-      return new Set(["Status", "Assignee", "Tags", "When"]);
-    }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: instancesKey });
+    },
   });
 
-  React.useEffect(() => {
-    if (typeof window !== "undefined")
-      localStorage.setItem(
-        LS_VISIBLE,
-        JSON.stringify(Array.from(visibleProps))
-      );
-  }, [visibleProps]);
-
-  // view state
-  const [viewAnchor, setViewAnchor] = React.useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-
-  // dialog state
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
 
-  // derived 42-day grid
+  async function handleAddSubmit({ title }: { title: string }) {
+    if (!selectedDate) return;
+    setDialogOpen(true);
+    await createEvent({ title, date: selectedDate });
+    setDialogOpen(false);
+    setSelectedDate(null);
+  }
+  /* -------- 42-day grid (UTC) -------- */
   const firstOfMonth = viewAnchor;
-  const firstWeekday = firstOfMonth.getDay();
+  const firstWeekday = firstOfMonth.getUTCDay(); // Sunday=0
   const gridStart = new Date(firstOfMonth);
-  gridStart.setDate(firstOfMonth.getDate() - firstWeekday);
+  gridStart.setUTCDate(firstOfMonth.getUTCDate() - firstWeekday);
   const gridStartTime = gridStart.getTime();
-
   const days: Date[] = React.useMemo(
     () =>
-      Array.from({ length: 42 }, (_, i) => {
-        const d = new Date(gridStartTime);
-        d.setDate(d.getDate() + i);
-        return d;
-      }),
+      Array.from(
+        { length: 42 },
+        (_, i) => new Date(gridStartTime + i * 86400000)
+      ),
     [gridStartTime]
   );
+  const todayYMD = ymdUTC(new Date());
+  const weeks = React.useMemo(() => {
+    const out: Date[][] = [];
+    for (let i = 0; i < days.length; i += 7) out.push(days.slice(i, i + 7));
+    return out;
+  }, [days]);
+
+  /* -------- Read path: fetch server data for the month -------- */
+  const { instances, properties, settings, showSkeleton, isFetchingAny } =
+    useCalendarData(projectId!, docId!, collectionId!, viewAnchor);
+
+  const propIdToName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    const rows = properties.data?.properties ?? [];
+    for (const p of rows) map.set(p.id, p.name);
+    return map;
+  }, [properties.data]);
+
+  const nameToPropId = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const [id, name] of propIdToName.entries()) m.set(name, id);
+    return m;
+  }, [propIdToName]);
+
+  // Build the property menu index from backend properties (name/kind)
   const propertyIndex = React.useMemo(() => {
-    const map = new Map<string, PropKind>();
-    for (const it of items) {
-      if (!it.properties) continue;
-      for (const p of Object.values(it.properties)) {
-        if (!map.has(p.name)) map.set(p.name, p.value.kind);
+    const rows = properties.data?.properties ?? [];
+    return rows
+      .map((p) => ({
+        name: p.name,
+        kind: (p.kind as any) ?? "text",
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [properties.data]);
+  const propertyMetaById = React.useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        kind: string;
+        options?: { id: string; value: string; color: string | null }[];
+      }
+    >();
+    const rows = properties.data?.properties ?? [];
+    for (const p of rows) map.set(p.id, p as any);
+    return map;
+  }, [properties.data]);
+
+  // Visibility set is kept by name (menu works with names)
+  const LS_VISIBLE = "mindmesh:calendar:visibleProps:v2";
+  // Keep a Set of *IDs* as the real source of truth
+  const [visibleIds, setVisibleIds] = React.useState<Set<string>>(new Set());
+
+  // When settings and properties arrive, sync IDs
+  React.useEffect(() => {
+    const ids = settings.data?.visiblePropertyIds ?? [];
+    setVisibleIds(new Set(ids));
+  }, [settings.data]);
+
+  // Derive a names Set just for the menu UI
+  const visibleNames = React.useMemo(() => {
+    const out = new Set<string>();
+    for (const id of visibleIds) {
+      const name = propIdToName.get(id);
+      if (name) out.add(name);
+    }
+    return out;
+  }, [visibleIds, propIdToName]);
+
+  // Build flat rows for range layout
+  const rangeRows = React.useMemo(() => {
+    const rows: Array<{
+      id: string;
+      title: string;
+      start: Date;
+      end: Date;
+      docId: string;
+      properties: Record<string, any>;
+    }> = [];
+
+    const list = instances.data?.instances ?? [];
+    for (const it of list) {
+      const start = new Date(it.start);
+      const end = new Date(it.end);
+      //skipping inverted ranges
+      if (end < start) {
+        continue;
+      }
+      rows.push({
+        id: it.instanceId,
+        title: it.title,
+        start,
+        end,
+        docId: it.documentId,
+        properties: it.properties as Record<string, any>,
+      });
+    }
+    return rows;
+  }, [instances.data]);
+
+  // --- date helpers (UTC) ---
+  const MS_DAY = 86400000;
+  const atUTCMidnight = (d: Date) =>
+    new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const diffDaysUTC = (a: Date, b: Date) =>
+    Math.floor(
+      (atUTCMidnight(a).getTime() - atUTCMidnight(b).getTime()) / MS_DAY
+    );
+  const clamp = (n: number, lo: number, hi: number) =>
+    Math.max(lo, Math.min(hi, n));
+
+  // Assign lanes so overlapping segments in a week don’t collide
+  function layoutWeekSegments(
+    rows: Array<{
+      id: string;
+      title: string;
+      start: Date;
+      end: Date;
+      docId: string;
+      properties: Record<string, any>;
+    }>,
+    weekStart: Date
+  ): WeekSegment[] {
+    const weekStartMid = atUTCMidnight(weekStart);
+    const weekEndMid = new Date(weekStartMid.getTime() + 6 * MS_DAY);
+
+    // 1) slice events to this week
+    const segs = rows
+      .map((r) => {
+        const s = atUTCMidnight(r.start);
+        const e = atUTCMidnight(r.end);
+        if (e < weekStartMid || s > weekEndMid) return null;
+
+        const colStart = clamp(
+          diffDaysUTC(s < weekStartMid ? weekStartMid : s, weekStartMid),
+          0,
+          6
+        );
+        const colEnd = clamp(
+          diffDaysUTC(e > weekEndMid ? weekEndMid : e, weekStartMid),
+          0,
+          6
+        );
+
+        return {
+          key: `${r.id}:${weekStartMid.toISOString()}`,
+          title: r.title,
+          docId: r.docId,
+          colStart,
+          colEnd,
+          lane: 0,
+          properties: r.properties,
+        } as WeekSegment;
+      })
+      .filter(Boolean) as WeekSegment[];
+
+    // 2) greedy lane assignment by start col
+    segs.sort((a, b) => a.colStart - b.colStart || b.colEnd - a.colEnd);
+    const laneEnds: number[] = []; // last occupied col per lane
+    for (const s of segs) {
+      let placed = false;
+      for (let i = 0; i < laneEnds.length; i++) {
+        if (s.colStart > laneEnds[i]) {
+          s.lane = i;
+          laneEnds[i] = s.colEnd;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        s.lane = laneEnds.length;
+        laneEnds.push(s.colEnd);
       }
     }
-    return Array.from(map, ([name, kind]) => ({ name, kind })).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-  }, [items]);
-
-  // navigation
-  const goPrev = () =>
-    setViewAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const goNext = () =>
-    setViewAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
-  const goToday = () => {
-    const now = new Date();
-    setViewAnchor(new Date(now.getFullYear(), now.getMonth(), 1));
-  };
-
-  // add item
-  const handleAdd = ({ title }: { title: string }) => {
-    if (!selectedDate) return;
-    const newItem: CalendarItem = {
-      id: crypto.randomUUID(),
-      date: ymd(selectedDate),
-      title,
-      createdAt: new Date().toISOString(),
-      properties: {}, // could seed defaults if you want
-    };
-    setItems((prev) => [...prev, newItem]);
-  };
-
-  const todayYMD = ymd(new Date());
-
-  // dnd-kit
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, {
-      pressDelay: 120,
-      activationConstraint: { delay: 120, tolerance: 5 },
-    }),
-    useSensor(KeyboardSensor)
-  );
-  function handleDragEnd(e: DragEndEvent) {
-    const id = e.active.id as string;
-    const overId = e.over?.id as string | undefined;
-    if (!overId) return;
-    setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, date: overId } : it))
-    );
+    return segs;
   }
 
+  /* ================== RENDER ================== */
   return (
-    <div className="space-y-4">
-      {/* ======= Title row (responsive) ======= */}
+    <div className="space-y-4 not-prose">
+      {/* ======= Title row ======= */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="min-w-0">
           <EditableText
@@ -218,30 +506,42 @@ export function Calendar() {
             className="text-xl sm:text-2xl md:text-3xl font-bold px-1 py-1 truncate"
           />
           <div className="mt-1 text-muted-foreground text-sm sm:text-base">
-            {formatMonthYear(viewAnchor)}
+            {formatMonthYearUTC(viewAnchor)}
           </div>
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
           <PropertyVisibilityMenu
             properties={propertyIndex}
-            visible={visibleProps}
-            onToggle={(name, next) =>
-              setVisibleProps((prev) => {
-                const s = new Set(prev);
-                if (next) s.add(name);
-                else s.delete(name);
-                return s;
-              })
+            visible={visibleNames}
+            onToggle={async (name, next) => {
+              const id = nameToPropId.get(name);
+              if (!id) return;
+
+              // compute next ID set
+              const nextIds = new Set(visibleIds);
+              if (next) nextIds.add(id);
+              else nextIds.delete(id);
+
+              // persist to backend
+              const body = Array.from(nextIds);
+              await putSettings(projectId!, docId!, collectionId!, body);
+
+              // local state + refetch instances so new props appear
+              setVisibleIds(nextIds);
+              await Promise.all([
+                qc.invalidateQueries({
+                  queryKey: ["cal-settings", collectionId],
+                }),
+                qc.invalidateQueries({
+                  queryKey: ["cal", collectionId, from, to],
+                }),
+              ]);
+            }}
+            onOpenDetails={(name) =>
+              console.debug("open property details:", name)
             }
-            onOpenDetails={(name) => {
-              // we'll hook a dialog here later
-              // for now, just log or no-op
-              console.debug("open property details:", name);
-            }}
-            onNewProperty={() => {
-              console.debug("new property clicked");
-            }}
+            onNewProperty={() => console.debug("new property")}
           />
 
           <Button
@@ -266,144 +566,254 @@ export function Calendar() {
         </div>
       </div>
 
-      {/* Weekday headers (responsive) */}
+      {/* Weekday headers (unique keys) */}
       <div className="grid grid-cols-7 text-[10px] sm:text-xs text-muted-foreground">
-        {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
-          <div key={d} className="px-1 sm:px-2 py-1 text-center">
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <div key={`${d}-${i}`} className="px-1 sm:px-2 py-1 text-center">
             {d}
           </div>
         ))}
       </div>
+      {/* 42-DAY GRID — weekly wrappers so we can span chips across days */}
+      <div className="rounded-lg border overflow-hidden bg-background">
+        {weeks.map((week, wIdx) => {
+          const weekStart = week[0];
+          const segs = !showSkeleton
+            ? layoutWeekSegments(rangeRows, weekStart)
+            : [];
 
-      {/* 42-DAY GRID with DnD */}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-7 gap-px bg-border border rounded-lg overflow-hidden">
-          {days.map((date) => {
-            const key = ymd(date);
-            const dayItems = items.filter((i) => i.date === key);
-            const isOtherMonth = date.getMonth() !== viewAnchor.getMonth();
-            const isToday = key === todayYMD;
+          // measure the natural height of the chips band
+          const { ref: lanesRef, height: laneSpace } =
+            useMeasuredHeight<HTMLDivElement>();
 
-            return (
-              <DayCell
-                key={key}
-                date={date}
-                dateKey={key}
-                isOtherMonth={isOtherMonth}
-                isToday={isToday}
-                onAdd={() => {
-                  setSelectedDate(date);
-                  setDialogOpen(true);
-                }}
+          return (
+            <div
+              key={wIdx}
+              className="relative border-t border-border first:border-t-0"
+              // expose a CSS var so children stay in sync
+              style={{ ["--lane-space" as any]: `${laneSpace}px` }}
+            >
+              {!showSkeleton && (
+                <div
+                  ref={lanesRef}
+                  className={cn(
+                    "pointer-events-none absolute inset-x-0 top-0 z-10", // sit inside the week
+                    "grid grid-cols-7 gap-px bg-transparent px-1 py-1"
+                  )}
+                  aria-hidden
+                >
+                  {segs.map((s) => {
+                    const spanCols = s.colEnd - s.colStart + 1;
+                    return (
+                      <a
+                        key={s.key}
+                        href={`/projects/${projectId}/docs/${s.docId}`}
+                        className={cn(
+                          "pointer-events-auto self-start mx-0.5 my-0.5 rounded-md px-2 py-1.5",
+                          "bg-border text-foreground/90 border border-white/10 shadow-sm",
+                          "overflow-hidden"
+                        )}
+                        style={{
+                          gridColumn: `${s.colStart + 1} / span ${spanCols}`,
+                          gridRow: s.lane + 1,
+                        }}
+                        title={s.title}
+                        draggable
+                        onDragStart={(e) => {
+                          const startISO = new Date(
+                            Date.UTC(
+                              weekStart.getUTCFullYear(),
+                              weekStart.getUTCMonth(),
+                              weekStart.getUTCDate() + s.colStart
+                            )
+                          ).toISOString();
+                          e.dataTransfer.setData(
+                            "text/plain",
+                            JSON.stringify({
+                              documentId: s.docId,
+                              start: startISO,
+                            })
+                          );
+                        }}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium leading-5">
+                            {s.title}
+                          </div>
+                          {/* pills wrap; lane grows naturally */}
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {/* {Object.entries(s.properties).map(
+                              ([propId, val]) => {
+                                const name = propIdToName.get(propId);
+                                if (!name || !visibleNames.has(name))
+                                  return null;
+                                const txt = displayPropValue(
+                                  val as PropertyValueDto,
+                                  propId,
+                                  propertyMetaById
+                                ).trim();
+
+                                if (!txt) return null;
+                                return (
+                                  <span
+                                    key={propId}
+                                    title={name}
+                                    className="rounded-full px-2 py-[2px] text-[10px] leading-[12px] whitespace-nowrap bg-muted/60 border border-white/10"
+                                  >
+                                    {txt}
+                                  </span>
+                                );
+                              }
+                            )} */}
+                            {Object.entries(s.properties).map(
+                              ([propId, val]) => {
+                                const name = propIdToName.get(propId);
+                                if (!name || !visibleNames.has(name))
+                                  return null;
+
+                                return (
+                                  <PropertyChipsById
+                                    key={propId}
+                                    propertyId={propId}
+                                    value={val as PropertyValueDto}
+                                    metaById={propertyMetaById}
+                                    titlePrefix={name}
+                                  />
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* === DAY GRID  === */}
+              <div
+                className="grid grid-cols-7 gap-px bg-border"
+                style={{ paddingTop: "var(--lane-space)" }} // room for chips inside the cells
               >
-                {dayItems.map((item) => (
-                  <Chip
-                    key={item.id}
-                    item={item}
-                    visibleProps={visibleProps}
-                    onToggleCheckbox={(propName, next) =>
-                      handleToggleCheckbox(item.id, propName, next)
-                    }
-                  />
-                ))}
-              </DayCell>
-            );
-          })}
-        </div>
-      </DndContext>
+                {week.map((date) => {
+                  const key = ymdUTC(date);
+                  const isOtherMonth =
+                    date.getUTCMonth() !== viewAnchor.getUTCMonth();
+                  const isToday = key === todayYMD;
+
+                  return (
+                    <DayCell
+                      key={key}
+                      id={key}
+                      date={date}
+                      isOtherMonth={isOtherMonth}
+                      isToday={isToday}
+                      loading={showSkeleton}
+                      onClickAdd={() => {
+                        setSelectedDate(date);
+                        setDialogOpen(true);
+                      }}
+                      onMoveDrop={(payload) => {
+                        const target = date; // this cell’s date
+                        const start = new Date(payload.start); // chip’s original start
+
+                        const atUTCMidnight = (d: Date) =>
+                          new Date(
+                            Date.UTC(
+                              d.getUTCFullYear(),
+                              d.getUTCMonth(),
+                              d.getUTCDate()
+                            )
+                          );
+                        const MS_DAY = 86400000;
+                        const deltaDays = Math.floor(
+                          (atUTCMidnight(target).getTime() -
+                            atUTCMidnight(start).getTime()) /
+                            MS_DAY
+                        );
+
+                        if (deltaDays !== 0) {
+                          moveMutation.mutate({
+                            documentId: payload.documentId,
+                            deltaDays,
+                          });
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       <AddItemDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        date={selectedDate}
-        onAdd={handleAdd}
+        date={selectedDate ?? null}
+        onAdd={handleAddSubmit}
       />
     </div>
   );
 }
 
-function Chip({
-  item,
-  visibleProps,
-  onToggleCheckbox,
-}: {
-  item: CalendarItem;
-  visibleProps: Set<string>;
-  onToggleCheckbox: (propName: string, next: boolean) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: item.id });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      style={style}
-      onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      className={cn(
-        "rounded px-1 py-0.5 outline-none bg-primary/10 text-primary",
-        "text-[11px] leading-5 space-y-0.5 pb-1",
-        isDragging && "opacity-60"
-      )}
-      role="button"
-      aria-grabbed={isDragging}
-    >
-      <div className="truncate">{item.title}</div>
-      <ItemProperties
-        properties={item.properties}
-        visible={visibleProps}
-        onToggleCheckbox={onToggleCheckbox}
-      />
-    </div>
-  );
-}
+/* ================== subcomponents ================== */
 
 function DayCell({
+  id,
   date,
-  dateKey,
   isOtherMonth,
   isToday,
-  onAdd,
+  onClickAdd,
+  onMoveDrop,
   children,
+  loading,
+  extraTop = 0,
 }: {
+  id: string;
   date: Date;
-  dateKey: string;
   isOtherMonth: boolean;
   isToday: boolean;
-  onAdd: () => void;
-  children: React.ReactNode;
+  onClickAdd: () => void;
+  onMoveDrop?: (p: { documentId: string; start: string }) => void;
+  children?: React.ReactNode;
+  loading?: boolean;
+  extraTop?: number; // px to add to top padding for lane space
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: dateKey });
-
   return (
     <div
-      ref={setNodeRef}
       className={cn(
-        "relative group min-h-[80px] sm:min-h-[120px] p-0.5 sm:p-1 flex flex-col transition-colors select-none",
-        "bg-background",
-        isOtherMonth && "bg-muted/50",
-        "hover:bg-muted/40 cursor-default",
-        isOver && "ring-2 ring-accent/40"
+        "relative group min-h-[80px] sm:min-h-[120px] p-0.5 sm:p-1 flex flex-col transition-colors select-none cursor-default",
+        isOtherMonth
+          ? "bg-muted/40 text-muted-foreground/70 hover:bg-muted/50"
+          : "bg-background hover:bg-muted/40"
       )}
-      // open dialog ONLY when clicking empty background
+      style={{ paddingTop: `calc(0.25rem + ${extraTop}px)` }} // ← reserve room for lanes
       onClick={(e) => {
-        if (e.currentTarget === e.target) onAdd();
+        if (e.currentTarget === e.target) onClickAdd();
       }}
-      aria-dropeffect="move"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        try {
+          const raw = e.dataTransfer.getData("text/plain");
+          if (!raw) return;
+          const payload = JSON.parse(raw) as {
+            documentId: string;
+            start: string;
+          };
+          onMoveDrop?.(payload);
+        } catch {}
+      }}
     >
-      <div className="flex items-center justify-between">
+      <div className="relative z-20 flex items-center justify-between">
         <span
           className={cn(
             "text-xs",
             isOtherMonth ? "text-muted-foreground/70" : "text-muted-foreground"
           )}
         >
-          {date.getDate()}
+          {date.getUTCDate()}
         </span>
 
         {isToday && (
@@ -419,20 +829,21 @@ function DayCell({
         aria-label="Add item"
         onClick={(e) => {
           e.stopPropagation();
-          onAdd();
+          onClickAdd();
         }}
         onPointerDown={(e) => e.stopPropagation()}
         className={cn(
-          "absolute top-1 right-1 rounded p-1 text-muted-foreground",
+          "absolute top-1 right-1 z-20 rounded p-1 text-muted-foreground",
           "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          // desktop: fade in on hover; mobile: keep visible
           "sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity"
         )}
       >
         <Plus className="h-3.5 w-3.5" />
       </button>
 
-      <div className="flex flex-col gap-1 mt-1">{children}</div>
+      <div className="flex flex-col gap-1 mt-1">
+        {loading ? <SkeletonDay dayKey={id} /> : children ?? null}
+      </div>
     </div>
   );
 }
