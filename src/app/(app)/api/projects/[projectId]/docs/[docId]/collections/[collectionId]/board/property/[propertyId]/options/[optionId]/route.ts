@@ -1,3 +1,4 @@
+// src/app/api/projects/[projectId]/docs/[docId]/collections/[collectionId]/board/property/[propertyId]/options/[optionId]/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ type Params = {
 
 export async function PATCH(
   req: NextRequest,
-  ctx: { params: Promise<Params> }
+  ctx: { params: Promise<Params> },
 ) {
   try {
     const { projectId, docId, collectionId, propertyId, optionId } =
@@ -71,7 +72,7 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  ctx: { params: Promise<Params> }
+  ctx: { params: Promise<Params> },
 ) {
   try {
     const { projectId, docId, collectionId, propertyId, optionId } =
