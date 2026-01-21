@@ -1,52 +1,364 @@
-import { TaskboardRepo } from "../repo/taskboard.repo";
+import { projectRepo } from "@/modules/projects/repo/project.repo";
+import { taskboardRepo } from "../repo/taskboard.repo";
 import {
-  BoardSummary,
-  CardDTO,
-  ColumnDTO,
-  TaskBoardSnapshot,
-} from "@/modules/board/domain/types";
+  createTaskboardItemRepo,
+  updateTaskboardItemRepo,
+  deleteTaskboardItemRepo,
+} from "../repo/taskboard.repo";
+import { accessRepo } from "@/modules/documents/repo/access.repo";
 
-import { HttpError } from "@/lib/https";
+import type {
+  TaskboardDto,
+  TaskboardStatusPropertiesResponseDto,
+} from "../domain/taskboard.types";
 
-export const TaskboardService = {
-  async listSummaries(projectId: string): Promise<BoardSummary[]> {
-    const rows = await TaskboardRepo.listByProject(projectId);
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      description: null,
-      createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
+type HttpError = Error & { status: number };
+
+function httpError(status: number, msg: string): HttpError {
+  const e = new Error(msg) as HttpError;
+  e.status = status;
+  return e;
+}
+function badRequest(msg: string) {
+  return httpError(400, msg);
+}
+function conflict(msg: string) {
+  return httpError(409, msg);
+}
+
+function forbidden(msg: string) {
+  return httpError(403, msg);
+}
+function notFound(msg: string) {
+  return httpError(404, msg);
+}
+async function getBoardIdAndAssertBinding(
+  projectId: string,
+  userId: string,
+  propertyId: string,
+) {
+  const role = await projectRepo.getMemberRole(projectId, userId);
+  if (!role) throw forbidden("You are not a member of this project");
+
+  const ptr = await taskboardRepo.findPointerByProjectId(projectId);
+  const boardId =
+    ptr?.taskBoardId ??
+    (await taskboardRepo.createDefaultForProject({
+      projectId,
+      createdById: userId,
     }));
-  },
-  async getBoard(
+
+  const board = await taskboardRepo.getBoardById(boardId);
+  if (!board) throw notFound("Taskboard not found");
+
+  const bound = board.bindings?.statusPropertyId ?? null;
+  if (!bound) throw badRequest("Taskboard has no status binding");
+  if (bound !== propertyId) {
+    throw badRequest(
+      "propertyId must match the taskboard's current status binding",
+    );
+  }
+
+  return boardId;
+}
+
+export const taskboardService = {
+  getOrCreateForProject: async (
     projectId: string,
-    taskBoardId: string
-  ): Promise<TaskBoardSnapshot> {
-    const b = await TaskboardRepo.getSnapshot(projectId, taskBoardId);
-    if (!b || !b.bindings)
-      throw new HttpError(404, "NOT_FOUND", "Task boardnot found");
-    const columns: ColumnDTO[] = b.columns.map((c) => ({
-      id: c.id,
-      label: c.label,
-      position: c.position,
-      optionId: c.optionId,
-    }));
-    const cards: CardDTO[] = b.items.map((it) => ({
-      id: `${b.id}:${it.documentId}`,
-      documentId: it.documentId,
-      title: it.document.title,
-      description: it.document.description,
-      columnId: it.columnId,
-      position: it.position,
-    }));
+    userId: string,
+  ): Promise<TaskboardDto> => {
+    const role = await projectRepo.getMemberRole(projectId, userId);
+    if (!role) throw forbidden("You are not a member of this project");
+
+    const ptr = await taskboardRepo.findPointerByProjectId(projectId);
+
+    const boardId =
+      ptr?.taskBoardId ??
+      (await taskboardRepo.createDefaultForProject({
+        projectId,
+        createdById: userId,
+      }));
+
+    const board = await taskboardRepo.getBoardById(boardId);
+    if (!board) throw notFound("Taskboard not found");
+
     return {
-      id: b.id,
-      name: b.name,
-      description: null,
-      bindings: { statusPropertyId: b.bindings.statusPropertyId },
-      columns,
-      cards,
+      id: board.id,
+      name: board.name,
+      bindings: {
+        statusPropertyId: board.bindings?.statusPropertyId ?? null,
+      },
+      columns: (board.columns ?? []).map((c) => ({
+        optionId: c.optionId,
+        label: c.label ?? c.option?.value ?? "Untitled Column",
+        value: c.label ?? c.option?.value ?? "Untitled Column",
+        position: c.position ?? c.option?.position ?? null,
+      })),
+      cards: (board.items ?? []).map((it) => ({
+        id: it.document.id,
+        documentId: it.document.id,
+        title: it.document.title ?? "Untitled Task",
+        description: it.document.description ?? "",
+        columnId: it.column?.optionId ?? null,
+        optionId: it.column?.optionId ?? null,
+        position: it.position ?? null,
+        assigneeIds: [], // next usecase will wire this
+      })),
     };
+  },
+
+  getStatusPropertiesForProject: async (
+    projectId: string,
+    userId: string,
+  ): Promise<TaskboardStatusPropertiesResponseDto> => {
+    const role = await projectRepo.getMemberRole(projectId, userId);
+    if (!role) throw forbidden("You are not a member of this project");
+
+    const board = await taskboardService.getOrCreateForProject(
+      projectId,
+      userId,
+    );
+    const currentPropertyId = board.bindings?.statusPropertyId ?? null;
+
+    const props = await taskboardRepo.listStatusPropertiesForProject(projectId);
+
+    if (!currentPropertyId) {
+      return { properties: [], currentPropertyId: null };
+    }
+
+    // eligibility: property is eligible if every task doc has a non-null optionId value for it
+    const docIds = await taskboardRepo.listTaskboardItemDocumentIds(board.id);
+
+    let eligible = props;
+
+    if (docIds.length > 0) {
+      const eligibleProps: typeof props = [];
+      for (const p of props) {
+        const cnt = await taskboardRepo.countDocsWithStatusValue(docIds, p.id);
+        if (cnt === docIds.length) eligibleProps.push(p);
+      }
+      eligible = eligibleProps;
+    }
+
+    // always include the current property even if something went weird
+    const hasCurrent = eligible.some((p) => p.id === currentPropertyId);
+    if (!hasCurrent) {
+      const cur = props.find((p) => p.id === currentPropertyId);
+      if (cur) eligible = [cur, ...eligible];
+    }
+
+    return {
+      properties: eligible.map((p) => ({
+        id: p.id,
+        name: p.name,
+        options: (p.options ?? []).map((o) => ({
+          id: o.id,
+          value: o.value,
+          color: o.color ?? null,
+          position: o.position ?? null,
+        })),
+      })),
+      currentPropertyId,
+    };
+  },
+
+  renameForProject: async (
+    projectId: string,
+    userId: string,
+    name: string,
+  ): Promise<{ ok: true }> => {
+    const role = await projectRepo.getMemberRole(projectId, userId);
+    if (!role) throw forbidden("You are not a member of this project");
+
+    const ptr = await taskboardRepo.findPointerByProjectId(projectId);
+    const boardId =
+      ptr?.taskBoardId ??
+      (await taskboardRepo.createDefaultForProject({
+        projectId,
+        createdById: userId,
+      }));
+
+    const nextName = (name || "").trim() || "Untitled Board";
+
+    await taskboardRepo.updateBoardName(boardId, nextName);
+
+    return { ok: true };
+  },
+  updateStatusBindingForProject: async (
+    projectId: string,
+    userId: string,
+    statusPropertyId: string,
+  ): Promise<{ ok: true }> => {
+    const role = await projectRepo.getMemberRole(projectId, userId);
+    if (!role) throw forbidden("You are not a member of this project");
+
+    // ensure board exists
+    const ptr = await taskboardRepo.findPointerByProjectId(projectId);
+    const boardId =
+      ptr?.taskBoardId ??
+      (await taskboardRepo.createDefaultForProject({
+        projectId,
+        createdById: userId,
+      }));
+
+    // validate property belongs to this project + is status
+    const prop = await taskboardRepo.getStatusPropertyForProject(
+      projectId,
+      statusPropertyId,
+    );
+    if (!prop) throw notFound("Status property not found");
+
+    // eligibility: all current tasks must have a value for this property
+    const docIds = await taskboardRepo.listTaskboardItemDocumentIds(boardId);
+    if (docIds.length > 0) {
+      const cnt = await taskboardRepo.countDocsWithStatusValue(docIds, prop.id);
+      if (cnt !== docIds.length) {
+        throw badRequest(
+          "All tasks must have this status property set (with a value) before grouping by it.",
+        );
+      }
+    }
+
+    await taskboardRepo.setStatusBindingAndSync({
+      taskBoardId: boardId,
+      statusPropertyId: prop.id,
+    });
+
+    return { ok: true };
+  },
+  createColumnForProject: async (
+    projectId: string,
+    userId: string,
+    propertyId: string,
+    label: string,
+  ) => {
+    const boardId = await getBoardIdAndAssertBinding(
+      projectId,
+      userId,
+      propertyId,
+    );
+
+    try {
+      return await taskboardRepo.createColumnOptionForBoard({
+        taskBoardId: boardId,
+        propertyId,
+        label,
+      });
+    } catch (err: any) {
+      // Prisma unique constraint (same option value)
+      if (err?.code === "P2002")
+        throw conflict("A column with this name already exists");
+      throw err;
+    }
+  },
+
+  renameColumnForProject: async (
+    projectId: string,
+    userId: string,
+    propertyId: string,
+    optionId: string,
+    label: string,
+  ) => {
+    const boardId = await getBoardIdAndAssertBinding(
+      projectId,
+      userId,
+      propertyId,
+    );
+
+    try {
+      await taskboardRepo.renameColumnOptionForBoard({
+        taskBoardId: boardId,
+        propertyId,
+        optionId,
+        label,
+      });
+      return { ok: true as const };
+    } catch (err: any) {
+      if (err?.code === "P2002")
+        throw conflict("A column with this name already exists");
+      throw err;
+    }
+  },
+
+  deleteColumnForProject: async (
+    projectId: string,
+    userId: string,
+    propertyId: string,
+    optionId: string,
+  ) => {
+    const boardId = await getBoardIdAndAssertBinding(
+      projectId,
+      userId,
+      propertyId,
+    );
+    await taskboardRepo.deleteColumnOptionHardForBoard({
+      taskBoardId: boardId,
+      propertyId,
+      optionId,
+    });
+    return { ok: true as const };
+  },
+
+  reorderColumnsForProject: async (
+    projectId: string,
+    userId: string,
+    propertyId: string,
+    order: string[],
+  ) => {
+    const boardId = await getBoardIdAndAssertBinding(
+      projectId,
+      userId,
+      propertyId,
+    );
+    await taskboardRepo.reorderColumnOptionsForBoard({
+      taskBoardId: boardId,
+      propertyId,
+      order,
+    });
+    return { ok: true as const };
+  },
+  async createItemForProject(
+    projectId: string,
+    userId: string,
+    input: { propertyId: string; optionId: string; title: string },
+  ) {
+    const ok = await accessRepo.isProjectMember(projectId, userId);
+    if (!ok) throw forbidden("forbidden");
+
+    return createTaskboardItemRepo(prisma, {
+      projectId,
+      userId,
+      propertyId: input.propertyId,
+      optionId: input.optionId,
+      title: input.title,
+    });
+  },
+
+  async updateItemForProject(
+    projectId: string,
+    userId: string,
+    documentId: string,
+    patch: any,
+  ) {
+    const ok = await accessRepo.isProjectMember(projectId, userId);
+    if (!ok) throw forbidden("forbidden");
+
+    return updateTaskboardItemRepo(prisma, {
+      projectId,
+      userId,
+      documentId,
+      patch,
+    });
+  },
+
+  async deleteItemForProject(
+    projectId: string,
+    userId: string,
+    documentId: string,
+  ) {
+    const ok = await accessRepo.isProjectMember(projectId, userId);
+    if (!ok) throw forbidden("forbidden");
+
+    return deleteTaskboardItemRepo(prisma, { projectId, userId, documentId });
   },
 };
