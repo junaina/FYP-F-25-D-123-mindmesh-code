@@ -1,3 +1,5 @@
+// src/app/api/projects/[projectId]/docs/[docId]/collections/[collectionId]/board/property/[propertyId]/options/reorder/route.ts
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
