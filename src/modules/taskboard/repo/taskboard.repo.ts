@@ -1,32 +1,928 @@
 import { prisma } from "@/lib/prisma";
-export const TaskboardRepo = {
-  async listByProject(projectId: string) {
-    return prisma.taskBoard.findMany({
-      where: { projectId },
-      orderBy: { updatedAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true,
-        hostDocumentId: true,
-        bindings: { select: { statusPropertyId: true } },
+// Add near top of file
+const EMPTY_TIPTAP_DOC = { type: "doc", content: [] as any[] };
+
+// Add inside your exported repo object (taskboardRepo), or as named exports.
+// IMPORTANT: this code assumes your schema:
+// - ProjectTaskBoard(projectId, taskBoardId)
+// - TaskBoardBindings(taskBoardId, statusPropertyId, assigneePropertyId, duePropertyId)
+// - TaskBoardColumn(taskBoardId, optionId, label, position)
+// - TaskBoardItem(taskBoardId, documentId, columnId, position, addedById, addedAt)
+// - DocumentProperty + DocumentPropertyValue (unique by documentId+propertyId)
+
+export type CreateTaskboardItemArgs = {
+  projectId: string;
+  userId: string;
+  propertyId: string;
+  optionId: string;
+  title: string;
+};
+
+export type UpdateTaskboardItemArgs = {
+  projectId: string;
+  userId: string;
+  documentId: string;
+  patch: {
+    title?: string;
+    description?: string;
+    optionId?: string;
+    position?: number | null;
+    assigneeIds?: string[];
+  };
+};
+
+export type DeleteTaskboardItemArgs = {
+  projectId: string;
+  userId: string;
+  documentId: string;
+};
+
+function badRequest(message: string) {
+  const err = new Error(message) as any;
+  err.status = 400;
+  return err;
+}
+function notFound(message: string) {
+  const err = new Error(message) as any;
+  err.status = 404;
+  return err;
+}
+
+async function assertTaskboardIdForProject(tx: any, projectId: string) {
+  const link = await tx.projectTaskBoard.findUnique({
+    where: { projectId },
+    select: { taskBoardId: true },
+  });
+  if (!link) throw notFound("Taskboard not found for project");
+  return link.taskBoardId as string;
+}
+
+async function assertBindings(tx: any, taskBoardId: string) {
+  const bindings = await tx.taskBoardBindings.findUnique({
+    where: { taskBoardId },
+    select: {
+      statusPropertyId: true,
+      assigneePropertyId: true,
+      duePropertyId: true,
+    },
+  });
+  if (!bindings) throw notFound("Taskboard bindings not found");
+  return bindings as {
+    statusPropertyId: string | null;
+    assigneePropertyId: string | null;
+    duePropertyId: string | null;
+  };
+}
+
+async function assertStatusPropertyAndOption(
+  tx: any,
+  projectId: string,
+  propertyId: string,
+  optionId: string,
+) {
+  const prop = await tx.propertyDefinition.findFirst({
+    where: { id: propertyId, projectId },
+    select: { id: true, type: true },
+  });
+  if (!prop) throw notFound("Property not found in project");
+  if (prop.type !== "status") throw badRequest("Property must be type=status");
+
+  const opt = await tx.propertyOption.findFirst({
+    where: { id: optionId, propertyId },
+    select: { id: true, value: true, propertyId: true },
+  });
+  if (!opt) throw notFound("Option not found for property");
+
+  return opt as { id: string; value: string; propertyId: string };
+}
+
+async function ensureColumnForOption(
+  tx: any,
+  taskBoardId: string,
+  optionId: string,
+  label: string,
+) {
+  // (taskBoardId, optionId) is unique per your schema
+  return tx.taskBoardColumn.upsert({
+    where: { taskBoardId_optionId: { taskBoardId, optionId } },
+    create: {
+      taskBoardId,
+      optionId,
+      label,
+      position: 0, // will be corrected by reorder endpoint if needed
+    },
+    update: { label },
+    select: { id: true, optionId: true, label: true, position: true },
+  });
+}
+
+async function ensureDocHasPropertyLink(
+  tx: any,
+  documentId: string,
+  propertyId: string,
+) {
+  await tx.documentProperty.upsert({
+    where: { documentId_propertyId: { documentId, propertyId } },
+    create: { documentId, propertyId },
+    update: {},
+  });
+}
+
+async function upsertDocPropertyValueOption(
+  tx: any,
+  documentId: string,
+  propertyId: string,
+  optionId: string,
+) {
+  await tx.documentPropertyValue.upsert({
+    where: { documentId_propertyId: { documentId, propertyId } },
+    create: { documentId, propertyId, optionId },
+    update: { optionId },
+  });
+}
+
+async function upsertDocPropertyValueJson(
+  tx: any,
+  documentId: string,
+  propertyId: string,
+  valueJson: any,
+) {
+  await tx.documentPropertyValue.upsert({
+    where: { documentId_propertyId: { documentId, propertyId } },
+    create: { documentId, propertyId, valueJson },
+    update: { valueJson },
+  });
+}
+
+async function getNextTopPosition(
+  tx: any,
+  taskBoardId: string,
+  columnId: string,
+) {
+  const minRow = await tx.taskBoardItem.findFirst({
+    where: { taskBoardId, columnId },
+    orderBy: { position: "asc" },
+    select: { position: true },
+  });
+  if (!minRow || typeof minRow.position !== "number") return 0;
+  return minRow.position - 1; // insert at top without shifting
+}
+
+async function reorderWithinColumn(
+  tx: any,
+  taskBoardId: string,
+  columnId: string,
+  movedDocumentId: string,
+  newIndex: number,
+) {
+  const items = await tx.taskBoardItem.findMany({
+    where: { taskBoardId, columnId },
+    orderBy: [{ position: "asc" }, { addedAt: "asc" }],
+    select: { documentId: true },
+  });
+
+  const ids = items
+    .map((i: any) => i.documentId)
+    .filter((id: string) => id !== movedDocumentId);
+
+  const idx = Math.max(0, Math.min(newIndex, ids.length));
+  ids.splice(idx, 0, movedDocumentId);
+
+  // normalize to 0..N-1
+  await Promise.all(
+    ids.map((documentId, position) =>
+      tx.taskBoardItem.update({
+        where: { taskBoardId_documentId: { taskBoardId, documentId } },
+        data: { position },
+      }),
+    ),
+  );
+
+  return idx;
+}
+
+// ✅ CREATE
+export async function createTaskboardItemRepo(
+  prisma: any,
+  args: CreateTaskboardItemArgs,
+) {
+  return prisma.$transaction(
+    async (tx: any) => {
+      const taskBoardId = await assertTaskboardIdForProject(tx, args.projectId);
+      const bindings = await assertBindings(tx, taskBoardId);
+
+      // property/option validation + label
+      const opt = await assertStatusPropertyAndOption(
+        tx,
+        args.projectId,
+        args.propertyId,
+        args.optionId,
+      );
+
+      // enforce: must match currently bound status property (if set)
+      if (
+        bindings.statusPropertyId &&
+        bindings.statusPropertyId !== args.propertyId
+      ) {
+        throw badRequest(
+          "propertyId must match current taskboard status binding",
+        );
+      }
+
+      const column = await ensureColumnForOption(
+        tx,
+        taskBoardId,
+        args.optionId,
+        opt.value,
+      );
+
+      const document = await tx.document.create({
+        data: {
+          projectId: args.projectId,
+          title: args.title?.trim() || "Untitled Task",
+          description: null,
+          content: EMPTY_TIPTAP_DOC,
+          createdById: args.userId,
+        },
+        select: { id: true, title: true, description: true },
+      });
+
+      // Ensure doc has status property + value
+      await ensureDocHasPropertyLink(tx, document.id, args.propertyId);
+      await upsertDocPropertyValueOption(
+        tx,
+        document.id,
+        args.propertyId,
+        args.optionId,
+      );
+
+      // Ensure doc has board bindings (optional but helps future grouping)
+      if (bindings.assigneePropertyId) {
+        await ensureDocHasPropertyLink(
+          tx,
+          document.id,
+          bindings.assigneePropertyId,
+        );
+        await upsertDocPropertyValueJson(
+          tx,
+          document.id,
+          bindings.assigneePropertyId,
+          [],
+        );
+      }
+      if (bindings.duePropertyId) {
+        await ensureDocHasPropertyLink(tx, document.id, bindings.duePropertyId);
+      }
+
+      const pos = await getNextTopPosition(tx, taskBoardId, column.id);
+
+      await tx.taskBoardItem.create({
+        data: {
+          taskBoardId,
+          documentId: document.id,
+          columnId: column.id,
+          position: pos,
+          addedById: args.userId,
+        },
+      });
+
+      return {
+        id: document.id,
+        title: document.title,
+        description: document.description,
+        columnId: args.optionId, // FE treats columnId as optionId
+        optionId: args.optionId,
+        position: pos,
+        assigneeIds: [],
+      };
+    },
+    // If you’re on Accelerate/Data Proxy, keep this higher (you already had to increase it)
+    { timeout: 30_000 },
+  );
+}
+
+// ✅ UPDATE
+export async function updateTaskboardItemRepo(
+  prisma: any,
+  args: UpdateTaskboardItemArgs,
+) {
+  return prisma.$transaction(
+    async (tx: any) => {
+      const taskBoardId = await assertTaskboardIdForProject(tx, args.projectId);
+      const bindings = await assertBindings(tx, taskBoardId);
+
+      const existing = await tx.taskBoardItem.findUnique({
+        where: {
+          taskBoardId_documentId: { taskBoardId, documentId: args.documentId },
+        },
+        select: { columnId: true, position: true },
+      });
+      if (!existing) throw notFound("Taskboard item not found");
+
+      // update doc fields
+      if (
+        args.patch.title !== undefined ||
+        args.patch.description !== undefined
+      ) {
+        await tx.document.update({
+          where: { id: args.documentId },
+          data: {
+            ...(args.patch.title !== undefined
+              ? { title: args.patch.title }
+              : {}),
+            ...(args.patch.description !== undefined
+              ? { description: args.patch.description }
+              : {}),
+          },
+        });
+      }
+
+      let targetColumnId = existing.columnId;
+      let targetOptionId: string | null = null;
+
+      // move across columns
+      if (args.patch.optionId) {
+        const boundPropertyId = bindings.statusPropertyId;
+        if (!boundPropertyId)
+          throw badRequest("No status binding set for taskboard");
+
+        const opt = await assertStatusPropertyAndOption(
+          tx,
+          args.projectId,
+          boundPropertyId,
+          args.patch.optionId,
+        );
+        const col = await ensureColumnForOption(
+          tx,
+          taskBoardId,
+          opt.id,
+          opt.value,
+        );
+
+        // update taskboard item to new column
+        await tx.taskBoardItem.update({
+          where: {
+            taskBoardId_documentId: {
+              taskBoardId,
+              documentId: args.documentId,
+            },
+          },
+          data: { columnId: col.id },
+        });
+
+        // update document property value to new option
+        await ensureDocHasPropertyLink(tx, args.documentId, boundPropertyId);
+        await upsertDocPropertyValueOption(
+          tx,
+          args.documentId,
+          boundPropertyId,
+          opt.id,
+        );
+
+        targetColumnId = col.id;
+        targetOptionId = opt.id;
+      }
+
+      // assignees (optional UI)
+      if (args.patch.assigneeIds && bindings.assigneePropertyId) {
+        await ensureDocHasPropertyLink(
+          tx,
+          args.documentId,
+          bindings.assigneePropertyId,
+        );
+        await upsertDocPropertyValueJson(
+          tx,
+          args.documentId,
+          bindings.assigneePropertyId,
+          args.patch.assigneeIds,
+        );
+      }
+
+      // reorder within target column if position provided
+      let finalPos: number | null = null;
+      if (args.patch.position !== null && args.patch.position !== undefined) {
+        finalPos = await reorderWithinColumn(
+          tx,
+          taskBoardId,
+          targetColumnId,
+          args.documentId,
+          args.patch.position,
+        );
+      } else {
+        const row = await tx.taskBoardItem.findUnique({
+          where: {
+            taskBoardId_documentId: {
+              taskBoardId,
+              documentId: args.documentId,
+            },
+          },
+          select: { position: true },
+        });
+        finalPos = row?.position ?? null;
+      }
+
+      const doc = await tx.document.findUnique({
+        where: { id: args.documentId },
+        select: { id: true, title: true, description: true },
+      });
+
+      // FE expects columnId/optionId as optionId
+      return {
+        id: doc?.id ?? args.documentId,
+        title: doc?.title,
+        description: doc?.description,
+        columnId: targetOptionId ?? undefined, // if moved this request, we know it
+        optionId: targetOptionId ?? undefined,
+        position: finalPos,
+      };
+    },
+    { timeout: 30_000 },
+  );
+}
+
+// ✅ DELETE
+export async function deleteTaskboardItemRepo(
+  prisma: any,
+  args: DeleteTaskboardItemArgs,
+) {
+  return prisma.$transaction(async (tx: any) => {
+    const taskBoardId = await assertTaskboardIdForProject(tx, args.projectId);
+
+    const exists = await tx.taskBoardItem.findUnique({
+      where: {
+        taskBoardId_documentId: { taskBoardId, documentId: args.documentId },
       },
+      select: { documentId: true },
+    });
+    if (!exists) return; // idempotent delete
+
+    // deleting document cascades TaskBoardItem (per your schema)
+    await tx.document.delete({ where: { id: args.documentId } });
+  });
+}
+
+export const taskboardRepo = {
+  /* -------------------------- pointer lookup -------------------------- */
+  findPointerByProjectId: (projectId: string) => {
+    return prisma.projectTaskBoard.findUnique({
+      where: { projectId },
+      select: { taskBoardId: true },
     });
   },
-  async getSnapshot(projectId: string, taskBoardId: string) {
-    return prisma.taskBoard.findFirst({
-      where: { id: taskBoardId, projectId },
+
+  /* -------------------------- load board state ------------------------- */
+  getBoardById: (taskBoardId: string) => {
+    return prisma.taskBoard.findUnique({
+      where: { id: taskBoardId },
       include: {
         bindings: true,
-        columns: { include: { option: true }, orderBy: { position: "asc" } },
+        columns: {
+          include: { option: true },
+          orderBy: { position: "asc" },
+        },
         items: {
+          orderBy: { position: "asc" },
           include: {
-            column: true,
             document: { select: { id: true, title: true, description: true } },
+            column: { include: { option: true } },
           },
         },
       },
+    });
+  },
+
+  getPropertyDefinitionById: (propertyId: string) => {
+    return prisma.propertyDefinition.findUnique({
+      where: { id: propertyId },
+      include: { options: { orderBy: { position: "asc" } } },
+    });
+  },
+
+  /* --------------------- create default board + pointer --------------------- */
+  createDefaultForProject: async (args: {
+    projectId: string;
+    createdById: string;
+  }) => {
+    return prisma.$transaction(async (tx) => {
+      /**
+       * IMPORTANT: match FE property types EXACTLY (case-sensitive)
+       * PROPERTY_TYPES includes: "status", "person", "date_time", ...
+       */
+
+      // 1) status property (+ first option/column)
+      const statusProp = await tx.propertyDefinition.create({
+        data: {
+          projectId: args.projectId,
+          name: "status", // shows in "Grouped by" dropdown
+          type: "status", // <-- must match your PROPERTY_TYPES
+          options: {
+            create: [{ value: "Untitled Column", position: 1 }],
+          },
+        },
+        include: { options: true },
+      });
+
+      const firstOpt = statusProp.options[0];
+      if (!firstOpt) throw new Error("Status property has no options");
+
+      // 2) assignee property
+      const assigneeProp = await tx.propertyDefinition.create({
+        data: {
+          projectId: args.projectId,
+          name: "assignees",
+          type: "person", // <-- exact
+        },
+        select: { id: true },
+      });
+
+      // 3) due property
+      const dueProp = await tx.propertyDefinition.create({
+        data: {
+          projectId: args.projectId,
+          name: "due",
+          type: "date_time", // <-- exact
+        },
+        select: { id: true },
+      });
+
+      // 4) create TaskBoard + bindings + first column
+      const board = await tx.taskBoard.create({
+        data: {
+          projectId: args.projectId,
+          name: "Untitled Board",
+          hostDocumentId: null,
+          createdById: args.createdById,
+          bindings: {
+            create: {
+              statusPropertyId: statusProp.id,
+              assigneePropertyId: assigneeProp.id,
+              duePropertyId: dueProp.id,
+            },
+          },
+          columns: {
+            create: [
+              {
+                optionId: firstOpt.id,
+                label: firstOpt.value,
+                position: 1,
+              },
+            ],
+          },
+        },
+        select: { id: true, projectId: true, name: true },
+      });
+
+      // 5) create pointer (1 taskboard per project)
+      await tx.projectTaskBoard.create({
+        data: {
+          projectId: args.projectId,
+          taskBoardId: board.id,
+        },
+      });
+
+      return board.id;
+    });
+  },
+  updateBoardName: (taskBoardId: string, name: string) => {
+    return prisma.taskBoard.update({
+      where: { id: taskBoardId },
+      data: { name },
+      select: { id: true, name: true },
+    });
+  },
+  /* --------------------- status properties (project-scoped) --------------------- */
+  listStatusPropertiesForProject: (projectId: string) => {
+    return prisma.propertyDefinition.findMany({
+      where: { projectId, type: "status" },
+      include: { options: { orderBy: { position: "asc" } } },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+
+  getStatusPropertyForProject: (projectId: string, propertyId: string) => {
+    return prisma.propertyDefinition.findFirst({
+      where: { id: propertyId, projectId, type: "status" },
+      include: { options: { orderBy: { position: "asc" } } },
+    });
+  },
+
+  /* --------------------- eligibility checks (taskboard docs) --------------------- */
+  listTaskboardItemDocumentIds: async (taskBoardId: string) => {
+    const rows = await prisma.taskBoardItem.findMany({
+      where: { taskBoardId },
+      select: { documentId: true },
+    });
+    return rows.map((r) => r.documentId);
+  },
+
+  countDocsWithStatusValue: (documentIds: string[], propertyId: string) => {
+    if (documentIds.length === 0) return Promise.resolve(0);
+    return prisma.documentPropertyValue.count({
+      where: {
+        propertyId,
+        documentId: { in: documentIds },
+        optionId: { not: null },
+      },
+    });
+  },
+
+  /* --------------------- binding switch + sync (transaction) --------------------- */
+  setStatusBindingAndSync: async (args: {
+    taskBoardId: string;
+    statusPropertyId: string;
+  }) => {
+    return prisma.$transaction(async (tx) => {
+      const { taskBoardId, statusPropertyId } = args;
+
+      // fetch property + options
+      const prop = await tx.propertyDefinition.findUnique({
+        where: { id: statusPropertyId },
+        include: { options: { orderBy: { position: "asc" } } },
+      });
+      if (!prop) throw new Error("status property not found");
+      if (prop.type !== "status")
+        throw new Error("property is not type 'status'");
+
+      const optionIds = prop.options.map((o) => o.id);
+
+      // 1) update binding
+      await tx.taskBoardBindings.update({
+        where: { taskBoardId },
+        data: { statusPropertyId },
+      });
+
+      // 2) delete columns for other properties
+      await tx.taskBoardColumn.deleteMany({
+        where: {
+          taskBoardId,
+          option: { propertyId: { not: statusPropertyId } },
+        },
+      });
+
+      // 3) ensure columns exist for all options
+      const existing = await tx.taskBoardColumn.findMany({
+        where: {
+          taskBoardId,
+          optionId: { in: optionIds },
+        },
+        select: { optionId: true },
+      });
+      const existingSet = new Set(existing.map((c) => c.optionId));
+
+      const missing = prop.options
+        .filter((o) => !existingSet.has(o.id))
+        .map((o, idx) => ({
+          taskBoardId,
+          optionId: o.id,
+          label: o.value,
+          position: o.position ?? idx + 1,
+        }));
+
+      if (missing.length > 0) {
+        await tx.taskBoardColumn.createMany({ data: missing });
+      }
+
+      // 4) remap taskboard items -> correct columnId for this property
+      const items = await tx.taskBoardItem.findMany({
+        where: { taskBoardId },
+        select: { documentId: true },
+      });
+
+      if (items.length === 0) return { ok: true as const };
+
+      const docIds = items.map((i) => i.documentId);
+
+      const values = await tx.documentPropertyValue.findMany({
+        where: {
+          propertyId: statusPropertyId,
+          documentId: { in: docIds },
+          optionId: { not: null },
+        },
+        select: { documentId: true, optionId: true },
+      });
+
+      // safety: must have a value for each item
+      if (values.length !== docIds.length) {
+        throw new Error("Not all tasks have a value for this status property");
+      }
+
+      const cols = await tx.taskBoardColumn.findMany({
+        where: { taskBoardId, optionId: { in: optionIds } },
+        select: { id: true, optionId: true },
+      });
+      const optionToColumnId = new Map(cols.map((c) => [c.optionId, c.id]));
+
+      const byColumn = new Map<string, string[]>();
+      for (const v of values) {
+        const optId = v.optionId!;
+        const colId = optionToColumnId.get(optId);
+        if (!colId) throw new Error("Missing column for option");
+        const arr = byColumn.get(colId) ?? [];
+        arr.push(v.documentId);
+        byColumn.set(colId, arr);
+      }
+
+      for (const [colId, docs] of byColumn.entries()) {
+        await tx.taskBoardItem.updateMany({
+          where: { taskBoardId, documentId: { in: docs } },
+          data: { columnId: colId },
+        });
+      }
+
+      return { ok: true as const };
+    });
+  },
+  /* ----------------------------- columns (options) ----------------------------- */
+
+  createColumnOptionForBoard: async (args: {
+    taskBoardId: string;
+    propertyId: string;
+    label: string;
+  }) => {
+    return prisma.$transaction(async (tx) => {
+      const label = (args.label ?? "").trim() || "Untitled Column";
+
+      // next position (1-based to match your default)
+      const maxOpt = await tx.propertyOption.aggregate({
+        where: { propertyId: args.propertyId },
+        _max: { position: true },
+      });
+      const nextPos = (maxOpt._max.position ?? 0) + 1;
+
+      const opt = await tx.propertyOption.create({
+        data: {
+          propertyId: args.propertyId,
+          value: label,
+          position: nextPos,
+        },
+        select: { id: true, value: true, position: true },
+      });
+
+      await tx.taskBoardColumn.create({
+        data: {
+          taskBoardId: args.taskBoardId,
+          optionId: opt.id,
+          label: opt.value,
+          position: nextPos,
+        },
+        select: { id: true },
+      });
+
+      return { id: opt.id, title: opt.value };
+    });
+  },
+
+  renameColumnOptionForBoard: async (args: {
+    taskBoardId: string;
+    propertyId: string;
+    optionId: string;
+    label: string;
+  }) => {
+    return prisma.$transaction(async (tx) => {
+      const label = (args.label ?? "").trim() || "Untitled Column";
+
+      // update option (scoped to property)
+      const opt = await tx.propertyOption.findFirst({
+        where: { id: args.optionId, propertyId: args.propertyId },
+        select: { id: true },
+      });
+      if (!opt) throw new Error("option not found");
+
+      await tx.propertyOption.update({
+        where: { id: args.optionId },
+        data: { value: label },
+      });
+
+      // keep TaskBoardColumn label in sync (board-specific label is used by your DTO mapper)
+      await tx.taskBoardColumn.updateMany({
+        where: { taskBoardId: args.taskBoardId, optionId: args.optionId },
+        data: { label },
+      });
+
+      return { ok: true as const };
+    });
+  },
+
+  deleteColumnOptionHardForBoard: async (args: {
+    taskBoardId: string;
+    propertyId: string;
+    optionId: string;
+  }) => {
+    return prisma.$transaction(
+      async (tx) => {
+        // find the board column for this option
+        const col = await tx.taskBoardColumn.findFirst({
+          where: { taskBoardId: args.taskBoardId, optionId: args.optionId },
+          select: { id: true },
+        });
+        if (!col) throw new Error("column not found");
+
+        // find all documents in this column
+        const items = await tx.taskBoardItem.findMany({
+          where: { taskBoardId: args.taskBoardId, columnId: col.id },
+          select: { documentId: true },
+        });
+        const docIds = items.map((i) => i.documentId);
+
+        // HARD DELETE: delete documents (TaskBoardItem cascades via document onDelete: Cascade)
+        if (docIds.length > 0) {
+          await tx.document.deleteMany({
+            where: { id: { in: docIds } },
+          });
+        }
+
+        // delete the board column row
+        await tx.taskBoardColumn.deleteMany({
+          where: { taskBoardId: args.taskBoardId, optionId: args.optionId },
+        });
+
+        // IMPORTANT: clear remaining values elsewhere to satisfy FK constraints
+        // (mirrors your doc-board behavior)
+        await tx.documentPropertyValue.updateMany({
+          where: { propertyId: args.propertyId, optionId: args.optionId },
+          data: { optionId: null },
+        });
+
+        // finally delete the option itself
+        await tx.propertyOption.delete({
+          where: { id: args.optionId },
+        });
+
+        // resequence remaining option positions (and board column positions)
+        const remaining = await tx.propertyOption.findMany({
+          where: { propertyId: args.propertyId },
+          orderBy: [{ position: "asc" }, { value: "asc" }],
+          select: { id: true },
+        });
+
+        await Promise.all(
+          remaining.map((o, idx) =>
+            tx.propertyOption.update({
+              where: { id: o.id },
+              data: { position: idx + 1 },
+            }),
+          ),
+        );
+
+        await Promise.all(
+          remaining.map((o, idx) =>
+            tx.taskBoardColumn.updateMany({
+              where: { taskBoardId: args.taskBoardId, optionId: o.id },
+              data: { position: idx + 1 },
+            }),
+          ),
+        );
+
+        return { ok: true as const };
+      },
+      { timeout: 60000, maxWait: 60000 },
+    );
+  },
+
+  reorderColumnOptionsForBoard: async (args: {
+    taskBoardId: string;
+    propertyId: string;
+    order: string[]; // option ids
+  }) => {
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.propertyOption.findMany({
+        where: { propertyId: args.propertyId },
+        orderBy: [{ position: "asc" }, { value: "asc" }],
+        select: { id: true },
+      });
+
+      const existingIds = new Set(existing.map((o) => o.id));
+      const orderIds = new Set(args.order);
+
+      if (
+        args.order.length !== existing.length ||
+        existingIds.size !== orderIds.size ||
+        args.order.some((id) => !existingIds.has(id))
+      ) {
+        throw new Error(
+          "order must contain all and only this property's option ids",
+        );
+      }
+
+      await Promise.all(
+        args.order.map((id, idx) =>
+          tx.propertyOption.update({
+            where: { id },
+            data: { position: idx + 1 },
+          }),
+        ),
+      );
+
+      await Promise.all(
+        args.order.map((id, idx) =>
+          tx.taskBoardColumn.updateMany({
+            where: { taskBoardId: args.taskBoardId, optionId: id },
+            data: { position: idx + 1 },
+          }),
+        ),
+      );
+
+      return { ok: true as const };
     });
   },
 };
