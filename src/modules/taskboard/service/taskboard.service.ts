@@ -1,12 +1,15 @@
 import { projectRepo } from "@/modules/projects/repo/project.repo";
-import { taskboardRepo } from "../repo/taskboard.repo";
+import {
+  taskboardRepo,
+  updateStatusBindingForTaskboardTx,
+} from "../repo/taskboard.repo";
 import {
   createTaskboardItemRepo,
   updateTaskboardItemRepo,
   deleteTaskboardItemRepo,
 } from "../repo/taskboard.repo";
 import { accessRepo } from "@/modules/documents/repo/access.repo";
-
+import { prisma } from "@/lib/prisma";
 import type {
   TaskboardDto,
   TaskboardStatusPropertiesResponseDto,
@@ -107,59 +110,34 @@ export const taskboardService = {
     };
   },
 
-  getStatusPropertiesForProject: async (
-    projectId: string,
-    userId: string,
-  ): Promise<TaskboardStatusPropertiesResponseDto> => {
-    const role = await projectRepo.getMemberRole(projectId, userId);
-    if (!role) throw forbidden("You are not a member of this project");
+  async getStatusPropertiesForProject(projectId: string) {
+    const taskBoardId =
+      await this.taskboardRepo.getTaskBoardIdForProject(projectId);
+    if (!taskBoardId) return { properties: [], currentPropertyId: null };
 
-    const board = await taskboardService.getOrCreateForProject(
-      projectId,
-      userId,
-    );
-    const currentPropertyId = board.bindings?.statusPropertyId ?? null;
+    const bindings = await this.taskboardRepo.getBindings(taskBoardId);
+    const currentPropertyId = bindings?.statusPropertyId ?? null;
 
-    const props = await taskboardRepo.listStatusPropertiesForProject(projectId);
+    const properties =
+      await this.taskboardRepo.listStatusPropertiesInTaskboardDocs(
+        projectId,
+        taskBoardId,
+      );
 
-    if (!currentPropertyId) {
-      return { properties: [], currentPropertyId: null };
+    // Ensure the currently bound property is still selectable even if
+    // none of the current docs has a value for it yet.
+    if (
+      currentPropertyId &&
+      !properties.some((p) => p.id === currentPropertyId)
+    ) {
+      const bound = await this.taskboardRepo.getPropertyDefinitionById(
+        projectId,
+        currentPropertyId,
+      );
+      if (bound) properties.unshift(bound);
     }
 
-    // eligibility: property is eligible if every task doc has a non-null optionId value for it
-    const docIds = await taskboardRepo.listTaskboardItemDocumentIds(board.id);
-
-    let eligible = props;
-
-    if (docIds.length > 0) {
-      const eligibleProps: typeof props = [];
-      for (const p of props) {
-        const cnt = await taskboardRepo.countDocsWithStatusValue(docIds, p.id);
-        if (cnt === docIds.length) eligibleProps.push(p);
-      }
-      eligible = eligibleProps;
-    }
-
-    // always include the current property even if something went weird
-    const hasCurrent = eligible.some((p) => p.id === currentPropertyId);
-    if (!hasCurrent) {
-      const cur = props.find((p) => p.id === currentPropertyId);
-      if (cur) eligible = [cur, ...eligible];
-    }
-
-    return {
-      properties: eligible.map((p) => ({
-        id: p.id,
-        name: p.name,
-        options: (p.options ?? []).map((o) => ({
-          id: o.id,
-          value: o.value,
-          color: o.color ?? null,
-          position: o.position ?? null,
-        })),
-      })),
-      currentPropertyId,
-    };
+    return { properties, currentPropertyId };
   },
 
   renameForProject: async (
@@ -218,10 +196,11 @@ export const taskboardService = {
         );
       }
     }
-
-    await taskboardRepo.setStatusBindingAndSync({
-      taskBoardId: boardId,
-      statusPropertyId: prop.id,
+    await prisma.$transaction(async (tx) => {
+      await updateStatusBindingForTaskboardTx(tx, {
+        taskBoardId: boardId,
+        statusPropertyId,
+      });
     });
 
     return { ok: true };
