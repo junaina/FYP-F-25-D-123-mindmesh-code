@@ -73,8 +73,10 @@ export async function updateStatusBindingForTaskboardTx(
   const items = await tx.taskBoardItem.findMany({
     where: { taskBoardId },
     select: {
+      taskBoardId: true,
       documentId: true,
       columnId: true,
+      position: true,
     },
   });
 
