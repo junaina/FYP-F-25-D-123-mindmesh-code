@@ -132,21 +132,23 @@ export default function TaskboardKanban({ projectId }: Props) {
         const boundStatusId = board.bindings?.statusPropertyId ?? null;
         setStatusPropertyId(boundStatusId);
 
-        const apiCols = (board.columns ?? []) as any[];
+        const apiCols = board.columns ?? [];
         const mappedCols: Column[] = apiCols.map((c) => ({
-          id: c.optionId ?? c.id,
-          title: c.label ?? c.name ?? c.value ?? "Untitled Column",
+          id: c.optionId ?? c.id ?? "",
+          title: c.label ?? c.name ?? c.value ?? c.title ?? "Untitled Column",
         }));
+
         setCols(mappedCols);
 
-        const apiCards = (board.cards ?? []) as any[];
+        const apiCards = board.cards ?? [];
         const mappedTasks: Task[] = apiCards.map((card) => ({
-          id: card.id ?? card.documentId,
+          id: card.id ?? card.documentId ?? "",
           title: card.title ?? "Untitled Task",
           description: card.description ?? "",
-          status: card.columnId ?? card.optionId,
+          status: card.columnId ?? card.optionId ?? card.columnOptionId ?? "",
           assigneeIds: card.assigneeIds ?? [],
         }));
+
         setTasks(mappedTasks);
         setTaskOrder(buildInitialTaskOrder(mappedCols, mappedTasks));
 
@@ -284,8 +286,7 @@ export default function TaskboardKanban({ projectId }: Props) {
         optionId: status,
         title: "Untitled Task",
       });
-
-      const documentId = (card as any).id;
+      const documentId = card.id ?? card.documentId;
       if (!documentId) {
         console.error("Taskboard card returned without an id", card);
         return;
@@ -361,21 +362,22 @@ export default function TaskboardKanban({ projectId }: Props) {
       setBoardName(board.name);
       setStatusPropertyId(board.bindings?.statusPropertyId ?? newPropertyId);
 
-      const apiCols = (board.columns ?? []) as any[];
+      const apiCols = board.columns ?? [];
       const mappedCols: Column[] = apiCols.map((c) => ({
-        id: c.optionId ?? c.id,
-        title: c.label ?? c.name ?? c.value ?? "Untitled Column",
+        id: c.optionId ?? c.id ?? "",
+        title: c.label ?? c.name ?? c.value ?? c.title ?? "Untitled Column",
       }));
-      setCols(mappedCols);
 
-      const apiCards = (board.cards ?? []) as any[];
+      setCols(mappedCols);
+      const apiCards = board.cards ?? [];
       const mappedTasks: Task[] = apiCards.map((card) => ({
-        id: card.id ?? card.documentId,
+        id: card.id ?? card.documentId ?? "",
         title: card.title ?? "Untitled Task",
         description: card.description ?? "",
-        status: card.columnId ?? card.optionId,
+        status: card.columnId ?? card.optionId ?? card.columnOptionId ?? "",
         assigneeIds: card.assigneeIds ?? [],
       }));
+
       setTasks(mappedTasks);
       setTaskOrder(buildInitialTaskOrder(mappedCols, mappedTasks));
     } catch (err) {
