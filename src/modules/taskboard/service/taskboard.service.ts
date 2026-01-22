@@ -110,32 +110,21 @@ export const taskboardService = {
     };
   },
 
-  async getStatusPropertiesForProject(projectId: string) {
-    const taskBoardId =
-      await this.taskboardRepo.getTaskBoardIdForProject(projectId);
+  getStatusPropertiesForProject: async (projectId: string) => {
+    // if you store pointer mapping project -> taskBoardId
+    const pointer = await taskboardRepo.findPointerByProjectId(projectId);
+    const taskBoardId = pointer?.taskBoardId ?? null;
+
     if (!taskBoardId) return { properties: [], currentPropertyId: null };
 
-    const bindings = await this.taskboardRepo.getBindings(taskBoardId);
-    const currentPropertyId = bindings?.statusPropertyId ?? null;
+    const board = await taskboardRepo.getBoardById(taskBoardId);
+    const currentPropertyId = board?.bindings?.statusPropertyId ?? null;
 
-    const properties =
-      await this.taskboardRepo.listStatusPropertiesInTaskboardDocs(
-        projectId,
-        taskBoardId,
-      );
-
-    // Ensure the currently bound property is still selectable even if
-    // none of the current docs has a value for it yet.
-    if (
-      currentPropertyId &&
-      !properties.some((p) => p.id === currentPropertyId)
-    ) {
-      const bound = await this.taskboardRepo.getPropertyDefinitionById(
-        projectId,
-        currentPropertyId,
-      );
-      if (bound) properties.unshift(bound);
-    }
+    // get ALL project status props (your repo already does this)
+    const properties = await taskboardRepo.listStatusPropertiesInTaskboardDocs(
+      projectId,
+      taskBoardId,
+    );
 
     return { properties, currentPropertyId };
   },
