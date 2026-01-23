@@ -74,7 +74,7 @@ export type MeetingSpeakerLabel = {
 
 export type MeetingTranscript = {
   transcript: string;
-  segments: MeetingSegment[];
+  segments: MeetingTranscriptSegment[];
   speakers: MeetingSpeakerLabel[];
 };
 
@@ -83,7 +83,7 @@ export type MeetingTranscript = {
  * POST /api/meet/:joinCode/transcribe
  */
 export async function transcribeMeeting(
-  joinCode: string
+  joinCode: string,
 ): Promise<MeetingTranscriptResponse> {
   if (!joinCode) {
     throw new Error("transcribeMeeting: missing joinCode");
@@ -101,7 +101,7 @@ export async function transcribeMeeting(
     throw new Error(
       `Failed to transcribe meeting (${res.status}): ${
         text || res.statusText || "Unknown error"
-      }`
+      }`,
     );
   }
 
@@ -115,7 +115,7 @@ export async function transcribeMeeting(
  */
 export async function createProjectMeeting(
   projectId: string,
-  title: string
+  title: string,
 ): Promise<MeetingSummary> {
   if (!projectId) throw new Error("createProjectMeeting: missing projectId");
 
@@ -133,7 +133,7 @@ export async function createProjectMeeting(
     throw new Error(
       `Failed to create meeting (${res.status}): ${
         text || res.statusText || "Unknown error"
-      }`
+      }`,
     );
   }
 
@@ -150,7 +150,7 @@ export async function createProjectMeeting(
  *   { recording: { ...MeetingRecordingSummary } }
  */
 export async function startMeetingRecording(
-  joinCode: string
+  joinCode: string,
 ): Promise<StartStopRecordingResponse> {
   if (!joinCode) {
     throw new Error("startMeetingRecording: missing joinCode");
@@ -168,7 +168,7 @@ export async function startMeetingRecording(
     throw new Error(
       `Failed to start recording (${res.status}): ${
         text || res.statusText || "Unknown error"
-      }`
+      }`,
     );
   }
 
@@ -185,7 +185,7 @@ export async function startMeetingRecording(
  *   { recording: { ...MeetingRecordingSummary } }
  */
 export async function stopMeetingRecording(
-  joinCode: string
+  joinCode: string,
 ): Promise<StartStopRecordingResponse> {
   if (!joinCode) {
     throw new Error("stopMeetingRecording: missing joinCode");
@@ -203,7 +203,7 @@ export async function stopMeetingRecording(
     throw new Error(
       `Failed to stop recording (${res.status}): ${
         text || res.statusText || "Unknown error"
-      }`
+      }`,
     );
   }
 
@@ -216,7 +216,7 @@ export async function stopMeetingRecording(
  * GET /api/meet/:joinCode/recording/status
  */
 export async function getMeetingRecordingStatus(
-  joinCode: string
+  joinCode: string,
 ): Promise<RecordingStatusResponse> {
   if (!joinCode) {
     throw new Error("getMeetingRecordingStatus: missing joinCode");
@@ -234,7 +234,7 @@ export async function getMeetingRecordingStatus(
     throw new Error(
       `Failed to fetch recording status (${res.status}): ${
         text || res.statusText || "Unknown error"
-      }`
+      }`,
     );
   }
 
@@ -285,7 +285,7 @@ export async function getMeetingRecap(joinCode: string): Promise<MeetingRecap> {
     throw new Error(
       `Failed to fetch meeting recap (${res.status}): ${
         text || res.statusText || "Unknown error"
-      }`
+      }`,
     );
   }
 
@@ -293,14 +293,14 @@ export async function getMeetingRecap(joinCode: string): Promise<MeetingRecap> {
   return json;
 }
 export async function fetchMeetingTranscript(
-  joinCode: string
+  joinCode: string,
 ): Promise<MeetingTranscript> {
   const res = await fetch(
     `/api/meet/${encodeURIComponent(joinCode)}/transcript`,
     {
       method: "GET",
       credentials: "include",
-    }
+    },
   );
 
   if (!res.ok) {
@@ -308,7 +308,7 @@ export async function fetchMeetingTranscript(
     throw new Error(
       `Failed to fetch meeting transcript (${res.status}): ${
         text || res.statusText || "Unknown error"
-      }`
+      }`,
     );
   }
 
@@ -317,7 +317,7 @@ export async function fetchMeetingTranscript(
 
 export async function saveMeetingTranscript(
   joinCode: string,
-  payload: MeetingTranscript
+  payload: MeetingTranscript,
 ): Promise<MeetingTranscript> {
   const res = await fetch(
     `/api/meet/${encodeURIComponent(joinCode)}/transcript`,
@@ -326,7 +326,7 @@ export async function saveMeetingTranscript(
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }
+    },
   );
 
   if (!res.ok) {
@@ -334,9 +334,121 @@ export async function saveMeetingTranscript(
     throw new Error(
       `Failed to save meeting transcript (${res.status}): ${
         text || res.statusText || "Unknown error"
-      }`
+      }`,
     );
   }
 
   return (await res.json()) as MeetingTranscript;
+}
+export type MeetingSummaryProvider = "mock" | "api";
+
+export type MeetingSummaryResult = {
+  summary: string;
+  actionItems: string[];
+  generatedAt: string; // ISO
+  provider: MeetingSummaryProvider;
+};
+
+export async function generateMeetingSummary(
+  joinCode: string,
+): Promise<MeetingSummaryResult> {
+  if (!joinCode) throw new Error("generateMeetingSummary: missing joinCode");
+
+  const provider =
+    (process.env.NEXT_PUBLIC_AI_SUMMARY_PROVIDER as MeetingSummaryProvider) ??
+    "mock";
+
+  if (provider === "api") {
+    // Later: hit your Next.js API route that calls FastAPI (model inference)
+    // const res = await fetch(`/api/meet/${encodeURIComponent(joinCode)}/summary/generate`, {
+    //   method: "POST",
+    //   credentials: "include",
+    // });
+    // if (!res.ok) throw new Error(...);
+    // return (await res.json()) as MeetingSummaryResult;
+
+    throw new Error(
+      "AI summary provider is set to 'api' but the endpoint isn't wired yet.",
+    );
+  }
+
+  // MOCK provider:
+  const transcriptData = await fetchMeetingTranscript(joinCode);
+  const transcript = (transcriptData.transcript ?? "").trim();
+
+  if (!transcript) {
+    throw new Error("No transcript found. Generate the transcript first.");
+  }
+
+  // simulate “model” latency
+  await new Promise((r) => setTimeout(r, 900));
+
+  return {
+    summary: mockSummarize(transcript),
+    actionItems: mockExtractActionItems(transcript),
+    generatedAt: new Date().toISOString(),
+    provider: "mock",
+  };
+}
+
+function mockSummarize(text: string): string {
+  const sentences = splitSentences(text);
+  const picked = sentences.slice(0, 5).join(" ").trim();
+  const clipped =
+    picked.length > 900 ? picked.slice(0, 900).trimEnd() + "…" : picked;
+
+  return [
+    "• The meeting covered progress updates, key decisions, and next steps.",
+    "• Main discussion points:",
+    clipped ? `  - ${clipped}` : "  - (No content detected)",
+    "",
+    "• Next steps are captured in the action items section.",
+  ].join("\n");
+}
+
+function mockExtractActionItems(text: string): string[] {
+  const sentences = splitSentences(text);
+
+  const triggers = [
+    "need to",
+    "we need to",
+    "i will",
+    "we will",
+    "let's",
+    "lets",
+    "todo",
+    "action item",
+    "follow up",
+    "next step",
+    "assign",
+    "deadline",
+  ];
+
+  const items: string[] = [];
+  for (const s of sentences) {
+    const lower = s.toLowerCase();
+    if (triggers.some((t) => lower.includes(t))) items.push(cleanSentence(s));
+    if (items.length >= 8) break;
+  }
+
+  if (!items.length) {
+    return [
+      "Review the transcript and confirm key decisions.",
+      "Assign owners for the next steps discussed in the meeting.",
+    ];
+  }
+
+  return Array.from(new Set(items));
+}
+
+function splitSentences(text: string): string[] {
+  return text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function cleanSentence(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
 }

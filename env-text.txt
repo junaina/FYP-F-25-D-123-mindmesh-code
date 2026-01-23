@@ -4,7 +4,7 @@ DATABASE_URL_UNPOOLED="postgresql://neondb_owner:npg_OtAX7qVzSrW4@ep-blue-breeze
 
 
 isProd=true
-SEED_PROJECT_ID="550a35be-038d-4c7d-8cd2-fdd1044d1f38"
+SEED_PROJECT_ID="2dd860da-6ded-4297-a5e4-ba323dbcf900"
 NEXT_PUBLIC_LIVEKIT_WS_URL=wss://mindmesh-1f644du5.livekit.cloud
 LIVEKIT_WS_URL=wss://mindmesh-1f644du5.livekit.cloud
 LIVEKIT_API_KEY=APITKziCwpyFAZU
@@ -14,6 +14,9 @@ S3_REGION=us-east-1
 S3_ACCESS_KEY_ID= AKIA3J46T2DH6BMZA3VB
 S3_SECRET_ACCESS_KEY= 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
 NEXT_PUBLIC_RECORDINGS_BASE_URL=https://mindmesh-meeting-recordings.s3.us-east-1.amazonaws.com
+# uploads (add)
+S3_UPLOADS_BUCKET=mindmesh-uploads
+S3_UPLOADS_REGION=us-east-1
 OPENAI_API_KEY=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
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -22,5 +25,8 @@ SMTP_PASS=nwinjlexouttvguq
 APP_URL=http://localhost:3000
 INVITE_FROM_EMAIL="MindMesh <azizwarda123tyty@gmail.com>"
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
+GITHUB_CLIENT_ID=Ov23li6NBR32s8afTsVj
+GITHUB_CLIENT_SECRET=b3dcfaad837e6503c86a1400da4a4dbb2196da19
+GITHUB_REDIRECT_URI=http://localhost:3000/api/integrations/github/callback
 
 #AUTH_DISABLED= "true"
