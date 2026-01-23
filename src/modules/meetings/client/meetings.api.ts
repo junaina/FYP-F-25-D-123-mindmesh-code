@@ -354,40 +354,32 @@ export async function generateMeetingSummary(
 ): Promise<MeetingSummaryResult> {
   if (!joinCode) throw new Error("generateMeetingSummary: missing joinCode");
 
-  const provider =
-    (process.env.NEXT_PUBLIC_AI_SUMMARY_PROVIDER as MeetingSummaryProvider) ??
-    "mock";
+  const res = await fetch(`/api/meet/${encodeURIComponent(joinCode)}/summary`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      format: "bullets",
+      maxTokens: 220,
+    }),
+  });
 
-  if (provider === "api") {
-    // Later: hit your Next.js API route that calls FastAPI (model inference)
-    // const res = await fetch(`/api/meet/${encodeURIComponent(joinCode)}/summary/generate`, {
-    //   method: "POST",
-    //   credentials: "include",
-    // });
-    // if (!res.ok) throw new Error(...);
-    // return (await res.json()) as MeetingSummaryResult;
-
-    throw new Error(
-      "AI summary provider is set to 'api' but the endpoint isn't wired yet.",
-    );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Failed to generate summary (${res.status}): ${text || res.statusText}`);
   }
 
-  // MOCK provider:
-  const transcriptData = await fetchMeetingTranscript(joinCode);
-  const transcript = (transcriptData.transcript ?? "").trim();
-
-  if (!transcript) {
-    throw new Error("No transcript found. Generate the transcript first.");
-  }
-
-  // simulate “model” latency
-  await new Promise((r) => setTimeout(r, 900));
+  const data = (await res.json()) as {
+    summary: string;
+    model?: { name: string; version: string };
+    meta?: { latencyMs: number; charsIn: number };
+  };
 
   return {
-    summary: mockSummarize(transcript),
-    actionItems: mockExtractActionItems(transcript),
+    summary: data.summary ?? "",
+    actionItems: [], // keep empty for now, or parse later when your API returns them
     generatedAt: new Date().toISOString(),
-    provider: "mock",
+    provider: (data.model?.name === "stub" ? "mock" : "api") as any, // optional
   };
 }
 
