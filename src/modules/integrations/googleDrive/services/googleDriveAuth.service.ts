@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { GoogleDriveOauthRepo } from "@/modules/integrations/googleDrive/repo/googleDriveOauth.repo";
 
 type StatePayload = {
-  action: "save_meeting_transcript_to_drive";
+  action: "save_meeting_transcript_to_drive" | "save_meeting_summary_to_drive";
   joinCode: string;
 };
 
@@ -77,17 +77,17 @@ export const GoogleDriveAuthService = {
 
     const parsedState = this.parseState(state);
 
-    // After connecting Drive, send user back to the meeting recap screen.
-    if (
-      parsedState &&
-      parsedState.action === "save_meeting_transcript_to_drive"
-    ) {
+    if (parsedState?.action === "save_meeting_transcript_to_drive") {
       const { joinCode } = parsedState;
-      // We’ll have the client auto-call export again when it sees this flag.
       return {
-        redirectUrl: `/mesh-meet/${encodeURIComponent(
-          joinCode
-        )}/ended?driveExport=resume`,
+        redirectUrl: `/mesh-meet/${encodeURIComponent(joinCode)}/ended?driveExport=resume`,
+      };
+    }
+
+    if (parsedState?.action === "save_meeting_summary_to_drive") {
+      const { joinCode } = parsedState;
+      return {
+        redirectUrl: `/mesh-meet/${encodeURIComponent(joinCode)}/summary?driveExport=resume`,
       };
     }
 
