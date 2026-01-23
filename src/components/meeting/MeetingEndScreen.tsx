@@ -72,7 +72,7 @@ export default function MeetingEndScreen({ joinCode }: Props) {
       // 1) Load current transcript from your /transcript route
       const transcriptRes = await fetch(
         `/api/meet/${encodeURIComponent(joinCode)}/transcript`,
-        { method: "GET", credentials: "include" }
+        { method: "GET", credentials: "include" },
       );
 
       if (!transcriptRes.ok) {
@@ -92,7 +92,7 @@ export default function MeetingEndScreen({ joinCode }: Props) {
       // If backend sent no speakers but we have segments, derive them
       if (!speakersFromApi.length && data.segments?.length) {
         const uniqueIdx = Array.from(
-          new Set(data.segments.map((s) => s.speakerIndex))
+          new Set(data.segments.map((s) => s.speakerIndex)),
         ).sort((a, b) => a - b);
 
         speakersFromApi = uniqueIdx.map((idx) => ({
@@ -168,7 +168,7 @@ export default function MeetingEndScreen({ joinCode }: Props) {
             segments: segmentsForSave,
             speakers,
           }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -211,7 +211,7 @@ export default function MeetingEndScreen({ joinCode }: Props) {
 
       const res = await fetch(
         `/api/meet/${encodeURIComponent(joinCode)}/export/drive`,
-        { method: "POST", credentials: "include" }
+        { method: "POST", credentials: "include" },
       );
 
       if (!res.ok) {
@@ -244,7 +244,7 @@ export default function MeetingEndScreen({ joinCode }: Props) {
 
   function handleSpeakerLabelChange(index: number, label: string) {
     setSpeakers((prev) =>
-      prev.map((s) => (s.speakerIndex === index ? { ...s, label } : s))
+      prev.map((s) => (s.speakerIndex === index ? { ...s, label } : s)),
     );
   }
 
@@ -267,8 +267,8 @@ export default function MeetingEndScreen({ joinCode }: Props) {
   function handleSegmentSpeakerChange(segIdx: number, newSpeakerIndex: number) {
     setSegments((prev) =>
       prev.map((seg, i) =>
-        i === segIdx ? { ...seg, speakerIndex: newSpeakerIndex } : seg
-      )
+        i === segIdx ? { ...seg, speakerIndex: newSpeakerIndex } : seg,
+      ),
     );
   }
 
@@ -279,6 +279,8 @@ export default function MeetingEndScreen({ joinCode }: Props) {
       </div>
     );
   }
+  const canGenerateSummary =
+    hasTranscript && (transcript.trim().length > 0 || segments.length > 0);
 
   const showTranscribeButton = canTranscribe && !hasTranscript;
 
@@ -342,6 +344,19 @@ export default function MeetingEndScreen({ joinCode }: Props) {
                 className="rounded-full border border-indigo-500/60 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-200 hover:bg-indigo-500/20 disabled:opacity-60"
               >
                 {savingToDrive ? "Saving to Drive…" : "Save to Drive"}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/mesh-meet/${joinCode}/summary`)}
+                disabled={!canGenerateSummary}
+                className="rounded-full border border-fuchsia-500/60 bg-fuchsia-500/10 px-3 py-1 text-xs font-medium text-fuchsia-200 hover:bg-fuchsia-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                title={
+                  canGenerateSummary
+                    ? "Generate a meeting summary"
+                    : "Generate transcript first to enable summary"
+                }
+              >
+                Generate AI summary
               </button>
             </div>
           </div>
@@ -440,8 +455,8 @@ export default function MeetingEndScreen({ joinCode }: Props) {
                     onChange={(e) =>
                       setSegments((prev) =>
                         prev.map((s, i) =>
-                          i === idx ? { ...s, text: e.target.value } : s
-                        )
+                          i === idx ? { ...s, text: e.target.value } : s,
+                        ),
                       )
                     }
                   />
