@@ -353,7 +353,7 @@ export async function generateMeetingSummary(
   joinCode: string,
 ): Promise<MeetingSummaryResult> {
   if (!joinCode) throw new Error("generateMeetingSummary: missing joinCode");
-
+  // this calls the next js route which forwards the request to the service which forwards it to the summarizer client that calls the fast api backend
   const res = await fetch(`/api/meet/${encodeURIComponent(joinCode)}/summary`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -366,7 +366,9 @@ export async function generateMeetingSummary(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Failed to generate summary (${res.status}): ${text || res.statusText}`);
+    throw new Error(
+      `Failed to generate summary (${res.status}): ${text || res.statusText}`,
+    );
   }
 
   const data = (await res.json()) as {
@@ -381,56 +383,6 @@ export async function generateMeetingSummary(
     generatedAt: new Date().toISOString(),
     provider: (data.model?.name === "stub" ? "mock" : "api") as any, // optional
   };
-}
-
-function mockSummarize(text: string): string {
-  const sentences = splitSentences(text);
-  const picked = sentences.slice(0, 5).join(" ").trim();
-  const clipped =
-    picked.length > 900 ? picked.slice(0, 900).trimEnd() + "…" : picked;
-
-  return [
-    "• The meeting covered progress updates, key decisions, and next steps.",
-    "• Main discussion points:",
-    clipped ? `  - ${clipped}` : "  - (No content detected)",
-    "",
-    "• Next steps are captured in the action items section.",
-  ].join("\n");
-}
-
-function mockExtractActionItems(text: string): string[] {
-  const sentences = splitSentences(text);
-
-  const triggers = [
-    "need to",
-    "we need to",
-    "i will",
-    "we will",
-    "let's",
-    "lets",
-    "todo",
-    "action item",
-    "follow up",
-    "next step",
-    "assign",
-    "deadline",
-  ];
-
-  const items: string[] = [];
-  for (const s of sentences) {
-    const lower = s.toLowerCase();
-    if (triggers.some((t) => lower.includes(t))) items.push(cleanSentence(s));
-    if (items.length >= 8) break;
-  }
-
-  if (!items.length) {
-    return [
-      "Review the transcript and confirm key decisions.",
-      "Assign owners for the next steps discussed in the meeting.",
-    ];
-  }
-
-  return Array.from(new Set(items));
 }
 
 function splitSentences(text: string): string[] {

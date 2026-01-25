@@ -70,7 +70,7 @@ export default function MeetingSummary({ joinCode }: Props) {
             return cached;
           }
         }
-
+        //the api function that calls the next js route
         const result = await generateMeetingSummary(joinCode);
         setData(result);
         saveToCache(result);

@@ -1,3 +1,5 @@
+// the bridge that calls the python service
+
 export type SummarizerFormat = "bullets" | "paragraph";
 
 export type SummarizeResponse = {
@@ -12,7 +14,8 @@ export class SummarizerUnavailableError extends Error {
 
 function baseUrl() {
   const url = process.env.SUMMARIZER_API_BASE_URL;
-  if (!url) throw new SummarizerUnavailableError("Missing SUMMARIZER_API_BASE_URL");
+  if (!url)
+    throw new SummarizerUnavailableError("Missing SUMMARIZER_API_BASE_URL");
   return url.replace(/\/+$/, "");
 }
 
@@ -21,6 +24,7 @@ export async function summarizeViaPythonSummarizer(args: {
   transcript: string;
   options?: { format?: SummarizerFormat; maxTokens?: number };
 }): Promise<SummarizeResponse> {
+  //forwards request to python's fast api summarizer that infers using the trained model
   const res = await fetch(`${baseUrl()}/summarize`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -37,7 +41,7 @@ export async function summarizeViaPythonSummarizer(args: {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new SummarizerUnavailableError(
-      `python-summarizer failed (${res.status}): ${text || res.statusText}`
+      `python-summarizer failed (${res.status}): ${text || res.statusText}`,
     );
   }
 
