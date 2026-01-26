@@ -12,4 +12,15 @@ set TMP=%cd%\.tmp
 set TEMP=%cd%\.tmp
 ----------------------------------------activation command for the venv
 .\venv\Scripts\activate 
--------------------------------------------- training commandpython train_t5_ami.py  --max_train_samples 300    --max_eval_samples 80  --num_train_epochs 1  --output_dir models/t5-ami-small 
+-------------------------------------------- training commandpython python3 train.py \
+  --model_name google/flan-t5-small \
+  --output_dir models/flan-ami-small \
+  --num_train_epochs 8 \
+  --max_train_samples 0 \
+  --max_eval_samples 0
+
+
+
+
+-----------------smoke test inference----------------------
+python3 infer.py --model_dir models/flan-ami-small --max_tokens 220
