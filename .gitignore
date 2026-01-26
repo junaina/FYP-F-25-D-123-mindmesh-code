@@ -79,6 +79,12 @@ python-summarizer/models/**/*.safetensors
 python-summarizer/models/**/*.pt
 python-summarizer/models/**/*.pth
 python-summarizer/models/**/*.bin
+python-summarizer/models/
+**/models/
+*.safetensors
+*.bin
+*.pt
+*.ckpt
 
 # Ignore trainer artifacts
 python-summarizer/models/**/optimizer.pt

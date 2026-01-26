@@ -32,6 +32,58 @@ def _dedupe_sentences(text: str) -> str:
         seen.add(key)
         out.append(s)
     return " ".join(out)
+_DIGEST_MARKERS = (
+    "decision:", "decisions:",
+    "blocker:", "blockers:",
+    "next step:", "next steps:",
+    "next:", "action:", "actions:",
+    "owner:", "deadline:", "eta:",
+)
+
+def _looks_like_engineering_digest(text: str) -> bool:
+    """
+    Heuristic: if the user typed multiple short lines and/or used markers like
+    Decision/Blocker/Next step, treat it as an engineering digest.
+    """
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if len(lines) >= 2:
+        joined = " ".join(lines).lower()
+        if any(m in joined for m in _DIGEST_MARKERS):
+            return True
+    # also treat "bullet-ish" lines as digest
+    if any(ln.startswith(("-", "*")) for ln in lines):
+        return True
+    return False
+
+
+def deterministic_digest_summary(text: str, *, max_sentences: int = 2) -> str:
+    """
+    Deterministic: only uses content explicitly present in the digest.
+    Picks marker lines first; otherwise uses the first N lines.
+    """
+    lines = [ln.strip(" -\t") for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return ""
+
+    lower = [ln.lower() for ln in lines]
+
+    picked: list[str] = []
+
+    # Prefer explicit marker lines, in a stable order
+    preferred_prefixes = ("deadline", "owner", "decision", "blocker", "next")
+    for pfx in preferred_prefixes:
+        for i, ln in enumerate(lines):
+            if lower[i].startswith(pfx):
+                picked.append(ln.rstrip(".") + ".")
+                break
+
+    # If nothing matched, just take the first few lines
+    if not picked:
+        picked = [ln.rstrip(".") + "." for ln in lines[:max_sentences]]
+
+    # Cap length by sentences
+    picked = picked[:max_sentences]
+    return _normalize_ws(" ".join(picked))
 
 
 @lru_cache(maxsize=4)
@@ -68,14 +120,19 @@ def summarize_digest(
     if not digest_text:
         return ""
 
+    # If it's a "Decision/Blocker/Next step" digest, be deterministic (no hallucinations)
+    if _looks_like_engineering_digest(digest_text):
+        return deterministic_digest_summary(digest_text, max_sentences=2)
+
     digest_text = _dedupe_sentences(digest_text)
+
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     tokenizer, model = _load(model_dir, device)
 
-    prompt = "summarize:\n\n" + digest_text
+    prompt = "summarize: (do not invent roles/names) \n\n" + digest_text
 
 
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
@@ -83,7 +140,7 @@ def summarize_digest(
     with torch.inference_mode():
         out = model.generate(
         **inputs,
-        max_new_tokens=int(min(max_tokens, 90)),
+        max_new_tokens=int(min(max_tokens, 120)),
         num_beams=4,
         do_sample=False,
         no_repeat_ngram_size=4,
