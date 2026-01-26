@@ -1,12 +1,17 @@
 #FAST API (stub for now)
+import os
 import re
 import time
 from typing import Literal, Optional
+
+from infer import summarize_digest
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="python-summarizer (stub)", version="0.0.1")
+MODEL_DIR = os.getenv("SUMMARY_MODEL_DIR", "models/flan-ami-small")
+MODEL_NAME = os.getenv("SUMMARY_MODEL_NAME", "flan-ami-small")
 
 
 # ---------- Contract (Phase 0) ----------
@@ -144,13 +149,24 @@ def _fallback_summary_stub(transcript: str, fmt: str, *, digest: list[str] | Non
 
 def _abstractive_summary(transcript: str, fmt: str, max_tokens: int) -> str:
     """
-    Stage B entrypoint.
-
-    TODAY: still stubbed.
-    LATER: replace the body of this function with infer.py model inference.
+    Stage B entrypoint (real model inference now).
+    We feed digest text (or cleaned transcript) and return a summary that matches the contract.
     """
-    # TODO: replace with model inference later
-    return _fallback_summary_stub(transcript, fmt)
+    paragraph = summarize_digest(
+        transcript,
+        model_dir=MODEL_DIR,
+        max_tokens=max_tokens,
+    )
+
+    if fmt == "paragraph":
+        return paragraph
+
+    # simple bullets formatting (frontend can do better later)
+    sents = [s.strip() for s in _SENTENCE_SPLIT_RE.split(paragraph) if s.strip()]
+    if not sents:
+        return paragraph
+    return "\n".join(f"- {s}" for s in sents)
+
 
 
 def _summarize_pipeline(transcript: str, fmt: str, max_tokens: int) -> str:
@@ -164,12 +180,9 @@ def _summarize_pipeline(transcript: str, fmt: str, max_tokens: int) -> str:
     if use_a:
         digest = _extractive_digest(cleaned, keep_sentences=_EXTRACTIVE_KEEP_SENTENCES)
 
-        # IMPORTANT:
-        # For now, Stage B is stub, so we return stub + digest for visibility/testing.
-        # When Stage B becomes real, you'll likely do:
-        #   stage_b_input = "\n".join(digest)
-        #   return _abstractive_summary(stage_b_input, fmt, max_tokens)
-        return _fallback_summary_stub(transcript, fmt, digest=digest)
+        stage_b_input = "\n".join(digest)
+        return _abstractive_summary(stage_b_input, fmt, max_tokens)
+
 
     # Small transcript: skip extractive; go straight to Stage B.
     return _abstractive_summary(cleaned or transcript, fmt, max_tokens)
@@ -184,6 +197,6 @@ def summarize(req: SummarizeRequest):
 
     return SummarizeResponse(
         summary=summary,
-        model={"name": "stub", "version": "0.0.1"},
+        model={"name": MODEL_NAME, "version": MODEL_DIR},
         meta={"latencyMs": latency_ms, "charsIn": len(req.transcript)},
     )
