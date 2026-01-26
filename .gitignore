@@ -41,7 +41,10 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
-
+*.tgz
+*.tar.gz
+python-summarizer/models/**/checkpoint-*
+python-summarizer/models/**/*.safetensors
 ###############################
 # PYTHON SUMMARIZER IGNORE
 ###############################
