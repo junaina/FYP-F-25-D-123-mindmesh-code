@@ -13,7 +13,7 @@ set TEMP=%cd%\.tmp
 ----------------------------------------activation command for the venv
 .\venv\Scripts\activate 
 -------------------------------------------- training commandpython python3 train.py \
-  --model_name google/flan-t5-small \
+  --model_name google/flan-t5-base \
   --output_dir models/flan-ami-small \
   --num_train_epochs 8 \
   --max_train_samples 0 \
