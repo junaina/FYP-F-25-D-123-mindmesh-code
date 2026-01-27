@@ -1,7 +1,18 @@
-transformers[torch]==4.39.3
-datasets==2.19.1
-sentence-transformers==2.6.1
+# Core API deps
+
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
-scikit-learn==1.4.2
-networkx==3.2.1
+pydantic==2.12.5
+# Training + inference deps (pinned to the versions installed in your GPU venv)
+torch==2.10.0
+transformers==4.57.6
+tokenizers==0.22.2
+datasets==4.5.0
+accelerate==1.12.0
+evaluate==0.4.6
+rouge_score==0.1.2
+sentencepiece==0.2.1
+
+# Transitive deps that were newly installed alongside rouge_score
+absl-py==2.3.1
+nltk==3.9.2
