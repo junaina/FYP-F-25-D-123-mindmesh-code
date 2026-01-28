@@ -16,3 +16,7 @@ sentencepiece==0.2.1
 # Transitive deps that were newly installed alongside rouge_score
 absl-py==2.3.1
 nltk==3.9.2
+#ask mindy the ai deps
+psycopg[binary]==3.3.2
+python-dotenv==1.2.1
+openai==2.16.0
