@@ -18,7 +18,7 @@ from .tiptap_to_text import tiptap_to_text
 
 
 # ---- Tuning knobs ----
-MIN_CHUNK_CHARS = 80         # skip junk like "that's"
+MIN_CHUNK_CHARS = 20         # skip junk like "that's"
 MEETING_MIN_CHARS = 120      # meetings tend to be noisier; keep a bit higher if you want
 BATCH_EMBED = 32             # embedding batch size (safe for CPU; OpenAI runs remotely)
 
@@ -193,7 +193,7 @@ def index_project(project_id: str, *, chunk_size: int = 1000, overlap: int = 150
                     "embedding": emb,
                 }
             )
-
+            
         with get_conn() as conn:
             with conn.transaction():
                 delete_source_chunks(conn, project_id, source_type, source_id)
@@ -201,7 +201,7 @@ def index_project(project_id: str, *, chunk_size: int = 1000, overlap: int = 150
 
         stats["sourcesIndexed"] += 1
         stats["chunksInserted"] += len(rows)
-
+    
     return {
         "projectId": project_id,
         **stats,
