@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { NotificationsBell } from "@/components/sidebar/NotificationsBell";
+import { useRouter } from "next/navigation";
 
 import { useState } from "react";
 import { useEffect } from "react";
@@ -77,6 +78,39 @@ export default function Sidebar() {
   const [docsByProject, setDocsByProject] = useState<Record<string, DocLite[]>>(
     {},
   );
+  const router = useRouter();
+
+  async function createDoc(projectId: string) {
+    try {
+      const r = await fetch(`/api/projects/${projectId}/docs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: "Untitled" }),
+      });
+
+      if (!r.ok) throw new Error("Failed to create document");
+      const doc = (await r.json()) as { id: string; title: string | null };
+
+      // ensure docs section is open
+      setOpenDocsByProject((prev) => ({ ...prev, [projectId]: true }));
+
+      // optimistic insert at top (even if docs weren't loaded yet)
+      setDocsByProject((m) => ({
+        ...m,
+        [projectId]: [
+          { id: doc.id, title: doc.title },
+          ...(m[projectId] ?? []),
+        ],
+      }));
+
+      router.push(`/projects/${projectId}/docs/${doc.id}`);
+    } catch (e) {
+      console.error(e);
+      alert("Could not create document");
+    }
+  }
+
   useEffect(() => {
     // mark that the layout has an app sidebar
     document.body.classList.add("has-app-sb");
@@ -477,13 +511,30 @@ export default function Sidebar() {
                                     <Type className="h-5 w-5 shrink-0" />
                                     <span className="truncate">Documents</span>
                                   </div>
-                                  <ChevronDown
-                                    className={`h-4 w-4 text-muted-foreground transition-transform ${
-                                      openDocsByProject[p.id]
-                                        ? "rotate-180"
-                                        : ""
-                                    }`}
-                                  />
+
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation(); // IMPORTANT: don’t toggle the accordion
+                                        createDoc(p.id);
+                                      }}
+                                      aria-label="New document"
+                                      title="New document"
+                                      className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-muted/60 text-muted-foreground"
+                                    >
+                                      <Plus className="h-3.5 w-3.5" />
+                                    </button>
+
+                                    <ChevronDown
+                                      className={`h-4 w-4 text-muted-foreground transition-transform ${
+                                        openDocsByProject[p.id]
+                                          ? "rotate-180"
+                                          : ""
+                                      }`}
+                                    />
+                                  </div>
                                 </button>
                               </div>
 
