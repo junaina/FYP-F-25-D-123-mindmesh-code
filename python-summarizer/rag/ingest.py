@@ -1,9 +1,10 @@
-# python-summarizer/rag/ingest.py
 from __future__ import annotations
+
 import hashlib
-import json
+import re
 from typing import Any, Dict, List, Tuple
 
+from .chunking import chunk_text
 from .db import (
     get_conn,
     fetch_project_documents,
@@ -12,80 +13,132 @@ from .db import (
     delete_source_chunks,
     insert_chunks,
 )
-from .tiptap_to_text import tiptap_to_text
-from .chunking import chunk_text
 from .embeddings import embed_texts
+from .tiptap_to_text import tiptap_to_text
 
-def sha256(s: str) -> str:
+
+# ---- Tuning knobs ----
+MIN_CHUNK_CHARS = 80         # skip junk like "that's"
+MEETING_MIN_CHARS = 120      # meetings tend to be noisier; keep a bit higher if you want
+BATCH_EMBED = 32             # embedding batch size (safe for CPU; OpenAI runs remotely)
+
+
+# ---- Transcript cleanup ----
+_MIC_CHECK_PATTERNS = [
+    r"^\s*mic\s*check\b",
+    r"^\s*sound\s*check\b",
+    r"^\s*testing\b",
+    r"^\s*test\s+test\b",
+    r"^\s*hello\b(?:\s+\w+){0,3}\s*$",
+    r"^\s*(one|two|three|four|five|six|seven|eight|nine|ten|\d+)(\s*[,\- ]\s*(one|two|three|four|five|six|seven|eight|nine|ten|\d+))*\s*$",
+]
+_MIC_CHECK_RE = re.compile("|".join(_MIC_CHECK_PATTERNS), re.IGNORECASE)
+
+
+def clean_meeting_transcript(raw: str) -> str:
+    """Drop obvious mic-check / counting lines and collapse whitespace."""
+    if not raw:
+        return ""
+    lines = [ln.strip() for ln in raw.splitlines()]
+    lines = [ln for ln in lines if ln]
+    lines = [ln for ln in lines if not _MIC_CHECK_RE.match(ln)]
+    return "\n".join(lines).strip()
+
+
+def sha256_text(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
-def compute_chunk_hashes(chunks: List[str]) -> List[str]:
-    return [sha256(c) for c in chunks]
 
-def is_unchanged(existing: List[Tuple[int, str]], new_hashes: List[str]) -> bool:
-    if len(existing) != len(new_hashes):
-        return False
-    for (idx, h), new_h in zip(existing, new_hashes):
-        if idx != new_hashes.index(new_h):  # (safe but O(n); we’ll do better below)
-            pass
-    # better:
-    for i, (_, h) in enumerate(existing):
-        if h != new_hashes[i]:
-            return False
-    return True
+def _chunks_for_source(text: str, *, chunk_size: int, overlap: int, min_chars: int) -> List[str]:
+    """Chunk + normalize + drop tiny chunks."""
+    chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap)
+    chunks = [c.strip() for c in chunks]
+    chunks = [c for c in chunks if len(c) >= min_chars]
+    return chunks
 
-def index_project(project_id: str, *, chunk_size: int = 1000, overlap: int = 150) -> Dict[str, Any]:
+
+def _embed_in_batches(texts: List[str]) -> List[List[float]]:
+    """Embed in small batches to avoid payload limits / keep it stable."""
+    out: List[List[float]] = []
+    for i in range(0, len(texts), BATCH_EMBED):
+        batch = texts[i : i + BATCH_EMBED]
+        out.extend(embed_texts(batch))
+    return out
+
+
+def index_project(project_id: str, *, chunk_size: int = 1000, overlap: int = 150) ->  dict[str, str | int]:
+
+    """
+    Index project-scoped DOCUMENT and MEETING sources into public.rag_chunks.
+
+    Strategy:
+    - Extract text
+    - Chunk + filter (skip tiny/junk)
+    - Compute chunk hashes
+    - If unchanged vs existing hashes -> skip
+    - Else delete old chunks for that source and insert new ones
+
+    Returns stats matching your Goal 2 output.
+    """
     docs = fetch_project_documents(project_id)
-    meets = fetch_project_meetings(project_id)
+    meetings = fetch_project_meetings(project_id)
 
-    stats = {
-        "projectId": project_id,
+    stats: Dict[str, int] = {
         "documentsTotal": len(docs),
-        "meetingsTotal": len(meets),
+        "meetingsTotal": len(meetings),
         "sourcesIndexed": 0,
         "sourcesSkipped": 0,
         "chunksInserted": 0,
     }
 
-    # We do per-source transactions so one bad doc doesn’t kill everything.
+    # ---- DOCUMENTS ----
     for d in docs:
         source_type = "DOCUMENT"
-        source_id = str(d["id"])
+        source_id = str(d["id"])  # stored as text in rag_chunks.sourceId
 
         # TipTap JSON -> text
-        content_json = d.get("content")
-        text = ""
-        if content_json:
-            # content_json might already be dict or a JSON string depending on driver
-            if isinstance(content_json, str):
-                content_json = json.loads(content_json)
-            text = tiptap_to_text(content_json)
-
-        text = text.strip()
+        raw_content = d.get("content")
+        text = tiptap_to_text(raw_content).strip() if raw_content is not None else ""
         if not text:
+            # no content: ensure we remove any existing chunks for this doc
+            with get_conn() as conn:
+                with conn.transaction():
+                    delete_source_chunks(conn, project_id, source_type, source_id)
+            stats["sourcesIndexed"] += 1
             continue
 
-        chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap)
-        new_hashes = compute_chunk_hashes(chunks)
-        existing = fetch_existing_chunk_hashes(project_id, source_type, source_id)
+        chunks = _chunks_for_source(text, chunk_size=chunk_size, overlap=overlap, min_chars=MIN_CHUNK_CHARS)
+        if not chunks:
+            # only tiny/noisy content; delete existing and move on
+            with get_conn() as conn:
+                with conn.transaction():
+                    delete_source_chunks(conn, project_id, source_type, source_id)
+            stats["sourcesIndexed"] += 1
+            continue
 
-        if len(existing) > 0 and is_unchanged(existing, new_hashes):
+        new_hashes: List[str] = [sha256_text(c) for c in chunks]
+        existing = fetch_existing_chunk_hashes(project_id, source_type, source_id)
+        existing_hashes = [h for _, h in existing]
+
+        if existing_hashes == new_hashes:
             stats["sourcesSkipped"] += 1
             continue
 
-        vectors = embed_texts(chunks)
+        embeddings = _embed_in_batches(chunks)
 
-        rows = []
-        for i, (c, h, v) in enumerate(zip(chunks, new_hashes, vectors)):
-            rows.append({
-                "projectId": project_id,
-                "sourceType": source_type,
-                "sourceId": source_id,
-                "chunkIndex": i,
-                "contentText": c,
-                "contentHash": h,
-                "embedding": v,
-            })
+        rows: List[Dict[str, Any]] = []
+        for idx, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+            rows.append(
+                {
+                    "projectId": project_id,
+                    "sourceType": source_type,
+                    "sourceId": source_id,
+                    "chunkIndex": idx,
+                    "contentText": chunk,
+                    "contentHash": new_hashes[idx],
+                    "embedding": emb,
+                }
+            )
 
         with get_conn() as conn:
             with conn.transaction():
@@ -95,35 +148,51 @@ def index_project(project_id: str, *, chunk_size: int = 1000, overlap: int = 150
         stats["sourcesIndexed"] += 1
         stats["chunksInserted"] += len(rows)
 
-    for m in meets:
+    # ---- MEETINGS ----
+    for m in meetings:
         source_type = "MEETING"
         source_id = str(m["id"])
 
-        text = (m.get("transcript") or "").strip()
+        raw_t = (m.get("transcript") or "")
+        text = clean_meeting_transcript(raw_t)
         if not text:
+            with get_conn() as conn:
+                with conn.transaction():
+                    delete_source_chunks(conn, project_id, source_type, source_id)
+            stats["sourcesIndexed"] += 1
             continue
 
-        chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap)
-        new_hashes = compute_chunk_hashes(chunks)
-        existing = fetch_existing_chunk_hashes(project_id, source_type, source_id)
+        chunks = _chunks_for_source(text, chunk_size=chunk_size, overlap=overlap, min_chars=MEETING_MIN_CHARS)
+        if not chunks:
+            with get_conn() as conn:
+                with conn.transaction():
+                    delete_source_chunks(conn, project_id, source_type, source_id)
+            stats["sourcesIndexed"] += 1
+            continue
 
-        if len(existing) > 0 and is_unchanged(existing, new_hashes):
+        new_hashes: List[str] = [sha256_text(c) for c in chunks]
+        existing = fetch_existing_chunk_hashes(project_id, source_type, source_id)
+        existing_hashes = [h for _, h in existing]
+
+        if existing_hashes == new_hashes:
             stats["sourcesSkipped"] += 1
             continue
 
-        vectors = embed_texts(chunks)
+        embeddings = _embed_in_batches(chunks)
 
-        rows = []
-        for i, (c, h, v) in enumerate(zip(chunks, new_hashes, vectors)):
-            rows.append({
-                "projectId": project_id,
-                "sourceType": source_type,
-                "sourceId": source_id,
-                "chunkIndex": i,
-                "contentText": c,
-                "contentHash": h,
-                "embedding": v,
-            })
+        rows: List[Dict[str, Any]] = []
+        for idx, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+            rows.append(
+                {
+                    "projectId": project_id,
+                    "sourceType": source_type,
+                    "sourceId": source_id,
+                    "chunkIndex": idx,
+                    "contentText": chunk,
+                    "contentHash": new_hashes[idx],
+                    "embedding": emb,
+                }
+            )
 
         with get_conn() as conn:
             with conn.transaction():
@@ -133,4 +202,7 @@ def index_project(project_id: str, *, chunk_size: int = 1000, overlap: int = 150
         stats["sourcesIndexed"] += 1
         stats["chunksInserted"] += len(rows)
 
-    return stats
+    return {
+        "projectId": project_id,
+        **stats,
+    }

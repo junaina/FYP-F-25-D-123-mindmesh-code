@@ -10,7 +10,8 @@ from .models import (
     Citation
 )
 from .ingest import index_project
-from .embeddings import embed_texts
+from .embeddings import embed_texts, call_chat_rag
+
 from .db import search_project_chunks
 
 router = APIRouter()
@@ -25,7 +26,7 @@ def index_project_route(body: IndexProjectRequest):
         )
         return stats
     except KeyError as e:
-        # missing env vars like DATABASE_URL or OPENAI_API_KEY
+        # missing env vars like DATABASE_URL or OPENAI_API_KEY_RAG
         raise HTTPException(status_code=500, detail=f"Missing env var: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
