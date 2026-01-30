@@ -49,7 +49,7 @@ def call_chat_rag(*, query: str, context: str) -> str:
         "You are a retrieval-augmented assistant.\n"
         "Answer the user's question prioritizing the provided context.\n"
         "If the answer is not in the context, give the best estimate from the sources on the internet and specify that you couldn't find answers in the context.\n"
-        "When you use facts from the context, include citations using the exact bracket tags "
+        "When you use facts from the context mention the title of the document "
         "Be concise but complete."
     )
 

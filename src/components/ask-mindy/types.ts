@@ -3,6 +3,8 @@ export type RagCitation = {
   sourceId: string;
   chunkIndex: number;
   distance: number;
+  sourceTitle?: string;
+  href?: string;
 };
 
 export type ChatMessage = {

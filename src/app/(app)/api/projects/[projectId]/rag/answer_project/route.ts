@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ projectId: string }> },
+  { params }: { params: { projectId: string } },
 ) {
-  const { projectId } = await params;
+  const { projectId } = params;
 
   const body = await req.json().catch(() => ({}));
   const query = typeof body.query === "string" ? body.query.trim() : "";
@@ -57,13 +58,48 @@ export async function POST(
   }
 
   const text = await res.text();
+
+  let data: any = {};
   try {
-    const data = text ? JSON.parse(text) : {};
-    return NextResponse.json(data, { status: res.status });
+    data = text ? JSON.parse(text) : {};
   } catch {
     return NextResponse.json(
       { error: "Python service returned non-JSON", raw: text },
       { status: res.status || 500 },
     );
   }
+
+  // ---- Enrich citations: only DOCUMENT sources, attach title + href ----
+  const rawCitations = Array.isArray(data?.citations) ? data.citations : [];
+
+  // Skip meetings entirely for now
+  const docCitations = rawCitations.filter((c: any) => c?.sourceType === "DOCUMENT");
+
+  const docIds = Array.from(new Set(docCitations.map((c: any) => c.sourceId)));
+
+  const docs = docIds.length
+    ? await prisma.document.findMany({
+        where: { id: { in: docIds }, projectId },
+        select: { id: true, title: true },
+      })
+    : [];
+
+  const titleById = new Map(docs.map((d) => [d.id, d.title]));
+
+  const enriched = docCitations.map((c: any) => {
+    const title = titleById.get(c.sourceId) ?? "Document";
+    return {
+      ...c,
+      sourceTitle: title,
+      href: `/projects/${projectId}/docs/${c.sourceId}`,
+    };
+  });
+
+  return NextResponse.json(
+    {
+      ...data,
+      citations: enriched,
+    },
+    { status: res.status },
+  );
 }
