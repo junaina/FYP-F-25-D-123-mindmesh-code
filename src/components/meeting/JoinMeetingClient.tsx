@@ -100,7 +100,13 @@ export default function JoinMeetingClient({
   };
 
   return (
-    <div className={(embedded ? "h-full" : "h-screen") + " w-full"}>
+    <div
+      className={[
+        embedded ? "h-full" : "h-screen",
+        "w-full",
+        embedded ? "desk-meet-compact" : "",
+      ].join(" ")}
+    >
       <LiveKitRoom
         token={data.token}
         serverUrl={LIVEKIT_URL}
@@ -111,7 +117,7 @@ export default function JoinMeetingClient({
         <div className="relative h-full w-full">
           <div className="pointer-events-none absolute inset-0 z-20">
             <div className="pointer-events-auto absolute right-4 top-4">
-              <RecordingControls joinCode={joinCode} />
+              <RecordingControls joinCode={joinCode} embedded={embedded} />
             </div>
           </div>
 

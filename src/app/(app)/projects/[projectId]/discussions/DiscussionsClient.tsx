@@ -86,7 +86,7 @@ export default function DiscussionsClient({
               <button
                 key={t.id}
                 type="button"
-                className="text-left"
+                className="block w-full text-left"
                 onClick={() => onSelectThread(t.id)}
               >
                 <ThreadCard thread={t} />
@@ -95,6 +95,7 @@ export default function DiscussionsClient({
               <Link
                 key={t.id}
                 href={`/projects/${projectId}/discussions/threads/${t.id}`}
+                className="block"
               >
                 <ThreadCard thread={t} />
               </Link>
