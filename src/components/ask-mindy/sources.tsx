@@ -16,11 +16,17 @@ function uniqueBest(citations: RagCitation[]) {
   }
   return Array.from(map.values()).sort((a, b) => a.distance - b.distance);
 }
+type Props = {
+  citations: RagCitation[];
+  embedded?: boolean;
+  onOpenSource?: (c: RagCitation) => void;
+};
 
-export function Sources({ citations }: { citations: RagCitation[] }) {
+export function Sources({ citations, embedded = false, onOpenSource }: Props) {
   const [open, setOpen] = React.useState(false);
 
   const items = React.useMemo(() => uniqueBest(citations), [citations]);
+  const useEmbeddedOpen = embedded && typeof onOpenSource === "function";
 
   return (
     <div className="rounded-xl border bg-card">
@@ -49,7 +55,16 @@ export function Sources({ citations }: { citations: RagCitation[] }) {
                     {c.sourceType}
                   </Badge>
 
-                  {href ? (
+                  {useEmbeddedOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenSource(c)}
+                      className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline"
+                      title={title}
+                    >
+                      {title}
+                    </button>
+                  ) : href ? (
                     <Link
                       href={href}
                       className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"

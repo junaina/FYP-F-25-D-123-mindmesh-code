@@ -53,6 +53,7 @@ import {
   makeDocView,
   makeMeshMeetView,
   makeTaskboardView,
+  makeAskMindyView,
 } from "./desk/utils/view-utils";
 const COLLAPSED_W = 72; // px — what your collapsed state looks like
 const EXPANDED_W = 256; // px — your `w-64` expanded width
@@ -490,10 +491,13 @@ export default function Sidebar() {
                                 viewConfig={makeTaskboardView(p.id)}
                                 title="Drag to Desk or Alt-click to open in a tab"
                               />
+
                               <SidebarItem
                                 icon={MessageCircle}
                                 label="Ask Mindy"
                                 href={`/projects/${p.id}/ask-mindy`}
+                                viewConfig={makeAskMindyView(p.id)}
+                                title="Drag to Desk or Alt-click to open in a tab"
                               />
                               <SidebarItem
                                 icon={MessageSquare}

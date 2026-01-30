@@ -35,3 +35,9 @@ export const makeTaskboardView = (projectId: string) => ({
   title: "Task Board",
   params: { projectId },
 });
+export const makeAskMindyView = (projectId: string) => ({
+  kind: "askmindy" as const,
+  id: projectId,
+  title: "Ask Mindy",
+  params: { projectId },
+});
