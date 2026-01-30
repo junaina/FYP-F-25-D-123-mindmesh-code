@@ -92,9 +92,15 @@ function buildInitialTaskOrder(cols: Column[], tasks: Task[]): TaskOrder {
 /* --------------------------------- main --------------------------------- */
 type Props = {
   projectId: string;
+  embedded?: boolean;
+  onOpenTask?: (doc: { id: string; title?: string }) => void;
 };
 
-export default function TaskboardKanban({ projectId }: Props) {
+export default function TaskboardKanban({
+  projectId,
+  embedded = false,
+  onOpenTask,
+}: Props) {
   const router = useRouter();
   const isMobile = useMediaQuery("(max-width: 640px)");
 
@@ -112,6 +118,14 @@ export default function TaskboardKanban({ projectId }: Props) {
 
   function openTask(task: Task) {
     if (!task.id) return;
+
+    // Desk behavior: open the doc inside Desk (new tab)
+    if (embedded && onOpenTask) {
+      onOpenTask({ id: task.id, title: task.title });
+      return;
+    }
+
+    // Normal route behavior outside Desk
     router.push(`/projects/${projectId}/docs/${task.id}`);
   }
 
@@ -534,6 +548,7 @@ export default function TaskboardKanban({ projectId }: Props) {
           "relative z-10 flex flex-col rounded-xl p-3 flex-shrink-0 bg-muted border border-border",
           "snap-start sm:snap-none",
           "w-[85vw] min-w-[260px] sm:w-80",
+          "h-full",
         ].join(" ")}
       >
         <div className="sticky top-0 z-10 -mx-3 mb-3 px-3 pt-1 pb-2 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/70 rounded-t-xl">
@@ -658,8 +673,7 @@ export default function TaskboardKanban({ projectId }: Props) {
     return (
       <div
         ref={setNodeRef}
-        className="flex flex-col gap-2 overflow-y-auto pr-1
-                   max-h-[calc(100dvh-240px)] sm:max-h-[75vh]"
+        className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto pr-1"
       >
         {children}
       </div>
@@ -823,14 +837,14 @@ export default function TaskboardKanban({ projectId }: Props) {
   /* -------------------------------- render ------------------------------- */
   if (loadingBoard) {
     return (
-      <div className="min-h-screen p-6 bg-background text-foreground">
+      <div className="h-full min-h-0 p-6 bg-background text-foreground">
         <div className="text-sm text-muted-foreground">Loading Task Board…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 bg-background text-foreground">
+    <div className="h-full min-h-0 p-4 sm:p-6 bg-background text-foreground flex flex-col">
       <div className="mb-4 sm:mb-6">
         <div className="mb-4 flex items-center gap-2 px-2">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -871,49 +885,49 @@ export default function TaskboardKanban({ projectId }: Props) {
           className="text-2xl sm:text-3xl font-bold px-2 py-2 truncate"
         />
       </div>
-
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={cols.map((c) => c.id)}
-          strategy={horizontalListSortingStrategy}
+      <div className="flex-1 min-h-0">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
         >
-          <div
-            className={[
-              "relative flex gap-3 sm:gap-4 w-full",
-              "overflow-x-auto sm:overflow-x-auto",
-              "snap-x snap-mandatory sm:snap-none",
-              "-mx-3 px-3 sm:mx-0 sm:px-0",
-            ].join(" ")}
+          <SortableContext
+            items={cols.map((c) => c.id)}
+            strategy={horizontalListSortingStrategy}
           >
-            {cols.map((col) => {
-              const ids = taskOrder[col.id] ?? [];
-              return (
-                <SortableColumn key={col.id} col={col}>
-                  <TaskListDroppable colId={col.id}>
-                    <SortableContext
-                      items={ids}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {ids.map((tid) => {
-                        const task = tasksById[tid];
-                        return task ? (
-                          <SortableTaskCard key={tid} task={task} />
-                        ) : null;
-                      })}
-                    </SortableContext>
-                  </TaskListDroppable>
-                </SortableColumn>
-              );
-            })}
+            <div
+              className={[
+                "relative flex gap-3 sm:gap-4 w-full flex-1 min-h-0",
+                "overflow-x-auto sm:overflow-x-auto",
+                "snap-x snap-mandatory sm:snap-none",
+                "-mx-3 px-3 sm:mx-0 sm:px-0",
+              ].join(" ")}
+            >
+              {cols.map((col) => {
+                const ids = taskOrder[col.id] ?? [];
+                return (
+                  <SortableColumn key={col.id} col={col}>
+                    <TaskListDroppable colId={col.id}>
+                      <SortableContext
+                        items={ids}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {ids.map((tid) => {
+                          const task = tasksById[tid];
+                          return task ? (
+                            <SortableTaskCard key={tid} task={task} />
+                          ) : null;
+                        })}
+                      </SortableContext>
+                    </TaskListDroppable>
+                  </SortableColumn>
+                );
+              })}
 
-            <button
-              onClick={addColumn}
-              className="flex flex-col items-center justify-center
+              <button
+                onClick={addColumn}
+                className="flex flex-col items-center justify-center
                          w-[70vw] min-w-[220px] sm:w-64 h-24 flex-shrink-0
                          border-2 border-dashed rounded-xl
                          border-neutral-300 dark:border-neutral-700
@@ -921,16 +935,17 @@ export default function TaskboardKanban({ projectId }: Props) {
                          hover:text-neutral-700 hover:border-neutral-400
                          dark:hover:text-neutral-200 dark:hover:border-neutral-500
                          transition snap-start sm:snap-none"
-            >
-              <Plus className="h-6 w-6 mb-1" />
-              <span className="text-sm font-medium">Add Column</span>
-            </button>
+              >
+                <Plus className="h-6 w-6 mb-1" />
+                <span className="text-sm font-medium">Add Column</span>
+              </button>
 
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-6 z-0 bg-gradient-to-r from-background/95 to-transparent sm:hidden" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 w-6 z-0 bg-gradient-to-l from-background/95 to-transparent sm:hidden" />
-          </div>
-        </SortableContext>
-      </DndContext>
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-6 z-0 bg-gradient-to-r from-background/95 to-transparent sm:hidden" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-6 z-0 bg-gradient-to-l from-background/95 to-transparent sm:hidden" />
+            </div>
+          </SortableContext>
+        </DndContext>
+      </div>
     </div>
   );
 }

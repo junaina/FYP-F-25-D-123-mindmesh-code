@@ -16,9 +16,16 @@ import { Input } from "@/components/ui/input";
 import { type ChatMessage, type RagCitation, uid } from "./types";
 import { Sources } from "./sources";
 
-type Props = { projectId: string };
-
-export default function AskMindyClient({ projectId }: Props) {
+type Props = {
+  projectId: string;
+  embedded?: boolean;
+  onOpenSource?: (c: RagCitation) => void;
+};
+export default function AskMindyClient({
+  projectId,
+  embedded = false,
+  onOpenSource,
+}: Props) {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [draft, setDraft] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -130,9 +137,9 @@ export default function AskMindyClient({ projectId }: Props) {
   }
 
   const hasMessages = messages.length > 0;
-
+  const outer = embedded ? "h-full min-h-0" : "h-[calc(100vh-1rem)]";
   return (
-    <div className="h-[calc(100vh-1rem)] w-full">
+    <div className={`${outer} w-full`}>
       <div className="mx-auto flex h-full max-w-3xl flex-col px-4 py-4">
         {/* Top bar */}
         <div className="flex items-center justify-between">
@@ -234,7 +241,7 @@ export default function AskMindyClient({ projectId }: Props) {
         ) : null}
 
         {/* Chat area */}
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-h-0">
           <div ref={scrollerRef} className="h-full overflow-y-auto pr-2">
             {!hasMessages ? (
               <EmptyState />
@@ -276,9 +283,14 @@ export default function AskMindyClient({ projectId }: Props) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ embedded }: { embedded?: boolean }) {
   return (
-    <div className="flex h-[70vh] flex-col items-center justify-center text-center">
+    <div
+      className={[
+        "flex flex-col items-center justify-center text-center",
+        embedded ? "h-full" : "h-[70vh]",
+      ].join(" ")}
+    >
       <div className="relative mb-4 h-25 w-25 overflow-hidden ">
         <Image
           src="/ask-mindy.png"
@@ -304,7 +316,15 @@ function EmptyState() {
   );
 }
 
-function MessageRow({ msg }: { msg: ChatMessage }) {
+function MessageRow({
+  msg,
+  embedded,
+  onOpenSource,
+}: {
+  msg: ChatMessage;
+  embedded?: boolean;
+  onOpenSource?: (c: RagCitation) => void;
+}) {
   const isUser = msg.role === "user";
 
   return (
@@ -323,7 +343,11 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
 
         {!isUser && msg.citations?.length ? (
           <div className="mt-2">
-            <Sources citations={msg.citations} />
+            <Sources
+              citations={msg.citations}
+              embedded={embedded}
+              onOpenSource={onOpenSource}
+            />
           </div>
         ) : null}
       </div>

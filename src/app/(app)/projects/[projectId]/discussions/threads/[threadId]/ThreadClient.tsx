@@ -1,4 +1,3 @@
-
 "use client";
 
 import useSWR from "swr";
@@ -19,28 +18,49 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 export default function ThreadClient({
   projectId,
   threadId,
+  embedded = false,
+  onBackToList,
 }: {
   projectId: string;
   threadId: string;
+  embedded?: boolean;
+  onBackToList?: () => void;
 }) {
   const { data, mutate } = useSWR(
-  `/api/projects/${projectId}/discussions/threads/${threadId}/messages`,
-  fetcher
-);
+    `/api/projects/${projectId}/discussions/threads/${threadId}/messages`,
+    fetcher,
+  );
 
   const [muted, setMuted] = useState<boolean>(!!data?.prefs?.isMuted);
   useEffect(() => setMuted(!!data?.prefs?.isMuted), [data?.prefs?.isMuted]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
+    <div
+      className={`flex flex-col ${embedded ? "h-full min-h-0" : "h-[calc(100vh-64px)]"}`}
+    >
       <div className="px-6 py-3 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Link href={`/projects/${projectId}/discussions`}>
-            <Button variant="ghost" size="icon" aria-label="Back">
+            {/* <Button variant="ghost" size="icon" aria-label="Back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button> */}
+          </Link>{" "}
+          {embedded && onBackToList ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back"
+              onClick={onBackToList}
+            >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-          </Link>
-
+          ) : (
+            <Link href={`/projects/${projectId}/discussions`}>
+              <Button variant="ghost" size="icon" aria-label="Back">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+          )}
           <div>
             <h2 className="text-lg font-semibold leading-none">
               {data?.topic ?? "Thread"}

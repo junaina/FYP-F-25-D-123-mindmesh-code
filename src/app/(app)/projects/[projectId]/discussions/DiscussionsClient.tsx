@@ -13,10 +13,28 @@ import type { ThreadListItem } from "@/components/types/discussions";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-export default function DiscussionsClient({ projectId }: { projectId: string }) {
+type DiscussionsClientProps = {
+  projectId: string;
+  /**
+   * When true, the component is being rendered inside Desk (resizable pane),
+   * so we should NOT route away on thread click.
+   */
+  embedded?: boolean;
+  /**
+   * When provided (and embedded is true), called when a thread is selected.
+   * The parent (Desk DiscussionsView) decides what to render (list vs thread).
+   */
+  onSelectThread?: (threadId: string) => void;
+};
+
+export default function DiscussionsClient({
+  projectId,
+  embedded = false,
+  onSelectThread,
+}: DiscussionsClientProps) {
   const { data, isLoading, mutate } = useSWR<{ threads: ThreadListItem[] }>(
     `/api/projects/${projectId}/discussions/threads`,
-    fetcher
+    fetcher,
   );
 
   const [query, setQuery] = useState("");
@@ -27,9 +45,11 @@ export default function DiscussionsClient({ projectId }: { projectId: string }) 
     if (!query) return list;
     const q = query.toLowerCase();
     return list.filter((t) =>
-      [t.topic, t.description ?? ""].some((x) => x.toLowerCase().includes(q))
+      [t.topic, t.description ?? ""].some((x) => x.toLowerCase().includes(q)),
     );
   }, [data, query]);
+
+  const useEmbeddedSelection = embedded && typeof onSelectThread === "function";
 
   return (
     <div className="p-6 space-y-6">
@@ -61,14 +81,26 @@ export default function DiscussionsClient({ projectId }: { projectId: string }) 
         </div>
       ) : threads.length ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {threads.map((t: ThreadListItem) => (
-            <Link
-              key={t.id}
-              href={`/projects/${projectId}/discussions/threads/${t.id}`}
-            >
-              <ThreadCard thread={t} />
-            </Link>
-          ))}
+          {threads.map((t: ThreadListItem) =>
+            useEmbeddedSelection ? (
+              <button
+                key={t.id}
+                type="button"
+                className="block w-full text-left"
+                onClick={() => onSelectThread(t.id)}
+              >
+                <ThreadCard thread={t} />
+              </button>
+            ) : (
+              <Link
+                key={t.id}
+                href={`/projects/${projectId}/discussions/threads/${t.id}`}
+                className="block"
+              >
+                <ThreadCard thread={t} />
+              </Link>
+            ),
+          )}
         </div>
       ) : (
         <Card className="p-8 flex items-center justify-center">
