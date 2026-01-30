@@ -10,10 +10,14 @@ const MeetingView = ({ id }: { id: string }) => (
 const TaskBoardView = ({ id }: { id: string }) => (
   <div className="p-4">TaskBoard {id}</div>
 );
+const AskMindyView = ({ id }: { id: string }) => (
+  <div className="p-4">Ask Mindy {id}</div>
+);
 
 export const viewRegistry = {
   document: DocumentView,
   thread: ThreadView,
   meeting: MeetingView,
   taskboard: TaskBoardView,
+  askmindy: AskMindyView,
 } as const;

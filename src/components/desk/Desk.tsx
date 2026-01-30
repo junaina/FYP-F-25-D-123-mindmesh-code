@@ -14,7 +14,12 @@ import {
 } from "flexlayout-react";
 import { viewRegistry } from "./view-registry";
 
-export type ViewKind = "document" | "thread" | "meeting" | "taskboard";
+export type ViewKind =
+  | "document"
+  | "thread"
+  | "meeting"
+  | "taskboard"
+  | "askmindy";
 export type ViewConfig = {
   kind: ViewKind;
   id: string;
@@ -97,10 +102,10 @@ export default function Desk() {
         };
 
         model.doAction(
-          Actions.addNode(nodeWithConfig, target, DockLocation.CENTER, 0, true)
+          Actions.addNode(nodeWithConfig, target, DockLocation.CENTER, 0, true),
         );
         setModel(Model.fromJson(model.toJson()));
-      }
+      },
     );
   };
   // inside Desk() above the return
@@ -120,7 +125,7 @@ export default function Desk() {
     const target = model.getActiveTabset()?.getId() ?? fallbackTabsetId;
 
     model.doAction(
-      Actions.addNode(tabJson, target, DockLocation.CENTER, 0, true)
+      Actions.addNode(tabJson, target, DockLocation.CENTER, 0, true),
     );
     setModel(Model.fromJson(model.toJson()));
   }
