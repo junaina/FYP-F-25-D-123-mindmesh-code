@@ -191,7 +191,7 @@ def index_project(project_id: str, *, chunk_size: int = 1000, overlap: int = 150
                     "contentText": chunk,
                     "contentHash": new_hashes[idx],
                     "embedding": emb,
-                }
+                }, 
             )
             
         with get_conn() as conn:
