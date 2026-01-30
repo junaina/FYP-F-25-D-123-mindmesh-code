@@ -1,3 +1,13 @@
+from pathlib import Path
+from dotenv import load_dotenv
+# 1) repo root .env (Next.js / shared vars)
+ROOT_ENV = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=ROOT_ENV, override=False)
+
+# Then load python-summarizer/.env for python-only vars
+load_dotenv(override=False)
+# 2) python-summarizer/.env (python-only vars)
+SERVICE_ENV = Path(__file__).resolve().parent / ".env"
 #FAST API (stub for now)
 import os
 import re
@@ -8,11 +18,17 @@ from infer import summarize_digest
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
+from rag.router import router as rag_router
+
+
 
 app = FastAPI(title="python-summarizer (stub)", version="0.0.1")
 MODEL_DIR = os.getenv("SUMMARY_MODEL_DIR", "models/flan-ami-small")
 MODEL_NAME = os.getenv("SUMMARY_MODEL_NAME", "flan-ami-small")
 
+
+
+app.include_router(rag_router, prefix="/rag")
 
 # ---------- Contract (Phase 0) ----------
 
