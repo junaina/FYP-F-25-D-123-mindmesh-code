@@ -23,3 +23,9 @@ export const makeThreadView = (
   title: thread.topic || "Thread",
   params: { projectId },
 });
+export const makeMeshMeetView = (projectId: string) => ({
+  kind: "meshmeet" as const,
+  id: projectId,
+  title: "Mesh Meet",
+  params: { projectId },
+});

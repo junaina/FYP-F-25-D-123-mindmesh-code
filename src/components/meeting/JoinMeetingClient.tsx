@@ -8,6 +8,8 @@ import RecordingControls from "./RecordingControls";
 
 type Props = {
   joinCode: string;
+  embedded?: boolean;
+  onExitToLobby?: () => void;
 };
 
 type TokenResponse = {
@@ -21,7 +23,11 @@ type TokenResponse = {
 
 const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_WS_URL;
 
-export default function JoinMeetingClient({ joinCode }: Props) {
+export default function JoinMeetingClient({
+  joinCode,
+  embedded = false,
+  onExitToLobby,
+}: Props) {
   const router = useRouter();
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [data, setData] = useState<TokenResponse | null>(null);
@@ -84,12 +90,17 @@ export default function JoinMeetingClient({ joinCode }: Props) {
   }
 
   const handleDisconnected = () => {
-    // When the user hits "Leave" in the LiveKit UI, redirect to recap screen
+    // In Desk: go back to lobby inside the same tab
+    if (embedded && onExitToLobby) {
+      onExitToLobby();
+      return;
+    }
+    // Outside Desk: keep your existing behavior
     router.replace(`/mesh-meet/${joinCode}/ended`);
   };
-  // ✅ Actual LiveKit call UI with recording controls overlay
+
   return (
-    <div className="h-screen w-full">
+    <div className={(embedded ? "h-full" : "h-screen") + " w-full"}>
       <LiveKitRoom
         token={data.token}
         serverUrl={LIVEKIT_URL}
@@ -98,14 +109,12 @@ export default function JoinMeetingClient({ joinCode }: Props) {
         onDisconnected={handleDisconnected}
       >
         <div className="relative h-full w-full">
-          {/* Overlay for recording controls */}
           <div className="pointer-events-none absolute inset-0 z-20">
             <div className="pointer-events-auto absolute right-4 top-4">
               <RecordingControls joinCode={joinCode} />
             </div>
           </div>
 
-          {/* Built-in "Google Meet style" UI */}
           <VideoConference />
         </div>
       </LiveKitRoom>
