@@ -49,7 +49,11 @@ import {
 import Link from "next/link";
 import { useMemo } from "react";
 // add types for a tiny doc record
-import { makeDocView, makeMeshMeetView } from "./desk/utils/view-utils";
+import {
+  makeDocView,
+  makeMeshMeetView,
+  makeTaskboardView,
+} from "./desk/utils/view-utils";
 const COLLAPSED_W = 72; // px — what your collapsed state looks like
 const EXPANDED_W = 256; // px — your `w-64` expanded width
 type DocLite = { id: string; title: string | null };
@@ -483,6 +487,8 @@ export default function Sidebar() {
                                 icon={FileText}
                                 label="Task Board"
                                 href={`/projects/${p.id}/task-board`}
+                                viewConfig={makeTaskboardView(p.id)}
+                                title="Drag to Desk or Alt-click to open in a tab"
                               />
                               <SidebarItem
                                 icon={MessageCircle}

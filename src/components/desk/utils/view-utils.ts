@@ -29,3 +29,9 @@ export const makeMeshMeetView = (projectId: string) => ({
   title: "Mesh Meet",
   params: { projectId },
 });
+export const makeTaskboardView = (projectId: string) => ({
+  kind: "taskboard" as const,
+  id: projectId,
+  title: "Task Board",
+  params: { projectId },
+});

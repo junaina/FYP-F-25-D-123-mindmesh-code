@@ -2,13 +2,12 @@
 import DocumentView from "./views/DocumentView";
 import DiscussionsView from "./views/DiscussionsView";
 import MeshMeetView from "./views/MeshMeetView";
+import TaskboardView from "./views/TaskboardView";
+
 const ThreadView = ({ id }: { id: string }) => (
   <div className="p-4">Thread {id}</div>
 );
 
-const TaskBoardView = ({ id }: { id: string }) => (
-  <div className="p-4">TaskBoard {id}</div>
-);
 const AskMindyView = ({ id }: { id: string }) => (
   <div className="p-4">Ask Mindy {id}</div>
 );
@@ -18,7 +17,6 @@ export const viewRegistry = {
   discussions: DiscussionsView,
   thread: ThreadView,
   meshmeet: MeshMeetView,
-
-  taskboard: TaskBoardView,
+  taskboard: TaskboardView,
   askmindy: AskMindyView,
 } as const;
