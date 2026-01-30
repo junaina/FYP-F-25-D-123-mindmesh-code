@@ -5,15 +5,7 @@ import type React from "react"; // <-- add the type import
 import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Desk view types (extend later for thread/meeting/taskboard) */
-export type ViewKind = "document" | "thread" | "meeting" | "taskboard";
-export type ViewConfig = {
-  kind: ViewKind;
-  id: string;
-  title: string;
-  params: { projectId: string; [k: string]: unknown };
-};
-
+import type { ViewConfig } from "@/components/desk/Desk";
 interface SidebarItemProps {
   icon: LucideIcon;
   label: string;
@@ -80,7 +72,7 @@ export default function SidebarItem({
   const content = (
     <div
       className={cn(
-        "flex items-center gap-2 px-4 py-2 rounded-md text-sm hover:bg-muted transition"
+        "flex items-center gap-2 px-4 py-2 rounded-md text-sm hover:bg-muted transition",
       )}
       draggable={!!viewConfig}
       onDragStart={handleDragStart}

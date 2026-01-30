@@ -493,6 +493,13 @@ export default function Sidebar() {
                                 icon={MessageSquare}
                                 label="Discussions"
                                 href={`/projects/${p.id}/discussions`}
+                                viewConfig={{
+                                  kind: "discussions",
+                                  id: p.id,
+                                  title: "Discussions",
+                                  params: { projectId: p.id },
+                                }}
+                                title="Drag to Desk or Alt-click to open in a tab"
                               />
 
                               {/* Documents parent row (collapsible) */}

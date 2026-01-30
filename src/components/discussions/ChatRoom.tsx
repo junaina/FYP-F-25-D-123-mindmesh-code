@@ -179,10 +179,9 @@ export function ChatRoom({
     const socket = getSocket();
     socket.emit("message:new", threadId, newMessage);
   };
-
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-background">
+    <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 bg-background">
         {data?.messages?.map((m) => {
           const body = (m.body ?? "").trim();
           const hasText = body.length > 0;

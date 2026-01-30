@@ -19,7 +19,8 @@ export type ViewKind =
   | "thread"
   | "meeting"
   | "taskboard"
-  | "askmindy";
+  | "askmindy"
+  | "discussions";
 export type ViewConfig = {
   kind: ViewKind;
   id: string;
