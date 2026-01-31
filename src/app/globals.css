@@ -1114,3 +1114,27 @@
   height: 16px;
   display: block;
 }
+[data-radix-popper-content-wrapper] {
+  z-index: 60;
+}
+
+[data-radix-select-content] {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+[data-radix-select-item] {
+  color: hsl(var(--foreground));
+}
+
+[data-radix-select-item][data-highlighted] {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+[data-radix-select-item][data-state="checked"] {
+  background-color: hsl(var(--muted));
+}
