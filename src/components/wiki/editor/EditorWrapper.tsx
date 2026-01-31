@@ -31,6 +31,10 @@ import { CalendarViewExtension } from "../extensions/kov/CalendarView/CalendarVi
 import { SlashIcons } from "@/components/wiki/extensions/slashIcons";
 import { GoogleDriveEmbed } from "@/components/wiki/extensions/GoogleDriveEmbed";
 import { createGoogleDriveEmbed } from "@/modules/documents/client/embeds.api";
+import { MessageSquare } from "lucide-react";
+import SlackSendInlineForm from "@/components/integrations/slack/SlackSendInlineForm";
+import { SlackEmbed } from "@/components/wiki/extensions/SlackEmbed";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -108,6 +112,52 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       left: caretRect.left - wrapperRect.left, // aligned with caret x
     });
   };
+  const [slackPrompt, setSlackPrompt] = useState<{
+    open: boolean;
+    top: number;
+    left: number;
+    insertRange: { from: number; to: number };
+  }>({
+    open: false,
+    top: 0,
+    left: 0,
+    insertRange: { from: 0, to: 0 },
+  });
+
+  const openSlackPrompt = (
+    editor: any,
+    range?: { from: number; to: number },
+  ) => {
+    if (!editor?.view || editor.isDestroyed) return;
+
+    // If range is not provided (your extension calls command({ editor })),
+    // fallback to current selection range.
+    const selFrom = editor.state?.selection?.from;
+    const selTo = editor.state?.selection?.to;
+
+    const safeRange =
+      range?.from != null
+        ? range
+        : { from: selFrom ?? 0, to: selTo ?? selFrom ?? 0 };
+
+    // coordsAtPos throws if pos is invalid; clamp defensively
+    const docSize = editor.state?.doc?.content?.size ?? safeRange.from;
+    const pos = Math.max(0, Math.min(safeRange.from, docSize));
+
+    const coords = editor.view.coordsAtPos(pos);
+
+    setSlackPrompt({
+      open: true,
+      top: coords.bottom + 8,
+      left: Math.min(coords.left, window.innerWidth - 380),
+      insertRange: safeRange,
+    });
+  };
+
+  const closeSlackPrompt = () => {
+    setSlackPrompt((s) => ({ ...s, open: false }));
+  };
+
   type GitHubPromptState = {
     from: number;
     to: number;
@@ -233,6 +283,24 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     }),
     [projectId, docId], // openDrivePrompt is stable in this component
   );
+  const slackSlashItem = useMemo(
+    () => ({
+      title: "Send to Slack",
+      description: "Post a message to a Slack channel",
+      icon: <MessageSquare className="h-4 w-4" />,
+      command: ({
+        editor,
+        range,
+      }: {
+        editor: any;
+        range: { from: number; to: number };
+      }) => {
+        openSlackPrompt(editor, range);
+      },
+    }),
+    [],
+  );
+
   const githubSlashItem = useMemo(
     () => ({
       title: "GitHub",
@@ -424,6 +492,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       BoardViewExtension({ projectId, docId }),
       GoogleDriveEmbed,
       GitHubEmbed,
+      SlackEmbed,
       SlashMenuExtension({
         extraItems: [
           tableSlashItem,
@@ -431,6 +500,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
           boardSlashItem,
           calendarSlashItem,
           googleDriveSlashItem,
+          slackSlashItem,
           githubSlashItem,
         ],
       }),
@@ -443,6 +513,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       boardSlashItem,
       calendarSlashItem,
       googleDriveSlashItem,
+      slackSlashItem,
       githubSlashItem,
     ],
   );
@@ -591,6 +662,60 @@ export default function EditorWrapper({ projectId, docId }: Props) {
           }}
         />
       )}
+      <SlackSendInlineForm
+        open={slackPrompt.open}
+        top={slackPrompt.top}
+        left={slackPrompt.left}
+        projectId={projectId}
+        docId={docId}
+        insertRange={slackPrompt.insertRange}
+        onClose={closeSlackPrompt}
+        onSent={async ({
+          channelId,
+          channelName,
+          text,
+          permalink,
+          ts,
+          teamName,
+          userId,
+        }) => {
+          const embedId =
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random()}`; // fallback (still fine for client-only)
+
+          const senderName = "You"; // simple + clean
+          const senderId = userId ?? "me";
+
+          editor
+            ?.chain()
+            ?.focus()
+            ?.insertContentAt(slackPrompt.insertRange, [
+              {
+                type: "slackEmbed",
+                attrs: {
+                  embedId,
+                  workspace: teamName ?? "",
+                  channelId,
+                  channelName,
+                  senderId,
+                  senderName,
+                  text,
+                  timestamp: ts ?? "",
+                  permalink: permalink ?? "",
+                },
+              },
+              { type: "paragraph" },
+            ])
+            .run();
+
+          const nextJson = editor?.getJSON?.();
+          if (nextJson) {
+            await patchDocContent(projectId, docId, { content: nextJson });
+          }
+        }}
+      />
+
       {githubPrompt && (
         <GitHubEmbedInlineForm
           top={githubPrompt.top}

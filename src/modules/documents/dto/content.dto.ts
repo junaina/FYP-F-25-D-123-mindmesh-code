@@ -42,6 +42,31 @@ const GoogleDriveEmbedNode: z.ZodType<JSONContent> = z.object({
     })
     .strict(),
 });
+const SlackEmbedNode: z.ZodType<JSONContent> = z.object({
+  type: z.literal("slackEmbed"),
+  attrs: z
+    .object({
+      embedId: z.string().uuid(), // Embed.id from DB
+
+      workspace: z.string().max(200).optional(),
+
+      channelId: z.string().min(1).max(50),
+      channelName: z.string().min(1).max(200),
+
+      senderId: z.string().min(1).max(50),
+      senderName: z.string().max(200),
+      senderAvatar: z
+        .union([z.string().url().max(2048), z.literal(""), z.null()])
+        .optional(),
+
+      text: z.string().max(10_000), // Slack message text
+      timestamp: z.string(), // Slack ts (do NOT coerce to datetime)
+
+      permalink: z.string().url().max(2048),
+    })
+    .strict(),
+});
+
 const GitHubEmbedNode: z.ZodType<JSONContent> = z.object({
   type: z.literal("githubEmbed"),
   attrs: z
@@ -159,6 +184,7 @@ NodeSchema = z.union([
   BoardViewNode,
   GoogleDriveEmbedNode,
   GitHubEmbedNode,
+  SlackEmbedNode,
   z.object({ type: z.literal("horizontalRule") }) as z.ZodType<JC>,
   z.object({ type: z.literal("hardBreak") }) as z.ZodType<JC>,
 ]);

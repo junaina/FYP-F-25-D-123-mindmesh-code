@@ -79,15 +79,6 @@ const SLASH_ITEMS: SlashItem[] = [
   //     // TODO: your integration
   //   },
   // },
-
-  {
-    title: "Slack",
-    description: "Embed Slack message",
-    icon: SlashIcons.slack,
-    command: ({ editor }) => {
-      // TODO: integration
-    },
-  },
 ];
 export type SlashMenuOptions = { extraItems?: SlashItem[] };
 export function SlashMenuExtension(options?: SlashMenuOptions) {
