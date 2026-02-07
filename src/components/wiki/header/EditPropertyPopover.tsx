@@ -71,8 +71,8 @@ function makeDto(type: PropertyType, raw: unknown): PropertyValueDto {
     case "multi_select":
       return { type, value: Array.isArray(raw) ? (raw as string[]) : [] };
     case "person":
-    case "file":
-      return { type, value: Array.isArray(raw) ? (raw as string[]) : [] };
+    // case "file":
+    //   return { type, value: Array.isArray(raw) ? (raw as string[]) : [] };
     default:
       return { type: "text", value: null };
   }

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ const SignupSchema = z
   });
 
 type FormValues = z.infer<typeof SignupSchema>;
+type Status = "idle" | "submitting" | "success" | "oauth";
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -59,14 +60,14 @@ export default function SignupForm() {
   const router = useRouter();
   const [showPw, setShowPw] = React.useState(false);
   const [showConfirm, setShowConfirm] = React.useState(false);
-  const [submitted, setSubmitted] = React.useState(false);
-  const [formError, setFormError] = React.useState<string | null>(null); // top-level banner
+  const [formError, setFormError] = React.useState<string | null>(null);
+  const [status, setStatus] = React.useState<Status>("idle");
 
   const {
     register,
     handleSubmit,
-    setError, // to surface server-side field errors
-    formState: { isSubmitting, errors }, // ← pull field errors
+    setError,
+    formState: { isSubmitting, errors },
     watch,
     reset,
   } = useForm<FormValues>({
@@ -89,43 +90,35 @@ export default function SignupForm() {
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /\d/.test(password);
   const strength =
-    (hasLen ? 1 : 0) +
-    (hasUpper ? 1 : 0) +
-    (hasLower ? 1 : 0) +
-    (hasNumber ? 1 : 0);
+    (hasLen ? 1 : 0) + (hasUpper ? 1 : 0) + (hasLower ? 1 : 0) + (hasNumber ? 1 : 0);
 
   const onSubmit = async (values: FormValues) => {
     setFormError(null);
+    setStatus("submitting");
+
     try {
       const { firstName, lastName, email, password } = values;
       await AuthAPI.signup({ firstName, lastName, email, password });
 
-      setSubmitted(true);
-      reset({
-        firstName: "",
-        lastName: "",
-        email: "",
-        password: "",
-        confirm: "",
-      });
-      router.push("/onboarding"); // or "/home"
+      // clear fields (optional)
+      reset({ firstName: "", lastName: "", email: "", password: "", confirm: "" });
+
+      setStatus("success");
+      await new Promise((r) => setTimeout(r, 550));
+
+      router.push("/onboarding");
     } catch (err: any) {
+      setStatus("idle");
+
       const code = err?.message || "request_failed";
       const status = err?.status;
 
       if (code === "email_taken" || status === 409) {
-        setError("email", {
-          type: "server",
-          message: "this email is already in use",
-        });
+        setError("email", { type: "server", message: "this email is already in use" });
         return;
       }
       if (code === "invalid_input" || status === 400) {
-        // zod already validates; still show a gentle nudge if BE rejected
-        setError("email", {
-          type: "server",
-          message: "please check your details and try again",
-        });
+        setError("email", { type: "server", message: "please check your details and try again" });
         return;
       }
       if (status === 429 || code === "rate_limited") {
@@ -133,23 +126,42 @@ export default function SignupForm() {
         return;
       }
 
-      // generic failure
       setFormError("something went wrong — please try again");
       console.error(err);
     }
   };
 
   const onContinueWithGoogle = () => {
+    setFormError(null);
+    setStatus("oauth");
     AuthAPI.startGoogleOAuth("/home");
   };
 
+  const showBusy = isSubmitting || status === "oauth" || status === "submitting" || status === "success";
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-      {/* top-level error banner (non-field errors) */}
       {formError && (
         <Alert variant="destructive" role="alert">
           <AlertDescription>{formError}</AlertDescription>
         </Alert>
+      )}
+
+      {(status === "submitting" || status === "success" || status === "oauth") && (
+        <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm" aria-live="polite">
+          <div className="flex items-center gap-2">
+            {status === "success" ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+            <span>
+              {status === "submitting" && "Creating your account…"}
+              {status === "oauth" && "Redirecting you to Google…"}
+              {status === "success" && "Account created — redirecting…"}
+            </span>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-2 md:grid-cols-2 md:gap-4">
@@ -161,13 +173,11 @@ export default function SignupForm() {
             {...register("firstName")}
             aria-invalid={!!errors.firstName}
             placeholder="John"
+            disabled={showBusy}
           />
-          {errors.firstName && (
-            <p className="text-sm text-destructive">
-              {errors.firstName.message}
-            </p>
-          )}
+          {errors.firstName && <p className="text-sm text-destructive">{errors.firstName.message}</p>}
         </div>
+
         <div className="grid gap-2">
           <Label htmlFor="lastName">Last name</Label>
           <Input
@@ -176,12 +186,9 @@ export default function SignupForm() {
             {...register("lastName")}
             aria-invalid={!!errors.lastName}
             placeholder="Doe"
+            disabled={showBusy}
           />
-          {errors.lastName && (
-            <p className="text-sm text-destructive">
-              {errors.lastName.message}
-            </p>
-          )}
+          {errors.lastName && <p className="text-sm text-destructive">{errors.lastName.message}</p>}
         </div>
       </div>
 
@@ -195,10 +202,9 @@ export default function SignupForm() {
           {...register("email")}
           aria-invalid={!!errors.email}
           placeholder="you@example.com"
+          disabled={showBusy}
         />
-        {errors.email && (
-          <p className="text-sm text-destructive">{errors.email.message}</p>
-        )}
+        {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
       </div>
 
       <div className="grid gap-2">
@@ -208,6 +214,7 @@ export default function SignupForm() {
             type="button"
             onClick={() => setShowPw((v) => !v)}
             className="text-xs text-muted-foreground hover:text-foreground"
+            disabled={showBusy}
           >
             {showPw ? "Hide" : "Show"}
           </button>
@@ -220,20 +227,15 @@ export default function SignupForm() {
           {...register("password")}
           aria-invalid={!!errors.password}
           className="pr-10"
+          disabled={showBusy}
         />
-        {/* show password errors (weak/regex/min) */}
-        {errors.password && (
-          <p className="text-sm text-destructive">{errors.password.message}</p>
-        )}
+        {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
 
-        {/* Strength meter (unchanged) */}
         <div className="mt-1 grid grid-cols-4 gap-1">
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className={`h-1 rounded ${
-                i < strength ? "bg-primary" : "bg-muted"
-              }`}
+              className={`h-1 rounded ${i < strength ? "bg-primary" : "bg-muted"}`}
             />
           ))}
         </div>
@@ -251,15 +253,9 @@ export default function SignupForm() {
           ].map((r) => (
             <li
               key={r.label}
-              className={`flex items-center gap-2 ${
-                r.ok ? "text-emerald-500" : "text-muted-foreground"
-              }`}
+              className={`flex items-center gap-2 ${r.ok ? "text-emerald-500" : "text-muted-foreground"}`}
             >
-              {r.ok ? (
-                <CheckCircle2 className="h-3.5 w-3.5" />
-              ) : (
-                <Circle className="h-3.5 w-3.5" />
-              )}
+              {r.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
               <span>{r.label}</span>
             </li>
           ))}
@@ -273,6 +269,7 @@ export default function SignupForm() {
             type="button"
             onClick={() => setShowConfirm((v) => !v)}
             className="text-xs text-muted-foreground hover:text-foreground"
+            disabled={showBusy}
           >
             {showConfirm ? "Hide" : "Show"}
           </button>
@@ -282,18 +279,18 @@ export default function SignupForm() {
           type={showConfirm ? "text" : "password"}
           autoComplete="new-password"
           {...register("confirm")}
-          aria-invalid={
-            !!errors.confirm || (Boolean(confirm) && confirm !== password)
-          }
+          aria-invalid={!!errors.confirm || (Boolean(confirm) && confirm !== password)}
           className="pr-10"
+          disabled={showBusy}
         />
-        {errors.confirm && (
-          <p className="text-sm text-destructive">{errors.confirm.message}</p>
-        )}
+        {errors.confirm && <p className="text-sm text-destructive">{errors.confirm.message}</p>}
       </div>
 
-      <Button type="submit" className="w-full my-0" disabled={isSubmitting}>
-        {isSubmitting ? "Creating account…" : "Create account"}
+      <Button type="submit" className="w-full my-0" disabled={showBusy}>
+        <span className="inline-flex items-center gap-2">
+          {(status === "submitting" || isSubmitting) && <Loader2 className="h-4 w-4 animate-spin" />}
+          {status === "success" ? "Created" : (isSubmitting ? "Creating account…" : "Create account")}
+        </span>
       </Button>
 
       <div className="my-2 flex items-center gap-3">
@@ -307,16 +304,11 @@ export default function SignupForm() {
         variant="outline"
         className="w-full h-10 gap-2"
         onClick={onContinueWithGoogle}
+        disabled={showBusy}
       >
-        <GoogleIcon className="h-4 w-4" />
-        Continue with Google
+        {status === "oauth" ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4" />}
+        {status === "oauth" ? "Continuing…" : "Continue with Google"}
       </Button>
-
-      {submitted && (
-        <p className="text-center text-sm text-green-600 dark:text-green-400">
-          account created
-        </p>
-      )}
     </form>
   );
 }

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -10,15 +11,17 @@ import { AuthAPI } from "@/modules/auth/client/auth.api";
 import { Alert, AlertDescription } from "@/components/ui/alert"; // shadcn
 
 type Values = { email: string; password: string };
+type Status = "idle" | "submitting" | "success" | "oauth";
 
 export default function LoginForm() {
   const router = useRouter();
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [status, setStatus] = React.useState<Status>("idle");
 
   const {
     register,
     handleSubmit,
-    setError, // map server errors to fields
+    setError,
     formState: { isSubmitting, errors },
   } = useForm<Values>({
     defaultValues: { email: "", password: "" },
@@ -27,14 +30,22 @@ export default function LoginForm() {
 
   const onSubmit = async (values: Values) => {
     setFormError(null);
+    setStatus("submitting");
+
     try {
       await AuthAPI.login(values);
-      router.push("/home"); // or wherever after login
+
+      // show success state briefly so user can perceive it
+      setStatus("success");
+      await new Promise((r) => setTimeout(r, 450));
+
+      router.push("/home");
     } catch (err: any) {
+      setStatus("idle");
+
       const code = err?.message || "request_failed";
       const status = err?.status;
 
-      // invalid credentials → show under password (and email for clarity)
       if (code === "invalid_credentials" || status === 401) {
         setError("email", {
           type: "server",
@@ -47,7 +58,6 @@ export default function LoginForm() {
         return;
       }
 
-      // bad payload, etc. → gentle nudge on email field
       if (code === "invalid_input" || status === 400) {
         setError("email", {
           type: "server",
@@ -56,19 +66,20 @@ export default function LoginForm() {
         return;
       }
 
-      // rate-limited or network → top banner
       if (status === 429 || code === "rate_limited") {
         setFormError("too many attempts — please try again in a bit");
         return;
       }
 
-      // fallback
       setFormError("something went wrong — please try again");
       console.error(err);
     }
   };
 
   const onContinueWithGoogle = () => {
+    // show a clear “redirecting” state for OAuth too
+    setFormError(null);
+    setStatus("oauth");
     AuthAPI.startGoogleOAuth("/home");
   };
 
@@ -95,13 +106,41 @@ export default function LoginForm() {
     );
   }
 
+  const showBusy =
+    isSubmitting ||
+    status === "oauth" ||
+    status === "submitting" ||
+    status === "success";
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-      {/* top-level banner for non-field errors */}
       {formError && (
         <Alert variant="destructive" role="alert">
           <AlertDescription>{formError}</AlertDescription>
         </Alert>
+      )}
+
+      {/* status banner (success/loading) */}
+      {(status === "submitting" ||
+        status === "success" ||
+        status === "oauth") && (
+        <div
+          className="rounded-md border bg-muted/40 px-3 py-2 text-sm"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-2">
+            {status === "success" ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+            <span>
+              {status === "submitting" && "Signing you in…"}
+              {status === "oauth" && "Redirecting you to Google…"}
+              {status === "success" && "Signed in successfully — redirecting…"}
+            </span>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-2">
@@ -112,6 +151,7 @@ export default function LoginForm() {
           autoComplete="email"
           {...register("email")}
           aria-invalid={!!errors.email}
+          disabled={showBusy}
         />
         {errors.email && (
           <p className="text-sm text-destructive">{errors.email.message}</p>
@@ -126,14 +166,24 @@ export default function LoginForm() {
           autoComplete="current-password"
           {...register("password")}
           aria-invalid={!!errors.password}
+          disabled={showBusy}
         />
         {errors.password && (
           <p className="text-sm text-destructive">{errors.password.message}</p>
         )}
       </div>
 
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? "Signing in…" : "Sign in"}
+      <Button type="submit" className="w-full" disabled={showBusy}>
+        <span className="inline-flex items-center gap-2">
+          {(status === "submitting" || isSubmitting) && (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          )}
+          {status === "success"
+            ? "Signed in"
+            : isSubmitting
+              ? "Signing in…"
+              : "Sign in"}
+        </span>
       </Button>
 
       <Button
@@ -141,9 +191,14 @@ export default function LoginForm() {
         variant="outline"
         className="w-full h-10 gap-2"
         onClick={onContinueWithGoogle}
+        disabled={showBusy}
       >
-        <GoogleIcon className="h-4 w-4" />
-        Continue with Google
+        {status === "oauth" ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <GoogleIcon className="h-4 w-4" />
+        )}
+        {status === "oauth" ? "Continuing…" : "Continue with Google"}
       </Button>
     </form>
   );
