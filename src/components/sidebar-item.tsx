@@ -14,6 +14,7 @@ interface SidebarItemProps {
   /** If provided, enables drag + Alt/Middle-click to open in Desk */
   viewConfig?: ViewConfig;
   title?: string;
+  noLink?: boolean;
 }
 
 export default function SidebarItem({
@@ -23,6 +24,7 @@ export default function SidebarItem({
   collapsed = false,
   viewConfig,
   title,
+  noLink = false,
 }: SidebarItemProps) {
   // Globals exposed by Desk (safe if not mounted)
   const beginDeskDrag = (globalThis as any).beginDeskDrag as
@@ -85,6 +87,7 @@ export default function SidebarItem({
     </div>
   );
 
+  if (noLink) return content;
   return href ? <Link href={href}>{content}</Link> : content;
 }
 
