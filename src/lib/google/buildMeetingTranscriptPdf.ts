@@ -24,7 +24,7 @@ export async function buildMeetingTranscriptPdf(
   const { meeting, segments, speakers } = args;
 
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage();
+  let page = pdfDoc.addPage();
   let { width, height } = page.getSize();
 
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
