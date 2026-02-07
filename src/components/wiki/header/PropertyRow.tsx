@@ -53,7 +53,7 @@ export default function PropertyRow({
 
   // local value state (defaults to embedded value, can be overridden by prop)
   const [local, setLocal] = React.useState<PropertyValueDto | undefined>(
-    value ?? property.value ?? undefined
+    value ?? property.value ?? undefined,
   );
   React.useEffect(() => {
     setLocal(value ?? property.value ?? undefined);
@@ -103,7 +103,7 @@ export default function PropertyRow({
 
   function makeDto(
     type: PropertyDefinitionDto["type"],
-    raw: unknown
+    raw: unknown,
   ): PropertyValueDto {
     switch (type) {
       case "text":
@@ -120,9 +120,9 @@ export default function PropertyRow({
       case "status":
         return { type, value: (raw as string | null) ?? null }; // optionId
       case "multi_select":
-      case "person":
-      case "file":
-        return { type, value: Array.isArray(raw) ? (raw as string[]) : [] };
+      // case "person":
+      // case "file":
+      //   return { type, value: Array.isArray(raw) ? (raw as string[]) : [] };
       default:
         return { type: "text", value: null };
     }
@@ -196,7 +196,7 @@ export default function PropertyRow({
     onCancel: () => void;
   }) {
     const [val, setVal] = React.useState<string>(
-      initial == null ? "" : String(initial)
+      initial == null ? "" : String(initial),
     );
     const commit = async () => {
       await onCommit(val === "" ? null : Number(val));
@@ -226,7 +226,7 @@ export default function PropertyRow({
     onCommit: (iso: string | null) => Promise<void> | void;
   }) {
     const [d, setD] = React.useState<Date | undefined>(
-      initialIso ? new Date(initialIso) : undefined
+      initialIso ? new Date(initialIso) : undefined,
     );
     return (
       <div className="p-2">
@@ -447,7 +447,7 @@ export default function PropertyRow({
   const Icon = iconOverride ?? DefaultTypeIcon[def.type as PropertyType];
   const optionsVersion = React.useMemo(
     () => def.options.map((o) => `${o.id}:${o.value}`).join("|"),
-    [def.options]
+    [def.options],
   );
 
   const checkboxChecked =

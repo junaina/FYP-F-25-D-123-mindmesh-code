@@ -93,14 +93,14 @@ export default function PropertyValueRenderer({ def, value }: Props) {
       );
     }
 
-    case "person":
-    case "file":
-      // For now just render raw IDs until you hook them up to user/file resolvers
-      return value.value.length > 0 ? (
-        <span>{value.value.join(", ")}</span>
-      ) : (
-        <span className="text-muted-foreground">Empty</span>
-      );
+    // case "person":
+    // case "file":
+    //   // For now just render raw IDs until you hook them up to user/file resolvers
+    //   return value.value.length > 0 ? (
+    //     <span>{value.value.join(", ")}</span>
+    //   ) : (
+    //     <span className="text-muted-foreground">Empty</span>
+    //   );
 
     default:
       return <span className="text-muted-foreground">Empty</span>;

@@ -47,14 +47,14 @@ type PropertyKind =
   | "checkbox"
   | "select"
   | "multi_select"
-  | "status"
-  | "person"
-  | "file";
+  | "status";
+// | "person";
+// | "file";
 const TYPES: Array<{
   kind: PropertyKind;
   label: string;
   Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  group: "Basic" | "Choice" | "People & Files";
+  group: "Basic" | "Choice";
 }> = [
   { kind: "text", label: "Text", Icon: TextIcon, group: "Basic" },
   { kind: "number", label: "Number", Icon: Hash, group: "Basic" },
@@ -67,8 +67,8 @@ const TYPES: Array<{
   { kind: "multi_select", label: "Multi Select", Icon: Tags, group: "Choice" },
   { kind: "status", label: "Status", Icon: BadgeCheck, group: "Choice" },
 
-  { kind: "person", label: "Person", Icon: Users, group: "People & Files" },
-  { kind: "file", label: "File", Icon: Paperclip, group: "People & Files" },
+  // { kind: "person", label: "Person", Icon: Users, group: "People & Files" },
+  // { kind: "file", label: "File", Icon: Paperclip, group: "People & Files" },
 ];
 export default function AddPropertyPopover({
   open,
@@ -119,7 +119,7 @@ export default function AddPropertyPopover({
               <CommandList>
                 {renderGroup("Basic")}
                 {renderGroup("Choice")}
-                {renderGroup("People & Files")}
+                {/* {renderGroup("People & Files")} */}
               </CommandList>
             </Command>
           </div>
