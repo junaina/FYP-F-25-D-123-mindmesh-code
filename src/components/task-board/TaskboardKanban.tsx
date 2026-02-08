@@ -846,28 +846,6 @@ export default function TaskboardKanban({
   return (
     <div className="h-full min-h-0 p-4 sm:p-6 bg-background text-foreground flex flex-col">
       <div className="mb-4 sm:mb-6">
-        <div className="mb-4 flex items-center gap-2 px-2">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            Grouped by
-          </span>
-
-          <Select
-            value={statusPropertyId ?? undefined}
-            onValueChange={handleStatusPropertyChange}
-          >
-            <SelectTrigger className="h-8 w-56 text-sm">
-              <SelectValue placeholder="No status property" />
-            </SelectTrigger>
-            <SelectContent>
-              {statusProperties.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         <EditableText
           value={boardName}
           onChange={async (next) => {
