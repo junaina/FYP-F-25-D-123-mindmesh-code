@@ -239,7 +239,7 @@ export function MessageInput({
             </div>
           ) : null}
           <Input
-            className="caret-foreground text-transparent [text-shadow:none] selection:text-transparent"
+            className="h-10 pr-28 caret-foreground text-transparent [text-shadow:none] selection:text-transparent"
             ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -339,7 +339,7 @@ export function MessageInput({
             </div>
           ) : null}
 
-          <div className="absolute right-2 bottom-1.5 flex items-center gap-1">
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <input
               ref={fileRef}
               type="file"
@@ -356,19 +356,6 @@ export function MessageInput({
             >
               <Paperclip className="h-5 w-5" />
             </Button>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button size="icon" variant="ghost" type="button">
-                  <Smile className="h-5 w-5" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-2 w-72">
-                <div className="text-sm text-muted-foreground">
-                  Emoji picker coming soon.
-                </div>
-              </PopoverContent>
-            </Popover>
 
             <Button
               size="icon"
