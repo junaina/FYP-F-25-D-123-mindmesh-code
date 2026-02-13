@@ -14,18 +14,22 @@ export const accountApi = {
     if (!r.ok) {
       const body = await r.json().catch(() => ({}));
       throw new Error(
-        body?.error ?? body?.message ?? "Failed to change password"
+        body?.error ?? body?.message ?? "Failed to change password",
       );
     }
     return (await r.json()) as { success: true };
   },
   async logout() {
     const r = await fetch("/api/auth/logout", { method: "POST" });
+    localStorage.removeItem("mm-swr-cache-v1");
+
     if (!r.ok) throw new Error("Logout failed");
   },
 
   async logoutAll() {
     const r = await fetch("/api/auth/logout-all", { method: "POST" });
+    localStorage.removeItem("mm-swr-cache-v1");
+
     if (!r.ok) throw new Error("Logout all failed");
   },
 };

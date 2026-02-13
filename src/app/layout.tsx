@@ -5,6 +5,8 @@ import "@livekit/components-styles";
 import { ThemeProvider } from "@/components/theme-provider";
 import { cookies } from "next/headers";
 import QueryProvider from "@/components/providers/QueryProvider";
+import SWRProvider from "@/components/providers/SWRProvider";
+
 const THEME_KEY = "mm-theme";
 
 export const metadata: Metadata = {
@@ -19,6 +21,10 @@ export default async function RootLayout({
 }) {
   // doing this for if the user explicitly chose light or dark
   const cookieStore = await cookies();
+  // IMPORTANT: set this to the cookie your app uses to represent an authenticated session.
+  // Examples: "mm-session", "next-auth.session-token", "__Secure-next-auth.session-token", etc.
+  const isAuthenticated = Boolean(cookieStore.get("mm-session")?.value);
+
   const themeCookie = cookieStore.get(THEME_KEY)?.value as
     | "light"
     | "dark"
@@ -55,9 +61,11 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <ThemeProvider>
-          <QueryProvider>
-            <div className="mx-auto px-4 py-6">{children}</div>
-          </QueryProvider>
+          <SWRProvider isAuthenticated={isAuthenticated}>
+            <QueryProvider>
+              <div className="mx-auto px-4 py-6">{children}</div>
+            </QueryProvider>
+          </SWRProvider>
         </ThemeProvider>
       </body>
     </html>
