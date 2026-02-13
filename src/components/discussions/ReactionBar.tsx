@@ -9,25 +9,36 @@ import {
 } from "@/components/ui/popover";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "😮", "✅"];
+
 export function ReactionBar({
   message,
   threadId,
   projectId,
   onChange,
+  onOptimisticToggle,
+  onRollback,
 }: {
   message: MessageDTO;
   threadId: string;
   projectId: string;
   onChange?: () => void;
+
+  // NEW (optional): instant UI update + rollback hook
+  onOptimisticToggle?: (emoji: string) => void;
+  onRollback?: () => void;
 }) {
   const [pending, setPending] = useState(false);
   const emojis = message.reactions?.length ? message.reactions : [];
 
   async function toggle(emoji: string) {
     if (pending) return;
+
+    // 1) optimistic UI update immediately
+    onOptimisticToggle?.(emoji);
+
     setPending(true);
     try {
-      await fetch(
+      const res = await fetch(
         `/api/projects/${projectId}/discussions/threads/${threadId}/messages/${message.id}/reactions`,
         {
           method: "POST",
@@ -35,7 +46,18 @@ export function ReactionBar({
           body: JSON.stringify({ emoji }),
         },
       );
+
+      if (!res.ok) {
+        // server rejected -> rollback
+        onRollback?.();
+        return;
+      }
+
+      // optional: background sync (you can ignore this)
       onChange?.();
+    } catch {
+      // network error -> rollback
+      onRollback?.();
     } finally {
       setPending(false);
     }
@@ -54,7 +76,7 @@ export function ReactionBar({
           {r.count}
         </Button>
       ))}
-      {/* NEW: plus opens quick picker */}
+
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="h-7 w-7 p-0">

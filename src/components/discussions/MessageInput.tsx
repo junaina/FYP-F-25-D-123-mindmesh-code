@@ -75,10 +75,18 @@ export function MessageInput({
   threadId,
   projectId,
   onSent,
+  onOptimistic,
+  onReplaceTemp,
+  onRemoveTemp,
 }: {
   threadId: string;
   projectId: string;
   onSent?: (message: any) => void;
+
+  // NEW: optimistic hooks
+  onOptimistic?: (tempMessage: any) => void;
+  onReplaceTemp?: (tempId: string, realMessage: any) => void;
+  onRemoveTemp?: (tempId: string) => void;
 }) {
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<FileList | null>(null);
@@ -89,6 +97,10 @@ export function MessageInput({
   const [mentionQ, setMentionQ] = useState("");
   const [mentionResults, setMentionResults] = useState<MentionUser[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
+  const mentionCacheRef = useRef(new Map<string, MentionUser[]>());
+  const mentionAbortRef = useRef<AbortController | null>(null);
+  const [mentionLoading, setMentionLoading] = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // detect "@query" at end (fast shipped version)
@@ -109,22 +121,61 @@ export function MessageInput({
     setMentionOpen(true);
     setMentionQ(q);
   }, [value]);
-  // fetch mention suggestions (tiny debounce)
+  // fetch mention suggestions (cached + abortable + keep previous)
   useEffect(() => {
     if (!mentionOpen) return;
 
-    const t = setTimeout(async () => {
-      const res = await fetch(
-        `/api/projects/${projectId}/members?q=${encodeURIComponent(mentionQ)}`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      setMentionResults(data.users ?? data.members ?? []);
+    // 1) show cached results immediately (snappy)
+    const cached = mentionCacheRef.current.get(mentionQ);
+    if (cached) {
+      setMentionResults(cached);
       setActiveIndex(0);
+    }
+
+    // 2) abort any in-flight request for older query
+    mentionAbortRef.current?.abort();
+    const ac = new AbortController();
+    mentionAbortRef.current = ac;
+
+    const t = setTimeout(async () => {
+      try {
+        setMentionLoading(true);
+
+        // Use "query" (and API now supports q too, but we'll standardize)
+        const res = await fetch(
+          `/api/projects/${projectId}/members?query=${encodeURIComponent(mentionQ)}`,
+          { signal: ac.signal },
+        );
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const users: MentionUser[] = data.users ?? data.members ?? [];
+
+        // cache it
+        mentionCacheRef.current.set(mentionQ, users);
+
+        // only update if still relevant + not aborted
+        if (!ac.signal.aborted) {
+          setMentionResults(users);
+          setActiveIndex(0);
+        }
+      } catch (e) {
+        // ignore abort errors
+        if ((e as any)?.name !== "AbortError") {
+          // optional: console.error(e);
+        }
+      } finally {
+        if (!ac.signal.aborted) setMentionLoading(false);
+      }
     }, 120);
 
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      ac.abort();
+    };
   }, [mentionOpen, mentionQ, projectId]);
+
   function insertMention(u: MentionUser) {
     const name = fullName(u) || "user";
     // replace trailing "@query" with "@[Name](id) "
@@ -151,6 +202,42 @@ export function MessageInput({
 
     // allow files-only messages
     if (!text && selected.length === 0) return;
+    const tempId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? `temp-${crypto.randomUUID()}`
+        : `temp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    const nowIso = new Date().toISOString();
+
+    // For files-only message, show a simple placeholder text so bubble renders
+    const optimisticBody =
+      text ||
+      (selected.length ? `Uploading ${selected.length} attachment(s)…` : "");
+
+    const tempMessage = {
+      id: tempId,
+      body: optimisticBody,
+      bodyJson: null,
+      createdAt: nowIso,
+      reactions: [],
+      mentions: [],
+      attachments: [],
+      sender: {
+        firstName: "You",
+        lastName: "",
+        avatarUrl: null,
+      },
+      // optional flag if you want later styling
+      pending: true,
+    };
+
+    // 1) optimistic UI: add immediately
+    onOptimistic?.(tempMessage);
+
+    // Clear input instantly for snappy feel
+    setValue("");
+    setFiles(null);
+    if (fileRef.current) fileRef.current.value = "";
 
     setBusy(true);
 
@@ -214,12 +301,12 @@ export function MessageInput({
       }
 
       const newMessage = await res.json();
-      onSent?.(newMessage);
 
-      // reset input + file picker
-      setValue("");
-      setFiles(null);
-      if (fileRef.current) fileRef.current.value = "";
+      // 2) Replace temp with real server message (instant + accurate)
+      onReplaceTemp?.(tempId, newMessage);
+
+      // 3) Tell ChatRoom to broadcast the real message via socket
+      onSent?.(newMessage);
     } finally {
       setBusy(false);
     }
