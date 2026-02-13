@@ -9,6 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import useSWR from "swr";
+
 type MentionUser = {
   id: string;
   firstName: string;
@@ -109,6 +111,8 @@ export function MessageInput({
     const m = text.match(/(?:^|\s)@([a-zA-Z0-9._-]{0,32})$/);
     return m ? m[1] : null;
   }
+  const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
   useEffect(() => {
     const q = computeMentionQuery(value);
     if (q === null) {
@@ -121,60 +125,24 @@ export function MessageInput({
     setMentionOpen(true);
     setMentionQ(q);
   }, [value]);
-  // fetch mention suggestions (cached + abortable + keep previous)
+  // SWR-backed mentions (persisted via your SWRProvider)
+  const mentionKey = mentionOpen
+    ? `/api/projects/${projectId}/members?query=${encodeURIComponent(mentionQ)}`
+    : null;
+
+  const { data: mentionData } = useSWR(mentionKey, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000, // don't spam for same key
+  });
+
   useEffect(() => {
     if (!mentionOpen) return;
 
-    // 1) show cached results immediately (snappy)
-    const cached = mentionCacheRef.current.get(mentionQ);
-    if (cached) {
-      setMentionResults(cached);
-      setActiveIndex(0);
-    }
-
-    // 2) abort any in-flight request for older query
-    mentionAbortRef.current?.abort();
-    const ac = new AbortController();
-    mentionAbortRef.current = ac;
-
-    const t = setTimeout(async () => {
-      try {
-        setMentionLoading(true);
-
-        // Use "query" (and API now supports q too, but we'll standardize)
-        const res = await fetch(
-          `/api/projects/${projectId}/members?query=${encodeURIComponent(mentionQ)}`,
-          { signal: ac.signal },
-        );
-
-        if (!res.ok) return;
-
-        const data = await res.json();
-        const users: MentionUser[] = data.users ?? data.members ?? [];
-
-        // cache it
-        mentionCacheRef.current.set(mentionQ, users);
-
-        // only update if still relevant + not aborted
-        if (!ac.signal.aborted) {
-          setMentionResults(users);
-          setActiveIndex(0);
-        }
-      } catch (e) {
-        // ignore abort errors
-        if ((e as any)?.name !== "AbortError") {
-          // optional: console.error(e);
-        }
-      } finally {
-        if (!ac.signal.aborted) setMentionLoading(false);
-      }
-    }, 120);
-
-    return () => {
-      clearTimeout(t);
-      ac.abort();
-    };
-  }, [mentionOpen, mentionQ, projectId]);
+    const users: MentionUser[] =
+      mentionData?.users ?? mentionData?.members ?? [];
+    setMentionResults(users);
+    setActiveIndex(0);
+  }, [mentionOpen, mentionData]);
 
   function insertMention(u: MentionUser) {
     const name = fullName(u) || "user";
