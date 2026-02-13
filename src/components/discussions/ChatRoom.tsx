@@ -149,6 +149,34 @@ export function ChatRoom({
   );
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const addTempMessage = (temp: MessageDTO) => {
+    mutate(
+      (prev) => ({
+        messages: [...(prev?.messages ?? []), temp],
+      }),
+      false,
+    );
+  };
+
+  const replaceTempMessage = (tempId: string, real: MessageDTO) => {
+    mutate(
+      (prev) => ({
+        messages: (prev?.messages ?? []).map((m) =>
+          m.id === tempId ? real : m,
+        ),
+      }),
+      false,
+    );
+  };
+
+  const removeTempMessage = (tempId: string) => {
+    mutate(
+      (prev) => ({
+        messages: (prev?.messages ?? []).filter((m) => m.id !== tempId),
+      }),
+      false,
+    );
+  };
 
   // Auto-scroll
   useEffect(() => {
@@ -179,6 +207,52 @@ export function ChatRoom({
     const socket = getSocket();
     socket.emit("message:new", threadId, newMessage);
   };
+  // Called when server confirms message creation
+  const handleServerSent = (newMessage: MessageDTO) => {
+    // broadcast to other clients via socket
+    const socket = getSocket();
+    socket.emit("message:new", threadId, newMessage);
+  };
+
+  const optimisticToggleReaction = (messageId: string, emoji: string) => {
+    mutate(
+      (prev) => {
+        if (!prev?.messages) return prev;
+
+        return {
+          ...prev,
+          messages: prev.messages.map((m) => {
+            if (m.id !== messageId) return m;
+
+            const nextReactions = [...(m.reactions ?? [])];
+            const idx = nextReactions.findIndex((r) => r.emoji === emoji);
+
+            if (idx === -1) {
+              // If reaction doesn't exist yet, add it as "reacted by me"
+              nextReactions.push({ emoji, count: 1, reactedByMe: true });
+            } else {
+              const r = nextReactions[idx];
+              const reactedByMe = !r.reactedByMe;
+              const count = Math.max(
+                0,
+                (r.count ?? 0) + (reactedByMe ? 1 : -1),
+              );
+
+              if (count === 0) {
+                nextReactions.splice(idx, 1);
+              } else {
+                nextReactions[idx] = { ...r, reactedByMe, count };
+              }
+            }
+
+            return { ...m, reactions: nextReactions };
+          }),
+        };
+      },
+      false, // IMPORTANT: don't revalidate; instant UI
+    );
+  };
+
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 bg-background">
@@ -222,7 +296,10 @@ export function ChatRoom({
                   projectId={projectId}
                   threadId={threadId}
                   message={m}
-                  onChange={() => mutate()}
+                  onOptimisticToggle={(emoji) =>
+                    optimisticToggleReaction(m.id, emoji)
+                  }
+                  onRollback={() => mutate()} // refetch only if API fails
                 />
               </div>
             </div>
@@ -237,7 +314,10 @@ export function ChatRoom({
         <MessageInput
           projectId={projectId}
           threadId={threadId}
-          onSent={handleLocalSend}
+          onOptimistic={addTempMessage}
+          onReplaceTemp={replaceTempMessage}
+          onRemoveTemp={removeTempMessage}
+          onSent={handleServerSent}
         />
       </div>
     </div>

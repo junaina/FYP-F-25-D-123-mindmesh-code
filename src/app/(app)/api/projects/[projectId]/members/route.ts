@@ -14,7 +14,8 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);
-  const query = url.searchParams.get("query") ?? "";
+  const query =
+    url.searchParams.get("query") ?? url.searchParams.get("q") ?? "";
 
   const members = await ProjectMemberService.searchMembers(projectId, query);
   return NextResponse.json({ members });
