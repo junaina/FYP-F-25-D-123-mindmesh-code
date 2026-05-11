@@ -23,8 +23,9 @@ from rag.router import router as rag_router
 
 
 app = FastAPI(title="python-summarizer (stub)", version="0.0.1")
-MODEL_DIR = os.getenv("SUMMARY_MODEL_DIR", "models/flan-ami-small")
-MODEL_NAME = os.getenv("SUMMARY_MODEL_NAME", "flan-ami-small")
+MODEL_DIR = os.getenv("SUMMARY_MODEL_DIR", "models/flan-ami-base-6epoch/checkpoint-42")
+
+MODEL_NAME = os.getenv("SUMMARY_MODEL_NAME", "flan-ami-base-checkpoint-42")
 
 
 
