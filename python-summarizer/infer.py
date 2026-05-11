@@ -132,21 +132,28 @@ def summarize_digest(
 
     tokenizer, model = _load(model_dir, device)
 
-    prompt = "summarize: (do not invent roles/names) \n\n" + digest_text
-
+    prompt = (
+    "Write a 2 sentence factual summary of the transcript. "
+    "Use third person only. "
+    "Do not use 'I', 'we', 'you', 'I'll', or 'I'm'. "
+    "Do not infer the speaker's job or future actions. "
+    "Only summarize what the transcript explicitly says:\n\n"
+    + digest_text
+) 
 
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
 
     with torch.inference_mode():
         out = model.generate(
         **inputs,
-        max_new_tokens=int(min(max_tokens, 120)),
+        max_new_tokens=int(min(max_tokens, 100)),
+        min_new_tokens=35,
         num_beams=4,
         do_sample=False,
         no_repeat_ngram_size=4,
         repetition_penalty=1.25,
         encoder_no_repeat_ngram_size=4,
-        length_penalty=0.9
+        length_penalty=1.0,
     )
 
 
