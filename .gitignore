@@ -83,7 +83,8 @@ python-summarizer/models/**/*.bin
 # Ignore trainer artifacts
 python-summarizer/models/**/optimizer.pt
 python-summarizer/models/**/rng_state.pth
-
+flan-ami-small-runtime.tgz
+python-summarizer/models/flan-ami-small/
 # Trainer output directories
 python-summarizer/checkpoints/
 python-summarizer/output/
