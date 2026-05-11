@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { NotificationsBell } from "@/components/sidebar/NotificationsBell";
+import { useRouter } from "next/navigation";
 
 import { useState } from "react";
 import { useEffect } from "react";
@@ -48,7 +49,14 @@ import {
 import Link from "next/link";
 import { useMemo } from "react";
 // add types for a tiny doc record
-import { makeDocView } from "./desk/utils/view-utils";
+import {
+  makeDocView,
+  makeMeshMeetView,
+  makeTaskboardView,
+  makeAskMindyView,
+} from "./desk/utils/view-utils";
+import { usePathname } from "next/navigation";
+
 const COLLAPSED_W = 72; // px — what your collapsed state looks like
 const EXPANDED_W = 256; // px — your `w-64` expanded width
 type DocLite = { id: string; title: string | null };
@@ -69,6 +77,46 @@ export default function Sidebar() {
   const [toDelete, setToDelete] = useState<{ id: string; name: string } | null>(
     null,
   );
+  const [docConfirmOpen, setDocConfirmOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<{
+    projectId: string;
+    docId: string;
+    title: string;
+  } | null>(null);
+
+  const pathname = usePathname();
+
+  function askDeleteDoc(projectId: string, d: DocLite) {
+    setDocToDelete({ projectId, docId: d.id, title: d.title || "Untitled" });
+    setDocConfirmOpen(true);
+  }
+
+  async function confirmDeleteDoc() {
+    if (!docToDelete) return;
+    const { projectId, docId } = docToDelete;
+
+    const r = await fetch(`/api/projects/${projectId}/docs/${docId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!r.ok) throw new Error("Failed to delete document");
+
+    setDocsByProject((m) => ({
+      ...m,
+      [projectId]: (m[projectId] ?? []).filter((x) => x.id !== docId),
+    }));
+
+    setDocConfirmOpen(false);
+    setDocToDelete(null);
+
+    // if currently on that doc, navigate away
+    if (pathname?.includes(`/projects/${projectId}/docs/${docId}`)) {
+      router.push(`/projects/${projectId}/discussions`);
+    } else {
+      router.refresh();
+    }
+  }
+
   // controls whether the Documents sub-list is expanded for each project
   const [openDocsByProject, setOpenDocsByProject] = useState<
     Record<string, boolean>
@@ -77,6 +125,39 @@ export default function Sidebar() {
   const [docsByProject, setDocsByProject] = useState<Record<string, DocLite[]>>(
     {},
   );
+  const router = useRouter();
+
+  async function createDoc(projectId: string) {
+    try {
+      const r = await fetch(`/api/projects/${projectId}/docs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: "Untitled" }),
+      });
+
+      if (!r.ok) throw new Error("Failed to create document");
+      const doc = (await r.json()) as { id: string; title: string | null };
+
+      // ensure docs section is open
+      setOpenDocsByProject((prev) => ({ ...prev, [projectId]: true }));
+
+      // optimistic insert at top (even if docs weren't loaded yet)
+      setDocsByProject((m) => ({
+        ...m,
+        [projectId]: [
+          { id: doc.id, title: doc.title },
+          ...(m[projectId] ?? []),
+        ],
+      }));
+
+      router.push(`/projects/${projectId}/docs/${doc.id}`);
+    } catch (e) {
+      console.error(e);
+      alert("Could not create document");
+    }
+  }
+
   useEffect(() => {
     // mark that the layout has an app sidebar
     document.body.classList.add("has-app-sb");
@@ -361,9 +442,10 @@ export default function Sidebar() {
                   const isOpen = !!openProjects[p.id];
 
                   return (
-                    <ContextMenu key={p.id}>
-                      <ContextMenuTrigger asChild>
-                        <div className="mb-1 group">
+                    <div key={p.id} className="mb-1 group">
+                      {/* ✅ Project context menu ONLY wraps the project row (not the submenu) */}
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
                           {/* project row */}
                           <div className="w-full flex items-center justify-between px-2 py-1 rounded-md hover:bg-muted transition">
                             {/* LEFT: name (button toggles open unless editing) */}
@@ -438,113 +520,154 @@ export default function Sidebar() {
                               </button>
                             </div>
                           </div>
+                        </ContextMenuTrigger>
 
-                          {/* SUBMENU: only when project row is open */}
-                          {isOpen && (
-                            <div
-                              id={`proj-${p.id}-menu`}
-                              className="ml-4 space-y-1"
+                        <ContextMenuContent>
+                          <ContextMenuItem onClick={() => startRename(p)}>
+                            Rename
+                          </ContextMenuItem>
+
+                          <ContextMenuItem onClick={() => askDelete(p)}>
+                            Delete
+                          </ContextMenuItem>
+
+                          <ContextMenuItem
+                            onClick={() => {
+                              setInviteProject(p);
+                              setInviteOpen(true);
+                            }}
+                          >
+                            Invite teammate
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+
+                      {/* ✅ SUBMENU is OUTSIDE the project context menu trigger */}
+                      {isOpen && (
+                        <div
+                          id={`proj-${p.id}-menu`}
+                          className="ml-4 space-y-1"
+                        >
+                          <SidebarItem
+                            icon={FileText}
+                            label="Task Board"
+                            href={`/projects/${p.id}/task-board`}
+                            viewConfig={makeTaskboardView(p.id)}
+                            title="Drag to Desk or Alt-click to open in a tab"
+                          />
+
+                          <SidebarItem
+                            icon={MessageCircle}
+                            label="Ask Mindy"
+                            href={`/projects/${p.id}/ask-mindy`}
+                            viewConfig={makeAskMindyView(p.id)}
+                            title="Drag to Desk or Alt-click to open in a tab"
+                          />
+                          <SidebarItem
+                            icon={MessageSquare}
+                            label="Discussions"
+                            href={`/projects/${p.id}/discussions`}
+                            viewConfig={{
+                              kind: "discussions",
+                              id: p.id,
+                              title: "Discussions",
+                              params: { projectId: p.id },
+                            }}
+                            title="Drag to Desk or Alt-click to open in a tab"
+                          />
+
+                          {/* Documents parent row (collapsible) */}
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenDocsByProject((prev) => ({
+                                  ...prev,
+                                  [p.id]: !prev[p.id],
+                                }))
+                              }
+                              className="w-full flex items-center justify-between px-4 py-2 rounded-md text-sm hover:bg-muted transition"
                             >
-                              <SidebarItem
-                                icon={FileText}
-                                label="Task Board"
-                                href={`/projects/${p.id}/task-board`}
-                              />
-                              <SidebarItem
-                                icon={MessageCircle}
-                                label="Ask Mindy"
-                                href={`/projects/${p.id}/ask-mindy`}
-                              />
-                              <SidebarItem
-                                icon={MessageSquare}
-                                label="Discussions"
-                                href={`/projects/${p.id}/discussions`}
-                              />
-
-                              {/* Documents parent row (collapsible) */}
-                              <div className="mt-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setOpenDocsByProject((prev) => ({
-                                      ...prev,
-                                      [p.id]: !prev[p.id],
-                                    }))
-                                  }
-                                  className="w-full flex items-center justify-between px-4 py-2 rounded-md text-sm hover:bg-muted transition"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Type className="h-5 w-5 shrink-0" />
-                                    <span className="truncate">Documents</span>
-                                  </div>
-                                  <ChevronDown
-                                    className={`h-4 w-4 text-muted-foreground transition-transform ${
-                                      openDocsByProject[p.id]
-                                        ? "rotate-180"
-                                        : ""
-                                    }`}
-                                  />
-                                </button>
+                              <div className="flex items-center gap-2">
+                                <Type className="h-5 w-5 shrink-0" />
+                                <span className="truncate">Documents</span>
                               </div>
 
-                              {/* scrollable docs list when Documents is open */}
-                              {openDocsByProject[p.id] && (
-                                <div className="max-h-60 overflow-y-auto pr-1">
-                                  {(docsByProject[p.id] ?? []).map((d) => (
-                                    <SidebarItem
-                                      key={d.id}
-                                      icon={Type}
-                                      label={d.title || "Untitled"}
-                                      href={`/projects/${p.id}/docs/${d.id}`}
-                                      viewConfig={{
-                                        kind: "document",
-                                        id: d.id,
-                                        title: d.title || "Untitled",
-                                        params: { projectId: p.id },
-                                      }}
-                                      title="Drag to Desk or Alt-click to open in a tab"
-                                    />
-                                  ))}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation(); // IMPORTANT: don’t toggle the accordion
+                                    createDoc(p.id);
+                                  }}
+                                  aria-label="New document"
+                                  title="New document"
+                                  className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-muted/60 text-muted-foreground"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
 
-                                  {docsByProject[p.id] &&
-                                    (docsByProject[p.id] as DocLite[])
-                                      .length === 0 && (
-                                      <div className="px-4 py-2 text-xs text-muted-foreground">
-                                        No documents
-                                      </div>
-                                    )}
-                                </div>
-                              )}
+                                <ChevronDown
+                                  className={`h-4 w-4 text-muted-foreground transition-transform ${
+                                    openDocsByProject[p.id] ? "rotate-180" : ""
+                                  }`}
+                                />
+                              </div>
+                            </button>
+                          </div>
 
-                              <SidebarItem
-                                icon={Video}
-                                label="Mesh Meet"
-                                href={`/projects/${p.id}/mesh-meet`}
-                              />
+                          {/* ✅ scrollable docs list when Documents is open */}
+                          {openDocsByProject[p.id] && (
+                            <div className="max-h-60 overflow-y-auto pr-1">
+                              {(docsByProject[p.id] ?? []).map((d) => (
+                                <ContextMenu key={d.id}>
+                                  <ContextMenuTrigger asChild>
+                                    <div>
+                                      <SidebarItem
+                                        icon={Type}
+                                        label={d.title || "Untitled"}
+                                        href={`/projects/${p.id}/docs/${d.id}`}
+                                        viewConfig={{
+                                          kind: "document",
+                                          id: d.id,
+                                          title: d.title || "Untitled",
+                                          params: { projectId: p.id },
+                                        }}
+                                        title="Drag to Desk or Alt-click to open in a tab"
+                                      />
+                                    </div>
+                                  </ContextMenuTrigger>
+                                  <ContextMenuContent>
+                                    <ContextMenuItem
+                                      onClick={() => askDeleteDoc(p.id, d)}
+                                    >
+                                      Delete document
+                                    </ContextMenuItem>
+                                  </ContextMenuContent>
+                                </ContextMenu>
+                              ))}
+
+                              {docsByProject[p.id] &&
+                                (docsByProject[p.id] as DocLite[]).length ===
+                                  0 && (
+                                  <div className="px-4 py-2 text-xs text-muted-foreground">
+                                    No documents
+                                  </div>
+                                )}
                             </div>
                           )}
+
+                          <SidebarItem
+                            icon={Video}
+                            label="Mesh Meet"
+                            href={`/projects/${p.id}/mesh-meet`}
+                            viewConfig={makeMeshMeetView(p.id)}
+                            title="Drag to Desk or Alt-click to open in a tab"
+                          />
                         </div>
-                      </ContextMenuTrigger>
-
-                      <ContextMenuContent>
-                        <ContextMenuItem onClick={() => startRename(p)}>
-                          Rename
-                        </ContextMenuItem>
-
-                        <ContextMenuItem onClick={() => askDelete(p)}>
-                          Delete
-                        </ContextMenuItem>
-
-                        <ContextMenuItem
-                          onClick={() => {
-                            setInviteProject(p);
-                            setInviteOpen(true);
-                          }}
-                        >
-                          Invite teammate
-                        </ContextMenuItem>
-                      </ContextMenuContent>
-                    </ContextMenu>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -586,6 +709,7 @@ export default function Sidebar() {
         />
       )}
 
+      {/* ✅ Project delete dialog (unchanged) */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -600,6 +724,29 @@ export default function Sidebar() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ✅ Document delete dialog (new) */}
+      <AlertDialog open={docConfirmOpen} onOpenChange={setDocConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {docToDelete
+                ? `“${docToDelete.title}” will be permanently removed. This action cannot be undone.`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteDoc}
               className="bg-red-600 hover:bg-red-700"
             >
               Delete

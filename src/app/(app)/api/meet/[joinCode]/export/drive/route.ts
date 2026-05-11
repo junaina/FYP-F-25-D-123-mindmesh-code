@@ -31,7 +31,10 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
 
     return NextResponse.json(result, { status: 200 });
   } catch (err) {
-    console.error("Drive export error", err);
+    console.error("Drive export error", {
+      message: err instanceof Error ? err.message : "Unknown error",
+      data:err instanceof Error ? err.stack : null,
+    });
     return NextResponse.json(
       { error: "Failed to export transcript to Google Drive" },
       { status: 500 }

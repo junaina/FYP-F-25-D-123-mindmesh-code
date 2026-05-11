@@ -1,16 +1,10 @@
-import MindyUnderConstruction from "@/components/under-construction/MindyUnderConstruction";
+import AskMindyClient from "@/components/ask-mindy/ask-mindy-client";
 
-export default function AskMindyPage({
+export default async function AskMindyPage({
   params,
 }: {
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }) {
-  return (
-    <MindyUnderConstruction
-      title="Ask Mindy"
-      subtitle="Soon you’ll be able to ask Mindy questions about your projects, docs, and timelines – all in one place."
-      badge="AI copilot in progress"
-      backHref="/home"
-    />
-  );
+  const { projectId } = await params;
+  return <AskMindyClient projectId={projectId} />;
 }

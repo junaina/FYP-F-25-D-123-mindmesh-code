@@ -3,6 +3,12 @@ import { isAuthDisabled } from "@/lib/auth";
 import { accessRepo } from "@/modules/documents/repo/access.repo";
 import { EmbedRepo } from "@/modules/documents/repo/embed.repo";
 import type { GoogleDriveEmbedMeta } from "../domain/embed.types";
+import type { GitHubIssueMeta, GitHubPRMeta } from "../domain/embed.types";
+import { GitHubIdentityRepo } from "@/modules/integrations/github/repo/githubIdentity.repo";
+import {
+  parseGitHubUrl,
+  fetchGitHubMeta,
+} from "@/modules/integrations/github/services/githubApi.service";
 
 // same logic pattern as in document.service.ts
 async function canEdit(projectId: string, docId: string, userId: string) {
@@ -59,5 +65,81 @@ export const EmbedService = {
     }
 
     return EmbedRepo.listForDocument({ projectId, docId });
+  },
+  async addGitHubFromUrl(args: {
+    projectId: string;
+    docId: string;
+    userId: string;
+    url: string;
+  }) {
+    const { projectId, docId, userId, url } = args;
+
+    const allowed = await canEdit(projectId, docId, userId);
+    if (!allowed) {
+      const err: any = new Error("Forbidden");
+      err.status = 403;
+      throw err;
+    }
+
+    const token = await GitHubIdentityRepo.getAccessTokenForUser(userId);
+    if (!token) {
+      const err: any = new Error("GITHUB_NOT_CONNECTED");
+      err.status = 409;
+      throw err;
+    }
+
+    const parsed = parseGitHubUrl(url);
+    const meta = await fetchGitHubMeta(token, parsed);
+
+    if (meta.type === "issue") {
+      return EmbedRepo.createGithubIssue({
+        projectId,
+        docId,
+        url,
+        meta: meta as GitHubIssueMeta,
+      });
+    }
+
+    return EmbedRepo.createGithubPr({
+      projectId,
+      docId,
+      url,
+      meta: meta as GitHubPRMeta,
+    });
+  },
+
+  async refreshGitHubEmbed(args: {
+    projectId: string;
+    docId: string;
+    userId: string;
+    embedId: string;
+  }) {
+    const { projectId, docId, userId, embedId } = args;
+
+    const allowed = await canEdit(projectId, docId, userId);
+    if (!allowed) {
+      const err: any = new Error("Forbidden");
+      err.status = 403;
+      throw err;
+    }
+
+    const token = await GitHubIdentityRepo.getAccessTokenForUser(userId);
+    if (!token) {
+      const err: any = new Error("GITHUB_NOT_CONNECTED");
+      err.status = 409;
+      throw err;
+    }
+
+    const embed = await EmbedRepo.getGithubEmbedForDoc({
+      embedId,
+      projectId,
+      docId,
+    });
+
+    const parsed = parseGitHubUrl(embed.url);
+    const newMeta = await fetchGitHubMeta(token, parsed);
+
+    await EmbedRepo.updateEmbedMeta({ embedId, meta: newMeta });
+    return newMeta;
   },
 };

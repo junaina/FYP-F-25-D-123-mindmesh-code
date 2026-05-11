@@ -12,9 +12,15 @@ import CreatedMeetingCard from "./CreatedMeetingCard";
 
 type Props = {
   projectId: string;
+  embedded?: boolean;
+  onOpenRoom?: (joinCode: string) => void;
 };
 
-export default function CreateMeetingForm({ projectId }: Props) {
+export default function CreateMeetingForm({
+  projectId,
+  embedded = false,
+  onOpenRoom,
+}: Props) {
   const [title, setTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +67,13 @@ export default function CreateMeetingForm({ projectId }: Props) {
         </Button>
       </form>
 
-      {created && <CreatedMeetingCard meeting={created} />}
+      {created && (
+        <CreatedMeetingCard
+          meeting={created}
+          embedded={embedded}
+          onOpenRoom={onOpenRoom}
+        />
+      )}
     </>
   );
 }

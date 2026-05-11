@@ -54,6 +54,12 @@ export async function PATCH(
       me.id,
       statusPropertyId,
     );
+    console.log(
+      "[status-binding PATCH] projectId",
+      projectId,
+      "statusPropertyId",
+      statusPropertyId,
+    );
 
     return NextResponse.json(resp, { status: 200 });
   } catch (err: unknown) {

@@ -9,6 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import useSWR from "swr";
+
 type MentionUser = {
   id: string;
   firstName: string;
@@ -75,10 +77,18 @@ export function MessageInput({
   threadId,
   projectId,
   onSent,
+  onOptimistic,
+  onReplaceTemp,
+  onRemoveTemp,
 }: {
   threadId: string;
   projectId: string;
   onSent?: (message: any) => void;
+
+  // NEW: optimistic hooks
+  onOptimistic?: (tempMessage: any) => void;
+  onReplaceTemp?: (tempId: string, realMessage: any) => void;
+  onRemoveTemp?: (tempId: string) => void;
 }) {
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<FileList | null>(null);
@@ -89,6 +99,10 @@ export function MessageInput({
   const [mentionQ, setMentionQ] = useState("");
   const [mentionResults, setMentionResults] = useState<MentionUser[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
+  const mentionCacheRef = useRef(new Map<string, MentionUser[]>());
+  const mentionAbortRef = useRef<AbortController | null>(null);
+  const [mentionLoading, setMentionLoading] = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // detect "@query" at end (fast shipped version)
@@ -97,6 +111,8 @@ export function MessageInput({
     const m = text.match(/(?:^|\s)@([a-zA-Z0-9._-]{0,32})$/);
     return m ? m[1] : null;
   }
+  const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
   useEffect(() => {
     const q = computeMentionQuery(value);
     if (q === null) {
@@ -109,22 +125,25 @@ export function MessageInput({
     setMentionOpen(true);
     setMentionQ(q);
   }, [value]);
-  // fetch mention suggestions (tiny debounce)
+  // SWR-backed mentions (persisted via your SWRProvider)
+  const mentionKey = mentionOpen
+    ? `/api/projects/${projectId}/members?query=${encodeURIComponent(mentionQ)}`
+    : null;
+
+  const { data: mentionData } = useSWR(mentionKey, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000, // don't spam for same key
+  });
+
   useEffect(() => {
     if (!mentionOpen) return;
 
-    const t = setTimeout(async () => {
-      const res = await fetch(
-        `/api/projects/${projectId}/members?q=${encodeURIComponent(mentionQ)}`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      setMentionResults(data.users ?? data.members ?? []);
-      setActiveIndex(0);
-    }, 120);
+    const users: MentionUser[] =
+      mentionData?.users ?? mentionData?.members ?? [];
+    setMentionResults(users);
+    setActiveIndex(0);
+  }, [mentionOpen, mentionData]);
 
-    return () => clearTimeout(t);
-  }, [mentionOpen, mentionQ, projectId]);
   function insertMention(u: MentionUser) {
     const name = fullName(u) || "user";
     // replace trailing "@query" with "@[Name](id) "
@@ -151,6 +170,42 @@ export function MessageInput({
 
     // allow files-only messages
     if (!text && selected.length === 0) return;
+    const tempId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? `temp-${crypto.randomUUID()}`
+        : `temp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    const nowIso = new Date().toISOString();
+
+    // For files-only message, show a simple placeholder text so bubble renders
+    const optimisticBody =
+      text ||
+      (selected.length ? `Uploading ${selected.length} attachment(s)…` : "");
+
+    const tempMessage = {
+      id: tempId,
+      body: optimisticBody,
+      bodyJson: null,
+      createdAt: nowIso,
+      reactions: [],
+      mentions: [],
+      attachments: [],
+      sender: {
+        firstName: "You",
+        lastName: "",
+        avatarUrl: null,
+      },
+      // optional flag if you want later styling
+      pending: true,
+    };
+
+    // 1) optimistic UI: add immediately
+    onOptimistic?.(tempMessage);
+
+    // Clear input instantly for snappy feel
+    setValue("");
+    setFiles(null);
+    if (fileRef.current) fileRef.current.value = "";
 
     setBusy(true);
 
@@ -214,12 +269,12 @@ export function MessageInput({
       }
 
       const newMessage = await res.json();
-      onSent?.(newMessage);
 
-      // reset input + file picker
-      setValue("");
-      setFiles(null);
-      if (fileRef.current) fileRef.current.value = "";
+      // 2) Replace temp with real server message (instant + accurate)
+      onReplaceTemp?.(tempId, newMessage);
+
+      // 3) Tell ChatRoom to broadcast the real message via socket
+      onSent?.(newMessage);
     } finally {
       setBusy(false);
     }
@@ -239,7 +294,7 @@ export function MessageInput({
             </div>
           ) : null}
           <Input
-            className="caret-foreground text-transparent [text-shadow:none] selection:text-transparent"
+            className="h-10 pr-28 caret-foreground text-transparent [text-shadow:none] selection:text-transparent"
             ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -339,7 +394,7 @@ export function MessageInput({
             </div>
           ) : null}
 
-          <div className="absolute right-2 bottom-1.5 flex items-center gap-1">
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <input
               ref={fileRef}
               type="file"
@@ -356,19 +411,6 @@ export function MessageInput({
             >
               <Paperclip className="h-5 w-5" />
             </Button>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button size="icon" variant="ghost" type="button">
-                  <Smile className="h-5 w-5" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-2 w-72">
-                <div className="text-sm text-muted-foreground">
-                  Emoji picker coming soon.
-                </div>
-              </PopoverContent>
-            </Popover>
 
             <Button
               size="icon"

@@ -8,11 +8,17 @@ import type { MeetingSummary } from "@/modules/meetings/client/meetings.api";
 
 type Props = {
   meeting: MeetingSummary;
+  embedded?: boolean;
+  onOpenRoom?: (joinCode: string) => void;
 };
 
-export default function CreatedMeetingCard({ meeting }: Props) {
+export default function CreatedMeetingCard({
+  meeting,
+  embedded = false,
+  onOpenRoom,
+}: Props) {
   const [copied, setCopied] = useState(false);
-
+  console.log(embedded);
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(meeting.joinUrl);
@@ -22,6 +28,8 @@ export default function CreatedMeetingCard({ meeting }: Props) {
       // ignore – clipboard can fail on some browsers
     }
   }
+
+  const useEmbeddedOpen = embedded && typeof onOpenRoom === "function";
 
   return (
     <div className="mt-8 rounded-lg border bg-card p-4 shadow-sm space-y-3">
@@ -50,9 +58,20 @@ export default function CreatedMeetingCard({ meeting }: Props) {
           >
             {copied ? "Copied" : "Copy link"}
           </Button>
-          <Button asChild size="sm">
-            <Link href={meeting.joinUrl}>Open room</Link>
-          </Button>
+
+          {useEmbeddedOpen ? (
+            <Button
+              size="sm"
+              type="button"
+              onClick={() => onOpenRoom(meeting.joinCode)}
+            >
+              Open room
+            </Button>
+          ) : (
+            <Button asChild size="sm">
+              <Link href={meeting.joinUrl}>Open room</Link>
+            </Button>
+          )}
         </div>
       </div>
 

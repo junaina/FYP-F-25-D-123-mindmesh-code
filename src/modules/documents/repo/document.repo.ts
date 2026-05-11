@@ -50,6 +50,26 @@ export type DbValueUpdate = {
   optionId: string | null;
 };
 export type DocLite = { id: string; title: string | null };
+async function collectDescendantDocIds(projectId: string, rootDocId: string) {
+  const seen = new Set<string>();
+  let frontier: string[] = [rootDocId];
+
+  while (frontier.length) {
+    const batch = frontier.filter((id) => !seen.has(id));
+    if (!batch.length) break;
+
+    batch.forEach((id) => seen.add(id));
+
+    const children = await prisma.document.findMany({
+      where: { projectId, parentId: { in: batch } },
+      select: { id: true },
+    });
+
+    frontier = children.map((c) => c.id);
+  }
+
+  return Array.from(seen);
+}
 
 export async function listForProject(projectId: string, userId: string) {
   return prisma.document.findMany({
@@ -73,7 +93,7 @@ export async function listForProject(projectId: string, userId: string) {
 export async function createInProject(
   projectId: string,
   userId: string,
-  title?: string
+  title?: string,
 ) {
   return prisma.document.create({
     data: {
@@ -95,7 +115,7 @@ async function assertDocInProject(docId: string, projectId: string) {
 async function assertDocAndPropertySameProject(
   projectId: string,
   docId: string,
-  propertyId: string
+  propertyId: string,
 ) {
   const [doc, prop] = await Promise.all([
     prisma.document.findFirst({
@@ -149,7 +169,7 @@ async function txDeleteOptionSafe(args: {
 async function updateOption(
   propertyId: string,
   optionId: string,
-  data: { value?: string; color?: string | null; position?: number | null }
+  data: { value?: string; color?: string | null; position?: number | null },
 ): Promise<RepoOptionOut> {
   const ok = await prisma.propertyOption.findFirst({
     where: { id: optionId, propertyId },
@@ -274,6 +294,31 @@ export const DocumentRepo = {
 
     return { ...doc, properties };
   },
+  async hardDeleteDocTree(projectId: string, rootDocId: string) {
+    await assertDocInProject(rootDocId, projectId);
+
+    const ids = await collectDescendantDocIds(projectId, rootDocId);
+
+    return prisma.$transaction(async (tx) => {
+      // 1) Unhost boards whose hostDocumentId is being deleted (no cascade)
+      await tx.taskBoard.updateMany({
+        where: { projectId, hostDocumentId: { in: ids } },
+        data: { hostDocumentId: null },
+      });
+
+      // 2) Delete embeds linked to these docs (no cascade + nullable)
+      await tx.embed.deleteMany({
+        where: { projectId, documentId: { in: ids } },
+      });
+
+      // 3) Delete docs (cascades will clean collaborators, files, properties, etc.)
+      const deleted = await tx.document.deleteMany({
+        where: { projectId, id: { in: ids } },
+      });
+
+      return { deletedCount: deleted.count, deletedIds: ids };
+    });
+  },
 
   // get property definition by ID
   async getPropertyDefinition(projectId: string, propertyId: string) {
@@ -344,7 +389,7 @@ export const DocumentRepo = {
 
   async updateBasics(
     docId: string,
-    data: { title?: string; description?: string | null }
+    data: { title?: string; description?: string | null },
   ): Promise<void> {
     await prisma.document.update({
       where: { id: docId },
@@ -358,7 +403,7 @@ export const DocumentRepo = {
   },
   async defsByNames(
     projectId: string,
-    names: string[]
+    names: string[],
   ): Promise<Array<{ id: string; name: string; type: string }>> {
     if (names.length === 0) return [];
     return prisma.propertyDefinition.findMany({
@@ -369,7 +414,7 @@ export const DocumentRepo = {
   async createDef(
     projectId: string,
     name: string,
-    type: string
+    type: string,
   ): Promise<{ id: string; name: string; type: string }> {
     return prisma.propertyDefinition.create({
       data: { projectId, name, type },
@@ -413,7 +458,7 @@ export const DocumentRepo = {
   async upsertValue(
     documentId: string,
     propertyId: string,
-    value: DbValueUpdate
+    value: DbValueUpdate,
   ): Promise<void> {
     const data: Prisma.DocumentPropertyValueUpsertArgs["create"] = {
       documentId,
@@ -443,7 +488,7 @@ export const DocumentRepo = {
     projectId: string,
     docId: string,
     propertyId: string,
-    options: RepoOptionIn[]
+    options: RepoOptionIn[],
   ): Promise<RepoOptionOut[]> {
     await assertDocAndPropertySameProject(projectId, docId, propertyId);
 
@@ -513,7 +558,7 @@ export const DocumentRepo = {
   async readPropertyOptions(
     projectId: string,
     docId: string,
-    propertyId: string
+    propertyId: string,
   ): Promise<RepoOptionOut[]> {
     await assertDocAndPropertySameProject(projectId, docId, propertyId);
 
@@ -604,7 +649,7 @@ export const DocumentRepo = {
     projectId: string,
     docId: string,
     content: Prisma.InputJsonValue,
-    lastKnownUpdatedAt?: Date
+    lastKnownUpdatedAt?: Date,
   ) {
     if (lastKnownUpdatedAt) {
       const res = await prisma.document.updateMany({

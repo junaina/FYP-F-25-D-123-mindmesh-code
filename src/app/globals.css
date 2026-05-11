@@ -1064,3 +1064,77 @@
     font-weight: 500;
   }
 }
+
+/* =========================
+   Desk-only: normalize LiveKit control bar alignment
+   (ONLY inside .desk-meet-compact)
+   ========================= */
+
+.desk-meet-compact .lk-control-bar {
+  align-items: center;
+}
+
+/* Some LK children have odd baseline alignment */
+.desk-meet-compact .lk-control-bar > * {
+  align-self: center;
+}
+
+/* Normalize ALL button-like elements in the bottom bar */
+.desk-meet-compact .lk-control-bar button,
+.desk-meet-compact .lk-control-bar .lk-button {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Normalize device buttons (mic/cam dropdown) + groups */
+.desk-meet-compact .lk-control-bar .lk-device-menu,
+.desk-meet-compact .lk-control-bar .lk-button-group {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Normalize the disconnect/leave button specifically */
+.desk-meet-compact .lk-control-bar .lk-disconnect-button,
+.desk-meet-compact .lk-control-bar button.lk-disconnect-button {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+/* Keep icons vertically centered */
+.desk-meet-compact .lk-control-bar svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+[data-radix-popper-content-wrapper] {
+  z-index: 60;
+}
+
+[data-radix-select-content] {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+[data-radix-select-item] {
+  color: hsl(var(--foreground));
+}
+
+[data-radix-select-item][data-highlighted] {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+[data-radix-select-item][data-state="checked"] {
+  background-color: hsl(var(--muted));
+}

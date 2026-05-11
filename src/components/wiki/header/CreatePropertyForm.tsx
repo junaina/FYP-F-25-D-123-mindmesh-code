@@ -48,9 +48,8 @@ type PropertyKind =
   | "checkbox"
   | "select"
   | "multi_select"
-  | "status"
-  | "person"
-  | "file";
+  | "status";
+// | "file";
 
 const OPTION_TYPES = new Set<PropertyKind>([
   "select",
@@ -68,8 +67,7 @@ const DEFAULT_LABEL: Record<PropertyKind, string> = {
   select: "Select",
   multi_select: "Multi Select",
   status: "Status",
-  person: "Person",
-  file: "File",
+  // file: "File",
 };
 type Props = {
   projectId: string;
@@ -100,7 +98,7 @@ export default function CreatePropertyForm({
   }, [initialValue, nameEdited]);
   const [loading, setLoading] = React.useState(false);
   const [created, setCreated] = React.useState<PropertyDefinitionDto | null>(
-    null
+    null,
   );
   const [busyCreate, setBusyCreate] = React.useState(false);
   const [optionsBusy, setOptionsBusy] = React.useState(false);
@@ -277,7 +275,7 @@ export default function CreatePropertyForm({
                         >
                           <span
                             className={`mm-chip ${String(
-                              o.color ?? "mm-chip--gray"
+                              o.color ?? "mm-chip--gray",
                             )} ${
                               valSelect === o.id ? "ring-2 ring-primary" : ""
                             }`}
@@ -318,7 +316,7 @@ export default function CreatePropertyForm({
                       <span
                         key={o.id ?? o.value}
                         className={`mm-chip ${String(
-                          o.color ?? "mm-chip--gray"
+                          o.color ?? "mm-chip--gray",
                         )} ${
                           active ? "ring-2 ring-primary" : ""
                         } cursor-pointer`}
@@ -326,7 +324,7 @@ export default function CreatePropertyForm({
                           setValMulti((prev) =>
                             prev.includes(o.id!)
                               ? prev.filter((x) => x !== o.id)
-                              : [...prev, o.id!]
+                              : [...prev, o.id!],
                           );
                         }}
                       >

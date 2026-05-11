@@ -28,5 +28,13 @@ NEXT_PUBLIC_BASE_URL=http://localhost:3000
 GITHUB_CLIENT_ID=Ov23li6NBR32s8afTsVj
 GITHUB_CLIENT_SECRET=b3dcfaad837e6503c86a1400da4a4dbb2196da19
 GITHUB_REDIRECT_URI=http://localhost:3000/api/integrations/github/callback
-
+SUMMARIZER_API_BASE_URL=http://127.0.0.1:8000
 #AUTH_DISABLED= "true"
+PYTHON_SERVICE_URL=http://127.0.0.1:8000
+
+SLACK_CLIENT_ID=10398066119383.10410233018901
+SLACK_CLIENT_SECRET=990bb5b68db6a8afaa9671be8173e774
+SLACK_REDIRECT_URI=https://wally-ungeodetic-fonda.ngrok-free.dev/api/integrations/slack/callback
+
+SLACK_USER_SCOPES=chat:write,channels:read,groups:read,users:read
+APP_PUBLIC_ORIGIN=https://wally-ungeodetic-fonda.ngrok-free.dev

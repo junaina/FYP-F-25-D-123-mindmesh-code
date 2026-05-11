@@ -132,7 +132,7 @@ function dbValueToDto(
     valueDate: Date | string | null;
     valueJson: unknown | null;
     optionId: string | null;
-  } | null
+  } | null,
 ): PropertyValueDto | null {
   if (!db) return null;
 
@@ -226,7 +226,7 @@ export const DocumentService = {
    */
   async listLiteByProject(
     projectId: string,
-    userId: string
+    userId: string,
   ): Promise<DocLite[]> {
     // mirror your read check: project membership OR collab on any doc
     // For now we use the same “project member OR auth disabled” gate.
@@ -249,11 +249,11 @@ export const DocumentService = {
     await DocumentRepo.assertDocInProject(docId, projectId);
     const current = await DocumentRepo.getPropertyDefinition(
       projectId,
-      propertyId
+      propertyId,
     );
     if (!current) throw new Error("PropertyDefinition not found");
     const fromType = (PROPERTY_TYPES as readonly string[]).includes(
-      current.type
+      current.type,
     )
       ? (current.type as PropertyType)
       : "text";
@@ -267,6 +267,19 @@ export const DocumentService = {
       keepField: TARGET_FIELD[toType],
     });
   },
+  async hardDeleteDoc(args: {
+    projectId: string;
+    docId: string;
+    userId: string;
+  }) {
+    const { projectId, docId, userId } = args;
+
+    if (!(await canEdit(projectId, docId, userId))) {
+      throw new Error("Forbidden");
+    }
+
+    return DocumentRepo.hardDeleteDocTree(projectId, docId);
+  },
 
   async createProperty(args: CreatePropertyArgs) {
     const { projectId, docId, body } = args;
@@ -279,7 +292,7 @@ export const DocumentService = {
         projectId,
         docId,
         def.id,
-        body.options
+        body.options,
       );
     }
     await DocumentRepo.ensureLink(docId, def.id);
@@ -331,7 +344,7 @@ export const DocumentService = {
   async patchHeader(
     projectId: string,
     docId: string,
-    payload: PatchDocHeaderDto
+    payload: PatchDocHeaderDto,
   ) {
     await DocumentRepo.assertDocInProject(docId, projectId);
     if ("title" in payload || "description" in payload) {
@@ -344,7 +357,7 @@ export const DocumentService = {
     if (payload.properties) {
       const current = (await DocumentRepo.findHeaderById(
         projectId,
-        docId
+        docId,
       )) as RepoDocumentHeader | null;
       if (!current) throw new Error("Document not found");
 
@@ -353,7 +366,7 @@ export const DocumentService = {
 
       const existingDefs = await DocumentRepo.defsByNames(
         projectId,
-        incomingNames
+        incomingNames,
       );
       const byName = new Map(existingDefs.map((d) => [d.name, d]));
 
@@ -364,7 +377,7 @@ export const DocumentService = {
           const created = await DocumentRepo.createDef(
             projectId,
             name,
-            pv.type
+            pv.type,
           );
           byName.set(name, created);
           continue;
@@ -393,7 +406,7 @@ export const DocumentService = {
         const keep = incomingNames.includes(link.property.name);
         if (!keep) {
           await DocumentRepo.deleteValue(docId, link.propertyId).catch(
-            () => {}
+            () => {},
           );
           await DocumentRepo.deleteLink(docId, link.propertyId).catch(() => {});
         }
@@ -415,13 +428,13 @@ export const DocumentService = {
     projectId: string,
     docId: string,
     propertyId: string,
-    options: SaveOptionInput[]
+    options: SaveOptionInput[],
   ): Promise<OptionOut[]> {
     return DocumentRepo.savePropertyOptions(
       projectId,
       docId,
       propertyId,
-      options
+      options,
     );
   },
 
@@ -429,7 +442,7 @@ export const DocumentService = {
   async readPropertyOptions(
     projectId: string,
     docId: string,
-    propertyId: string
+    propertyId: string,
   ): Promise<OptionOut[]> {
     return DocumentRepo.readPropertyOptions(projectId, docId, propertyId);
   },
@@ -437,12 +450,12 @@ export const DocumentService = {
     projectId: string,
     docId: string,
     propertyId: string,
-    pv: PropertyValueDto
+    pv: PropertyValueDto,
   ) {
     await DocumentRepo.assertDocAndPropertySameProject(
       projectId,
       docId,
-      propertyId
+      propertyId,
     );
     const data = valueDtoToDb(pv); // maps DTO -> DB columns (optionId, valueString, etc.)
     await DocumentRepo.upsertValue(docId, propertyId, data);
@@ -463,7 +476,7 @@ export const DocumentService = {
     await DocumentRepo.assertDocAndPropertySameProject(
       projectId,
       docId,
-      propertyId
+      propertyId,
     );
     await DocumentRepo.txDeletePropertyFromDocAndMaybeGC({
       projectId,
@@ -482,7 +495,7 @@ export const DocumentService = {
     await DocumentRepo.assertDocAndPropertySameProject(
       projectId,
       docId,
-      propertyId
+      propertyId,
     );
 
     await DocumentRepo.txDeleteOptionSafe({ propertyId, optionId });
@@ -499,7 +512,7 @@ export const DocumentService = {
     await DocumentRepo.assertDocAndPropertySameProject(
       projectId,
       docId,
-      propertyId
+      propertyId,
     );
 
     return DocumentRepo.updateOption(propertyId, optionId, body);
@@ -547,7 +560,7 @@ export const DocumentService = {
       projectId,
       docId,
       toInputJson(content),
-      lastKnownUpdatedAt
+      lastKnownUpdatedAt,
     );
 
     if (!updated) {

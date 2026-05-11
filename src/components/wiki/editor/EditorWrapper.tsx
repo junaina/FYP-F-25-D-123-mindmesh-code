@@ -31,10 +31,24 @@ import { CalendarViewExtension } from "../extensions/kov/CalendarView/CalendarVi
 import { SlashIcons } from "@/components/wiki/extensions/slashIcons";
 import { GoogleDriveEmbed } from "@/components/wiki/extensions/GoogleDriveEmbed";
 import { createGoogleDriveEmbed } from "@/modules/documents/client/embeds.api";
+import { MessageSquare } from "lucide-react";
+import SlackSendInlineForm from "@/components/integrations/slack/SlackSendInlineForm";
+import { SlackEmbed } from "@/components/wiki/extensions/SlackEmbed";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { GitHubEmbed } from "@/components/wiki/extensions/GitHubEmbed";
+import {
+  createGitHubEmbed,
+  getGitHubStatus,
+} from "@/modules/documents/client/githubEmbeds.api";
+import type {
+  GitHubIssueMeta,
+  GitHubPRMeta,
+} from "@/modules/documents/domain/embed.types";
+
 type Props = { projectId: string; docId: string };
 
 const EMPTY_DOC: JSONContent = {
@@ -98,6 +112,80 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       left: caretRect.left - wrapperRect.left, // aligned with caret x
     });
   };
+  const [slackPrompt, setSlackPrompt] = useState<{
+    open: boolean;
+    top: number;
+    left: number;
+    insertRange: { from: number; to: number };
+  }>({
+    open: false,
+    top: 0,
+    left: 0,
+    insertRange: { from: 0, to: 0 },
+  });
+
+  const openSlackPrompt = (
+    editor: any,
+    range?: { from: number; to: number },
+  ) => {
+    if (!editor?.view || editor.isDestroyed) return;
+
+    // If range is not provided (your extension calls command({ editor })),
+    // fallback to current selection range.
+    const selFrom = editor.state?.selection?.from;
+    const selTo = editor.state?.selection?.to;
+
+    const safeRange =
+      range?.from != null
+        ? range
+        : { from: selFrom ?? 0, to: selTo ?? selFrom ?? 0 };
+
+    // coordsAtPos throws if pos is invalid; clamp defensively
+    const docSize = editor.state?.doc?.content?.size ?? safeRange.from;
+    const pos = Math.max(0, Math.min(safeRange.from, docSize));
+
+    const coords = editor.view.coordsAtPos(pos);
+
+    setSlackPrompt({
+      open: true,
+      top: coords.bottom + 8,
+      left: Math.min(coords.left, window.innerWidth - 380),
+      insertRange: safeRange,
+    });
+  };
+
+  const closeSlackPrompt = () => {
+    setSlackPrompt((s) => ({ ...s, open: false }));
+  };
+
+  type GitHubPromptState = {
+    from: number;
+    to: number;
+    top: number;
+    left: number;
+  };
+  const [githubPrompt, setGithubPrompt] = useState<GitHubPromptState | null>(
+    null,
+  );
+
+  const openGitHubPrompt = (editor: any) => {
+    const wrap = wrapperRef.current;
+    if (!wrap || !editor || editor.isDestroyed) return;
+
+    const { state, view } = editor;
+    if (!view) return;
+
+    const { from, to } = state.selection;
+    const caretRect = view.coordsAtPos(from);
+    const wrapperRect = wrap.getBoundingClientRect();
+
+    setGithubPrompt({
+      from,
+      to,
+      top: caretRect.bottom - wrapperRect.top + 8,
+      left: caretRect.left - wrapperRect.left,
+    });
+  };
 
   // Load initial content
   useEffect(() => {
@@ -127,13 +215,13 @@ export default function EditorWrapper({ projectId, docId }: Props) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: "Calendar" }),
-            }
+            },
           );
           if (!res.ok) {
             console.error(
               "[/calendar] create failed",
               res.status,
-              await res.text().catch(() => "")
+              await res.text().catch(() => ""),
             );
             return;
           }
@@ -141,7 +229,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
 
           // 2) Defer the ProseMirror insert to the next frame
           const start = new Date(
-            Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)
+            Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1),
           ).toISOString();
 
           requestAnimationFrame(() => {
@@ -181,7 +269,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
         }
       },
     }),
-    [projectId, docId]
+    [projectId, docId],
   );
   const googleDriveSlashItem = useMemo(
     () => ({
@@ -193,7 +281,36 @@ export default function EditorWrapper({ projectId, docId }: Props) {
         openDrivePrompt(editor);
       },
     }),
-    [projectId, docId] // openDrivePrompt is stable in this component
+    [projectId, docId], // openDrivePrompt is stable in this component
+  );
+  const slackSlashItem = useMemo(
+    () => ({
+      title: "Send to Slack",
+      description: "Post a message to a Slack channel",
+      icon: <MessageSquare className="h-4 w-4" />,
+      command: ({
+        editor,
+        range,
+      }: {
+        editor: any;
+        range: { from: number; to: number };
+      }) => {
+        openSlackPrompt(editor, range);
+      },
+    }),
+    [],
+  );
+
+  const githubSlashItem = useMemo(
+    () => ({
+      title: "GitHub",
+      description: "Embed PR or issue",
+      icon: SlashIcons.github,
+      command: ({ editor }: { editor: any }) => {
+        openGitHubPrompt(editor);
+      },
+    }),
+    [projectId, docId],
   );
 
   // Memoize the “Table” slash item so it captures projectId/docId
@@ -234,7 +351,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
         console.log("[slash:table] doc after insert =", editor.getJSON());
       },
     }),
-    [projectId, docId]
+    [projectId, docId],
   );
   // Memoize the “Timeline” slash item so it captures projectId/docId
   const timelineSlashItem = useMemo(
@@ -291,7 +408,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
         console.log("[slash:timeline] doc after insert =", editor.getJSON());
       },
     }),
-    [projectId, docId]
+    [projectId, docId],
   );
   // Memoize the “Board” slash item so it captures projectId/docId
   const boardSlashItem = useMemo(
@@ -308,14 +425,14 @@ export default function EditorWrapper({ projectId, docId }: Props) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ name: "Untitled board" }),
-            }
+            },
           );
 
           if (!res.ok) {
             console.error(
               "[/board] create failed",
               res.status,
-              await res.text().catch(() => "")
+              await res.text().catch(() => ""),
             );
             return;
           }
@@ -354,7 +471,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
         }
       },
     }),
-    [projectId, docId]
+    [projectId, docId],
   );
 
   // Memoize the extensions array
@@ -374,6 +491,8 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       CalendarViewExtension({ projectId, docId }),
       BoardViewExtension({ projectId, docId }),
       GoogleDriveEmbed,
+      GitHubEmbed,
+      SlackEmbed,
       SlashMenuExtension({
         extraItems: [
           tableSlashItem,
@@ -381,6 +500,8 @@ export default function EditorWrapper({ projectId, docId }: Props) {
           boardSlashItem,
           calendarSlashItem,
           googleDriveSlashItem,
+          slackSlashItem,
+          githubSlashItem,
         ],
       }),
     ],
@@ -392,7 +513,9 @@ export default function EditorWrapper({ projectId, docId }: Props) {
       boardSlashItem,
       calendarSlashItem,
       googleDriveSlashItem,
-    ]
+      slackSlashItem,
+      githubSlashItem,
+    ],
   );
 
   // Build the editor options (optionally memoize this object too)
@@ -437,7 +560,7 @@ export default function EditorWrapper({ projectId, docId }: Props) {
     console.log("[editor] extensions:", extNames);
     console.log(
       "[editor] has insertTableView:",
-      typeof editor.commands.insertTableView
+      typeof editor.commands.insertTableView,
     );
     const onUpdate: (e: EditorEvents["update"]) => void = ({ transaction }) => {
       if (suppressSave.current) return;
@@ -539,6 +662,105 @@ export default function EditorWrapper({ projectId, docId }: Props) {
           }}
         />
       )}
+      <SlackSendInlineForm
+        open={slackPrompt.open}
+        top={slackPrompt.top}
+        left={slackPrompt.left}
+        projectId={projectId}
+        docId={docId}
+        insertRange={slackPrompt.insertRange}
+        onClose={closeSlackPrompt}
+        onSent={async ({
+          channelId,
+          channelName,
+          text,
+          permalink,
+          ts,
+          teamName,
+          userId,
+        }) => {
+          const embedId =
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random()}`; // fallback (still fine for client-only)
+
+          const senderName = "You"; // simple + clean
+          const senderId = userId ?? "me";
+
+          editor
+            ?.chain()
+            ?.focus()
+            ?.insertContentAt(slackPrompt.insertRange, [
+              {
+                type: "slackEmbed",
+                attrs: {
+                  embedId,
+                  workspace: teamName ?? "",
+                  channelId,
+                  channelName,
+                  senderId,
+                  senderName,
+                  text,
+                  timestamp: ts ?? "",
+                  permalink: permalink ?? "",
+                },
+              },
+              { type: "paragraph" },
+            ])
+            .run();
+
+          const nextJson = editor?.getJSON?.();
+          if (nextJson) {
+            await patchDocContent(projectId, docId, { content: nextJson });
+          }
+        }}
+      />
+
+      {githubPrompt && (
+        <GitHubEmbedInlineForm
+          top={githubPrompt.top}
+          left={githubPrompt.left}
+          onClose={() => setGithubPrompt(null)}
+          onConnect={() => {
+            // for now keep your current flow
+            window.location.href =
+              "/api/integrations/github/start?returnTo=/settings/integrations";
+          }}
+          onSubmit={async (url) => {
+            if (!editor || editor.isDestroyed || !editor.view) {
+              setGithubPrompt(null);
+              return;
+            }
+
+            const embed = await createGitHubEmbed({ projectId, docId, url });
+
+            const meta = embed.meta as GitHubIssueMeta | GitHubPRMeta | null;
+            if (!meta) return;
+
+            const { from, to } = githubPrompt;
+
+            editor
+              .chain()
+              .focus()
+              .insertContentAt({ from, to }, [
+                {
+                  type: "githubEmbed",
+                  attrs: {
+                    embedId: embed.id,
+                    ...meta,
+                  },
+                },
+                { type: "paragraph" },
+              ])
+              .run();
+
+            await patchDocContent(projectId, docId, {
+              content: editor.getJSON(),
+            });
+            setGithubPrompt(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -561,7 +783,7 @@ function DriveEmbedInlineForm({
   const [submitting, setSubmitting] = useState(false);
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLFormElement> = async (
-    e
+    e,
   ) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -641,6 +863,137 @@ function DriveEmbedInlineForm({
             </Button>
           </div>
         </form>
+      </Card>
+    </div>
+  );
+}
+type GitHubEmbedInlineFormProps = {
+  top: number;
+  left: number;
+  onClose: () => void;
+  onConnect: () => void;
+  onSubmit: (url: string) => void | Promise<void>;
+};
+
+function GitHubEmbedInlineForm({
+  top,
+  left,
+  onClose,
+  onConnect,
+  onSubmit,
+}: GitHubEmbedInlineFormProps) {
+  const [url, setUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const [checking, setChecking] = useState(true);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const status = await getGitHubStatus();
+      if (!alive) return;
+      setConnected(status.connected);
+      setChecking(false);
+    })().catch(() => {
+      if (!alive) return;
+      setConnected(false);
+      setChecking(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleKeyDown: React.KeyboardEventHandler<HTMLFormElement> = async (
+    e,
+  ) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (!submitting) onClose();
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (submitting) return;
+      await doSubmit();
+    }
+  };
+
+  const doSubmit = async () => {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return;
+
+    try {
+      setSubmitting(true);
+      await onSubmit(trimmedUrl);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit: React.FormEventHandler = async (e) => {
+    e.preventDefault();
+    if (submitting) return;
+    await doSubmit();
+  };
+
+  return (
+    <div className="absolute z-50" style={{ top, left }}>
+      <Card className="p-3 shadow-lg border bg-popover">
+        {checking ? (
+          <div className="text-sm text-muted-foreground">Checking GitHub…</div>
+        ) : connected ? (
+          <form
+            className="space-y-2 min-w-[260px]"
+            onSubmit={handleSubmit}
+            onKeyDown={handleKeyDown}
+          >
+            <div className="space-y-1">
+              <Label htmlFor="github-url">GitHub PR / Issue URL</Label>
+              <Input
+                id="github-url"
+                autoFocus
+                placeholder="https://github.com/owner/repo/pull/123"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={submitting || !url.trim()}
+              >
+                {submitting ? "Embedding…" : "Embed"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-3 min-w-[260px]">
+            <div className="text-sm">
+              Connect GitHub to embed private PRs/issues.
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={onConnect}>
+                Connect GitHub
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

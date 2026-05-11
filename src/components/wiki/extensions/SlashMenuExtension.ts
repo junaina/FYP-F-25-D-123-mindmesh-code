@@ -79,22 +79,6 @@ const SLASH_ITEMS: SlashItem[] = [
   //     // TODO: your integration
   //   },
   // },
-  {
-    title: "GitHub",
-    description: "Embed PR or issue",
-    icon: SlashIcons.github,
-    command: ({ editor }) => {
-      // TODO: integration
-    },
-  },
-  {
-    title: "Slack",
-    description: "Embed Slack message",
-    icon: SlashIcons.slack,
-    command: ({ editor }) => {
-      // TODO: integration
-    },
-  },
 ];
 export type SlashMenuOptions = { extraItems?: SlashItem[] };
 export function SlashMenuExtension(options?: SlashMenuOptions) {
@@ -121,7 +105,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
           ];
           console.log(
             "[slash] extraItems count =",
-            (this.options.extraItems as SlashItem[]).length
+            (this.options.extraItems as SlashItem[]).length,
           ); // <-- ADD
           if (!query) return ALL;
           const q = query.toLowerCase();
@@ -134,7 +118,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
             props.title,
             "range:",
             range.from,
-            range.to
+            range.to,
           );
           editor.chain().focus().deleteRange(range).run();
           props.command({ editor });
@@ -175,7 +159,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
           };
           const scrollIntoViewIfNeeded = (
             container: HTMLElement,
-            item: HTMLElement
+            item: HTMLElement,
           ) => {
             const cTop = container.scrollTop;
             const cBottom = cTop + container.clientHeight;
@@ -190,7 +174,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
             Math.max(min, Math.min(max, n));
           const renderItems = (
             items: SlashItem[],
-            pick: (i: SlashItem) => void
+            pick: (i: SlashItem) => void,
           ) => {
             if (!el) return;
             let list = el.querySelector<HTMLDivElement>("[data-list]");
@@ -207,7 +191,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
             selectedIndex = clamp(
               selectedIndex,
               0,
-              Math.max(0, items.length - 1)
+              Math.max(0, items.length - 1),
             );
 
             items.forEach((item, idx) => {
@@ -218,7 +202,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
               row.setAttribute("role", "option");
               row.setAttribute(
                 "aria-selected",
-                idx === selectedIndex ? "true" : "false"
+                idx === selectedIndex ? "true" : "false",
               );
               row.dataset.index = String(idx);
               // Mouse interactions (don’t steal focus)
@@ -229,7 +213,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
                   (child, i) =>
                     ((child as HTMLElement).className =
                       styles.item +
-                      (i === selectedIndex ? " " + styles.active : ""))
+                      (i === selectedIndex ? " " + styles.active : "")),
                 );
               };
               row.onmouseleave = () => {};
@@ -261,7 +245,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
             } else {
               // ensure the active row is visible if the list is scrollable
               const active = list.querySelector<HTMLElement>(
-                `[data-index="${selectedIndex}"]`
+                `[data-index="${selectedIndex}"]`,
               );
               if (active) scrollIntoViewIfNeeded(list, active);
             }
@@ -288,12 +272,12 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
                   apply({ availableHeight, elements }) {
                     const list =
                       elements.floating.querySelector<HTMLDivElement>(
-                        "[data-list]"
+                        "[data-list]",
                       );
                     if (list) {
                       list.style.maxHeight = `${Math.min(
                         availableHeight,
-                        320
+                        320,
                       )}px`;
                       list.style.overflowY = "auto";
                     }
@@ -361,7 +345,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
                   selectedIndex = clamp(
                     selectedIndex + 1,
                     0,
-                    currentItems.length - 1
+                    currentItems.length - 1,
                   );
                   renderItems(currentItems, () => {});
                   return true;
@@ -370,7 +354,7 @@ export function SlashMenuExtension(options?: SlashMenuOptions) {
                   selectedIndex = clamp(
                     selectedIndex - 1,
                     0,
-                    currentItems.length - 1
+                    currentItems.length - 1,
                   );
                   renderItems(currentItems, () => {});
                   return true;
