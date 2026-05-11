@@ -89,6 +89,8 @@ python-summarizer/models/
 *.pt
 *.ckpt
 
+python-summarizer/flan-ami-base-checkpoint-42.tgz
+
 # Ignore trainer artifacts
 python-summarizer/models/**/optimizer.pt
 python-summarizer/models/**/rng_state.pth
