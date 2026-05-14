@@ -17,7 +17,6 @@ const S3_BUCKET = process.env.S3_BUCKET;
 const S3_REGION = process.env.S3_REGION;
 
 if (!S3_BUCKET || !S3_REGION) {
-  // Better to know loudly if we misconfigured S3
   // eslint-disable-next-line no-console
   console.warn(
     "[MeetingRecordingDownloadService] Missing S3_BUCKET or S3_REGION env vars"
